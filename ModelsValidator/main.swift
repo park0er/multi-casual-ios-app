@@ -140,6 +140,53 @@ _ = api
 print("ok  APIClient construction (token injection)")
 print("ok  APIClient has all required endpoints (build-time verified)")
 
+// MARK: - PaginatedLoader + DataStore validation
+// Run async tests by driving the main run loop until completion. We can't use
+// DispatchSemaphore.wait() here because the main actor is where @MainActor
+// work must run — blocking it would deadlock.
+nonisolated(unsafe) var paginatedLoaderPassed = false
+nonisolated(unsafe) var paginatedLoaderDone = false
+
+Task { @MainActor in
+    // Test PaginatedLoader
+    struct Item: Identifiable, Sendable, Decodable { let id: String }
+    let loader = PaginatedLoader<Item>()
+    await loader.loadNext { _ in PageResponse(items: [Item(id: "a"), Item(id: "b")], hasMore: true, total: 10) }
+    assert(loader.items.count == 2, "FAIL: loadNext should append 2 items")
+    assert(loader.hasMore == true, "FAIL: hasMore should be true")
+    print("ok  PaginatedLoader.loadNext appends items")
+
+    await loader.loadNext { _ in PageResponse(items: [Item(id: "c")], hasMore: false, total: 10) }
+    assert(loader.items.count == 3, "FAIL: second page should add 1 item")
+    assert(loader.hasMore == false, "FAIL: hasMore should now be false")
+    print("ok  PaginatedLoader.hasMore=false stops loading")
+
+    // Test DataStore
+    let store = DataStore()
+    await store.setIssues([Issue(id: "x", identifier: "T-1", number: 1, title: "T",
+        description: nil, status: .todo, priority: .medium,
+        assigneeId: nil, assigneeType: nil, projectId: nil,
+        workspaceId: "w", createdAt: "", updatedAt: "")])
+    let issues = await store.issues
+    assert(issues.count == 1 && issues[0].id == "x", "FAIL: DataStore.setIssues")
+    print("ok  DataStore.setIssues stores issues")
+
+    await store.invalidateIssue("x")
+    let empty = await store.issues
+    assert(empty.isEmpty, "FAIL: DataStore.invalidateIssue should remove issue")
+    print("ok  DataStore.invalidateIssue removes by id")
+
+    paginatedLoaderPassed = true
+    paginatedLoaderDone = true
+    CFRunLoopStop(CFRunLoopGetMain())
+}
+
+// Drive the main run loop until the async task signals completion.
+while !paginatedLoaderDone {
+    _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05))
+}
+assert(paginatedLoaderPassed, "Async tests did not complete")
+
 print("")
 print("\(passed) assertions passed, \(failures.count) failed")
 if !failures.isEmpty {
