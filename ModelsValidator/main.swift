@@ -104,6 +104,35 @@ do {
     print("ok  test_issueStatus_allCases_haveDisplayName")
 }
 
+// MARK: - KeychainStore validation (mirrors KeychainStoreTests)
+let testStore = KeychainStore(service: "ai.multica.app.validator.test")
+try? testStore.delete() // clean slate
+
+// test_saveAndLoad_roundTrips
+try testStore.save("test-jwt-token-123")
+let loaded = try testStore.load()
+assert(loaded == "test-jwt-token-123", "FAIL: save/load round trip")
+try testStore.delete()
+print("ok  test_saveAndLoad_roundTrips")
+
+// test_loadMissing_throwsNotFound
+do {
+    _ = try testStore.load()
+    assert(false, "FAIL: should have thrown")
+} catch KeychainStore.KeychainError.notFound {
+    print("ok  test_loadMissing_throwsNotFound")
+} catch {
+    assert(false, "FAIL: wrong error: \(error)")
+}
+
+// test_overwrite_replacesValue
+try testStore.save("first")
+try testStore.save("second")
+let overwritten = try testStore.load()
+assert(overwritten == "second", "FAIL: overwrite failed")
+try testStore.delete()
+print("ok  test_overwrite_replacesValue")
+
 print("")
 print("\(passed) assertions passed, \(failures.count) failed")
 if !failures.isEmpty {
