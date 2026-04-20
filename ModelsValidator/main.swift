@@ -187,6 +187,24 @@ while !paginatedLoaderDone {
 }
 assert(paginatedLoaderPassed, "Async tests did not complete")
 
+// MARK: - WebSocketActor smoke test
+// Can't test network connectivity without a server, but verify it constructs + compiles.
+nonisolated(unsafe) var wsSmokeDone = false
+Task {
+    let wsActor = WebSocketActor()
+    // Verify subscribe() returns an AsyncStream (compile-time check)
+    let _stream: AsyncStream<WSEvent> = await wsActor.subscribe(to: "task.message")
+    _ = _stream
+    print("ok  WebSocketActor.subscribe returns AsyncStream<WSEvent>")
+    print("ok  WebSocketActor constructed and ready (connect needs live server)")
+    wsSmokeDone = true
+    CFRunLoopStop(CFRunLoopGetMain())
+}
+while !wsSmokeDone {
+    _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05))
+}
+// subscribe() is tested end-to-end in Task 11 (AgentLiveView integration)
+
 print("")
 print("\(passed) assertions passed, \(failures.count) failed")
 if !failures.isEmpty {
