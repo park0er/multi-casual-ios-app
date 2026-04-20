@@ -38,6 +38,20 @@ public final class AuthSession {
         currentUser = nil
         currentWorkspace = nil
     }
+
+    public func restore(using api: APIClient) async {
+        isLoading = true
+        defer { isLoading = false }
+        guard (try? keychain.load()) != nil else { return }
+        do {
+            let user = try await api.getMe()
+            let workspaces = try await api.listWorkspaces()
+            currentUser = user
+            currentWorkspace = workspaces.first
+        } catch {
+            try? keychain.delete()
+        }
+    }
 }
 #else
 // Fallback for environments without Observation framework
@@ -67,6 +81,20 @@ public final class AuthSession {
         try? keychain.delete()
         currentUser = nil
         currentWorkspace = nil
+    }
+
+    public func restore(using api: APIClient) async {
+        isLoading = true
+        defer { isLoading = false }
+        guard (try? keychain.load()) != nil else { return }
+        do {
+            let user = try await api.getMe()
+            let workspaces = try await api.listWorkspaces()
+            currentUser = user
+            currentWorkspace = workspaces.first
+        } catch {
+            try? keychain.delete()
+        }
     }
 }
 #endif
