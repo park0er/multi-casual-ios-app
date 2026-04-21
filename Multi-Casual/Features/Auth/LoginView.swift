@@ -84,21 +84,36 @@ public struct LoginView: View {
     private func startGoogleOAuth(vm: LoginViewModel) {
         guard let clientId = Bundle.main.object(forInfoDictionaryKey: "GOOGLE_CLIENT_ID") as? String,
               let bundleId = Bundle.main.bundleIdentifier else { return }
+        let pkce = PKCE()
+        let state = PKCE.generateRandomString(byteLength: 32)
+        let redirectURI = "\(bundleId)://auth/callback"
+
         var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!
         components.queryItems = [
             .init(name: "client_id", value: clientId),
-            .init(name: "redirect_uri", value: "\(bundleId)://auth/callback"),
+            .init(name: "redirect_uri", value: redirectURI),
             .init(name: "response_type", value: "code"),
             .init(name: "scope", value: "openid email profile"),
             .init(name: "access_type", value: "offline"),
             .init(name: "prompt", value: "select_account"),
+            .init(name: "code_challenge", value: pkce.challenge),
+            .init(name: "code_challenge_method", value: "S256"),
+            .init(name: "state", value: state),
         ]
         guard let url = components.url else { return }
         let session = ASWebAuthenticationSession(url: url, callbackURLScheme: bundleId) { callbackURL, error in
-            guard let callbackURL, error == nil,
-                  let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
-                      .queryItems?.first(where: { $0.name == "code" })?.value else { return }
-            Task { @MainActor in _ = code /* TODO: exchange code for token */ }
+            guard let callbackURL, error == nil else { return }
+            let items = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems
+            guard let code = items?.first(where: { $0.name == "code" })?.value,
+                  let returnedState = items?.first(where: { $0.name == "state" })?.value,
+                  returnedState == state else { return }
+            Task { @MainActor in
+                await vm.completeGoogleLogin(
+                    code: code,
+                    codeVerifier: pkce.verifier,
+                    redirectURI: redirectURI
+                )
+            }
         }
         session.prefersEphemeralWebBrowserSession = false
         session.start()

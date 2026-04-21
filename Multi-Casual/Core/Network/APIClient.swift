@@ -98,6 +98,16 @@ public final class APIClient: Sendable {
         let token: String
         let platform: String = "apns"
     }
+    private struct VerifyGoogleRequest: Encodable {
+        let code: String
+        let codeVerifier: String
+        let redirectUri: String
+        enum CodingKeys: String, CodingKey {
+            case code
+            case codeVerifier = "code_verifier"
+            case redirectUri = "redirect_uri"
+        }
+    }
 
     public func sendCode(email: String) async throws {
         let _: EmptyResponse = try await request("POST", path: "api/auth/send-code",
@@ -107,6 +117,15 @@ public final class APIClient: Sendable {
     public func verifyCode(email: String, code: String) async throws -> String {
         let resp: TokenResponse = try await request("POST", path: "api/auth/verify-code",
                                                      body: VerifyCodeRequest(email: email, code: code))
+        return resp.token
+    }
+
+    public func verifyGoogleCode(code: String, codeVerifier: String, redirectURI: String) async throws -> String {
+        let resp: TokenResponse = try await request(
+            "POST",
+            path: "api/auth/verify-google",
+            body: VerifyGoogleRequest(code: code, codeVerifier: codeVerifier, redirectUri: redirectURI)
+        )
         return resp.token
     }
 

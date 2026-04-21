@@ -76,4 +76,46 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=ws1") ?? false)
         XCTAssertTrue(capturedURL?.absoluteString.contains("limit=50") ?? false)
     }
+
+    func test_verifyGoogleCode_postsPayloadAndReturnsToken() async throws {
+        let json = """
+        {"token":"multica-session-token"}
+        """.data(using: .utf8)!
+        var capturedPath: String?
+        var capturedMethod: String?
+        var capturedBody: Data?
+        MockURLProtocol.handler = { req in
+            capturedPath = req.url?.path
+            capturedMethod = req.httpMethod
+            if let body = req.httpBody {
+                capturedBody = body
+            } else if let stream = req.httpBodyStream {
+                stream.open()
+                defer { stream.close() }
+                var buffer = Data()
+                var chunk = [UInt8](repeating: 0, count: 1024)
+                while stream.hasBytesAvailable {
+                    let read = stream.read(&chunk, maxLength: chunk.count)
+                    if read <= 0 { break }
+                    buffer.append(chunk, count: read)
+                }
+                capturedBody = buffer
+            }
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let token = try await client.verifyGoogleCode(
+            code: "auth-code-123",
+            codeVerifier: "verifier-xyz",
+            redirectURI: "ai.multica.app://auth/callback"
+        )
+
+        XCTAssertEqual(token, "multica-session-token")
+        XCTAssertEqual(capturedPath, "/api/auth/verify-google")
+        XCTAssertEqual(capturedMethod, "POST")
+        let bodyString = capturedBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        XCTAssertTrue(bodyString.contains("\"code\":\"auth-code-123\""), "body was: \(bodyString)")
+        XCTAssertTrue(bodyString.contains("\"code_verifier\":\"verifier-xyz\""), "body was: \(bodyString)")
+        XCTAssertTrue(bodyString.contains("\"redirect_uri\":\"ai.multica.app:\\/\\/auth\\/callback\""), "body was: \(bodyString)")
+    }
 }

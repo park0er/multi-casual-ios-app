@@ -57,6 +57,23 @@ public final class LoginViewModel {
         await sendCode()
     }
 
+    public func completeGoogleLogin(code: String, codeVerifier: String, redirectURI: String) async {
+        isLoading = true; errorMessage = nil
+        defer { isLoading = false }
+        do {
+            let token = try await api.verifyGoogleCode(
+                code: code,
+                codeVerifier: codeVerifier,
+                redirectURI: redirectURI
+            )
+            let user = try await api.getMe()
+            let workspaces = try await api.listWorkspaces()
+            try authSession.login(user: user, workspace: workspaces.first, token: token)
+        } catch {
+            errorMessage = "Google sign-in failed. Please try again."
+        }
+    }
+
     public func backToEmail() { step = .email; code = ""; errorMessage = nil }
 
     private func startCooldown() {
