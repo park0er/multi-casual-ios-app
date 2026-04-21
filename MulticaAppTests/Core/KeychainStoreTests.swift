@@ -4,6 +4,15 @@ import XCTest
 final class KeychainStoreTests: XCTestCase {
     let store = KeychainStore(service: "ai.multica.app.test")
 
+    override func setUpWithError() throws {
+        // iOS Simulator denies SecItem* calls (-34018 errSecMissingEntitlement) for test
+        // bundles without a signed host app providing keychain-access-groups.
+        // Coverage is via `swift test` on macOS, which has no such restriction.
+        #if os(iOS)
+        throw XCTSkip("Keychain tests require a signed host app entitlement; covered by macOS swift test.")
+        #endif
+    }
+
     override func tearDown() {
         try? store.delete()
     }

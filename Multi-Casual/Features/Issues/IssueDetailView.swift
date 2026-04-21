@@ -97,7 +97,7 @@ public struct IssueDetailView: View {
                 else {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title2)
-                        .foregroundStyle(vm.commentDraft.isEmpty ? .secondary : .blue)
+                        .foregroundStyle(vm.commentDraft.isEmpty ? Color.secondary : Color.blue)
                 }
             }
             .disabled(vm.commentDraft.isEmpty || vm.isSubmittingComment)
