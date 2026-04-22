@@ -21,7 +21,7 @@ public struct AgentTranscriptView: View {
                                 Image(systemName: iconForType(item.type)).foregroundStyle(.secondary)
                                 Text(labelForType(item.type)).font(.caption.bold()).foregroundStyle(.secondary)
                                 Spacer()
-                                Text("#\(item.seq)").font(.caption2).foregroundStyle(.tertiary)
+                                Text("#\(item.id)").font(.caption2).foregroundStyle(.tertiary)
                             }
                             Text(item.summary).font(.system(.caption, design: .monospaced))
                         }.padding(.vertical, 2)

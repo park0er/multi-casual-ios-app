@@ -31,7 +31,12 @@ public struct SettingsView: View {
             }
 
             Section {
-                Button("Log Out", role: .destructive) { authSession.logout() }
+                Button("Log Out", role: .destructive) {
+                    Task {
+                        await WebSocketActor.shared.disconnect()
+                        authSession.logout()
+                    }
+                }
             }
         }
         .navigationTitle("Settings")

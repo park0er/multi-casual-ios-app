@@ -2,8 +2,7 @@
 import SwiftUI
 
 public struct TimelineItem: Identifiable, Sendable {
-    public let id = UUID()
-    public let seq: Int
+    public let id: Int
     public let type: TaskMessage.MessageType
     public let tool: String?
     public let summary: String
@@ -80,7 +79,12 @@ public struct AgentLiveView: View {
                 guard !Task.isCancelled else { break }
                 guard event.taskId == taskId else { continue }
                 if let msg = try? JSONDecoder().decode(TaskMessage.self, from: event.payload) {
-                    timeline.append(TimelineItem(from: msg))
+                    let item = TimelineItem(from: msg)
+                    if let idx = timeline.firstIndex(where: { $0.id == item.id }) {
+                        timeline[idx] = item
+                    } else {
+                        timeline.append(item)
+                    }
                 }
             }
         }
@@ -118,7 +122,7 @@ public struct TimelineRowView: View {
 
 extension TimelineItem {
     init(from msg: TaskMessage) {
-        seq = msg.seq; type = msg.type; tool = msg.tool
+        id = msg.seq; type = msg.type; tool = msg.tool
         switch msg.type {
         case .toolUse:
             let toolName = msg.tool ?? "tool"

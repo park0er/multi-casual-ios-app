@@ -47,9 +47,10 @@ struct OTPInputField: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
+        let chars = Array(code)
+        return HStack(spacing: 12) {
             ForEach(0..<6) { i in
-                let char = code.count > i ? String(Array(code)[i]) : ""
+                let char = i < chars.count ? String(chars[i]) : ""
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(isFocused ? Color.primary : Color.secondary.opacity(0.4), lineWidth: 2)
