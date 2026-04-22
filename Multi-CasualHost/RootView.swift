@@ -1,7 +1,7 @@
-#if canImport(SwiftUI) && canImport(UIKit)
 import SwiftUI
 import UserNotifications
 import UIKit
+import MultiCasual
 
 struct RootView: View {
     @Environment(AuthSession.self) private var authSession
@@ -58,7 +58,7 @@ struct RootView: View {
     }
 
     private func handleDeepLink(_ url: URL) {
-        guard url.scheme == "multica" else { return }
+        guard url.scheme == "ai.multica.app" else { return }
         switch url.host {
         case "inbox": selectedTab = .inbox
         case "issues": selectedTab = .issues
@@ -66,4 +66,3 @@ struct RootView: View {
         }
     }
 }
-#endif
