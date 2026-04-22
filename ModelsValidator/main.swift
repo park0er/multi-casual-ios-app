@@ -13,6 +13,12 @@ import MultiCasual
 var failures: [String] = []
 var passed = 0
 
+let decoder: JSONDecoder = {
+    let d = JSONDecoder()
+    d.dateDecodingStrategy = .iso8601
+    return d
+}()
+
 func expect(_ condition: Bool, _ message: @autoclosure () -> String, file: StaticString = #file, line: UInt = #line) {
     if condition {
         passed += 1
@@ -41,7 +47,7 @@ do {
     }
     """.data(using: .utf8)!
     do {
-        let issue = try JSONDecoder().decode(Issue.self, from: json)
+        let issue = try decoder.decode(Issue.self, from: json)
         expect(issue.id == "abc123", "issue.id == abc123 (got \(issue.id))")
         expect(issue.identifier == "PAR-71", "issue.identifier == PAR-71")
         expect(issue.status == .inProgress, "issue.status == .inProgress")
@@ -67,7 +73,7 @@ do {
     }
     """.data(using: .utf8)!
     do {
-        let comment = try JSONDecoder().decode(Comment.self, from: json)
+        let comment = try decoder.decode(Comment.self, from: json)
         expect(comment.content == "Hello world", "comment.content == Hello world")
         expect(comment.authorType == "member", "comment.authorType == member")
         print("ok  test_comment_decodesFromJSON")
@@ -82,11 +88,11 @@ do {
     {"issues": [
         {"id":"i1","identifier":"T-1","number":1,"title":"T","description":null,
          "status":"todo","priority":"medium","assignee_id":null,"assignee_type":null,
-         "project_id":null,"workspace_id":"w","created_at":"","updated_at":""}
+         "project_id":null,"workspace_id":"w","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
     ], "has_more": true, "total": 1}
     """.data(using: .utf8)!
     do {
-        let page = try JSONDecoder().decode(PageResponse<Issue>.self, from: json)
+        let page = try decoder.decode(PageResponse<Issue>.self, from: json)
         expect(page.items.count == 1, "page.items.count == 1 (got \(page.items.count))")
         expect(page.hasMore == true, "page.hasMore == true")
         print("ok  test_pageResponse_decodesIssuesKey")
@@ -161,20 +167,17 @@ Task { @MainActor in
     assert(loader.hasMore == false, "FAIL: hasMore should now be false")
     print("ok  PaginatedLoader.hasMore=false stops loading")
 
-    // Test DataStore
+    // Test DataStore invalidation
     let store = DataStore()
-    await store.setIssues([Issue(id: "x", identifier: "T-1", number: 1, title: "T",
-        description: nil, status: .todo, priority: .medium,
-        assigneeId: nil, assigneeType: nil, projectId: nil,
-        workspaceId: "w", createdAt: "", updatedAt: "")])
-    let issues = await store.issues
-    assert(issues.count == 1 && issues[0].id == "x", "FAIL: DataStore.setIssues")
-    print("ok  DataStore.setIssues stores issues")
-
     await store.invalidateIssue("x")
-    let empty = await store.issues
-    assert(empty.isEmpty, "FAIL: DataStore.invalidateIssue should remove issue")
-    print("ok  DataStore.invalidateIssue removes by id")
+    let invalidated = await store.isIssueInvalidated("x")
+    assert(invalidated, "FAIL: DataStore.invalidateIssue should mark issue")
+    print("ok  DataStore.invalidateIssue marks issue")
+
+    await store.clearInvalidation("x")
+    let cleared = await store.isIssueInvalidated("x")
+    assert(!cleared, "FAIL: DataStore.clearInvalidation should unmark issue")
+    print("ok  DataStore.clearInvalidation unmarks issue")
 
     paginatedLoaderPassed = true
     paginatedLoaderDone = true

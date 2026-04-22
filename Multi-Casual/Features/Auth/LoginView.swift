@@ -3,6 +3,7 @@ import SwiftUI
 
 public struct LoginView: View {
     @Environment(AuthSession.self) private var authSession
+    @Environment(APIClient.self) private var api
     @State private var viewModel: LoginViewModel?
 
     public init() {}
@@ -20,7 +21,7 @@ public struct LoginView: View {
         }
         .onAppear {
             if viewModel == nil {
-                viewModel = LoginViewModel(api: APIClient(authSession: authSession), authSession: authSession)
+                viewModel = LoginViewModel(api: api, authSession: authSession)
             }
         }
     }
@@ -36,7 +37,7 @@ public struct LoginView: View {
                 TextField("you@example.com", text: Binding(get: { vm.email }, set: { vm.email = $0 }))
                     .textContentType(.emailAddress)
                     .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
+                    .textInputAutocapitalization(.never)
                     .padding()
                     .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
 

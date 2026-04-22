@@ -40,14 +40,58 @@ public struct Workspace: Codable, Identifiable, Sendable {
     }
 }
 
+// MARK: - Date formatting
+
+/// Shared ISO8601 formatter for UI display (date + time, no Z suffix).
+/// Use `.formatted()` on Date for the primary display path; this is a fallback.
+public let iso8601DisplayFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd HH:mm"
+    f.timeZone = .current
+    f.locale = Locale(identifier: "en_US_POSIX")
+    return f
+}()
+
+/// Shared ISO8601 date-only formatter for compact UI display.
+public let iso8601DateOnlyFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd"
+    f.timeZone = .current
+    f.locale = Locale(identifier: "en_US_POSIX")
+    return f
+}()
+
 // MARK: - Issues
 
-public enum IssueStatus: String, Codable, CaseIterable, Sendable {
+public enum IssueStatus: String, Codable, CaseIterable, Sendable, Comparable {
     case todo
     case inProgress = "in_progress"
     case inReview = "in_review"
     case done
     case blocked
+
+    /// Fallback for unknown future statuses — prevents decoding crash.
+    case unknown
+
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = IssueStatus(rawValue: raw) ?? .unknown
+    }
+
+    private var sortOrder: Int {
+        switch self {
+        case .blocked: return 0
+        case .todo: return 1
+        case .inProgress: return 2
+        case .inReview: return 3
+        case .done: return 4
+        case .unknown: return 5
+        }
+    }
+
+    public static func < (lhs: IssueStatus, rhs: IssueStatus) -> Bool {
+        lhs.sortOrder < rhs.sortOrder
+    }
 
     public var displayName: String {
         switch self {
@@ -56,6 +100,7 @@ public enum IssueStatus: String, Codable, CaseIterable, Sendable {
         case .inReview: return "In Review"
         case .done: return "Done"
         case .blocked: return "Blocked"
+        case .unknown: return "Unknown"
         }
     }
 
@@ -66,6 +111,7 @@ public enum IssueStatus: String, Codable, CaseIterable, Sendable {
         case .inReview: return "circle.lefthalf.filled"
         case .done: return "checkmark.circle.fill"
         case .blocked: return "minus.circle.fill"
+        case .unknown: return "questionmark.circle"
         }
     }
 }
@@ -73,6 +119,12 @@ public enum IssueStatus: String, Codable, CaseIterable, Sendable {
 public enum IssuePriority: String, Codable, CaseIterable, Sendable {
     case urgent, high, medium, low
     case noPriority = "no_priority"
+    case unknown
+
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = IssuePriority(rawValue: raw) ?? .unknown
+    }
 
     public var displayName: String {
         switch self {
@@ -81,6 +133,7 @@ public enum IssuePriority: String, Codable, CaseIterable, Sendable {
         case .medium: return "Medium"
         case .low: return "Low"
         case .noPriority: return "No Priority"
+        case .unknown: return "Unknown"
         }
     }
 }
@@ -97,8 +150,8 @@ public struct Issue: Codable, Identifiable, Sendable {
     public let assigneeType: String?
     public let projectId: String?
     public let workspaceId: String
-    public let createdAt: String
-    public let updatedAt: String
+    public let createdAt: Date
+    public let updatedAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id, identifier, number, title, description, status, priority
@@ -113,7 +166,7 @@ public struct Issue: Codable, Identifiable, Sendable {
     public init(id: String, identifier: String, number: Int, title: String, description: String?,
                 status: IssueStatus, priority: IssuePriority, assigneeId: String?,
                 assigneeType: String?, projectId: String?, workspaceId: String,
-                createdAt: String, updatedAt: String) {
+                createdAt: Date, updatedAt: Date) {
         self.id = id
         self.identifier = identifier
         self.number = number
@@ -137,7 +190,7 @@ public struct Comment: Codable, Identifiable, Sendable {
     public let authorType: String
     public let parentId: String?
     public let issueId: String
-    public let createdAt: String
+    public let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id, content
@@ -149,7 +202,7 @@ public struct Comment: Codable, Identifiable, Sendable {
     }
 
     public init(id: String, content: String, authorId: String, authorType: String,
-                parentId: String?, issueId: String, createdAt: String) {
+                parentId: String?, issueId: String, createdAt: Date) {
         self.id = id
         self.content = content
         self.authorId = authorId
@@ -168,7 +221,7 @@ public struct InboxItem: Codable, Identifiable, Sendable {
     public let issueIdentifier: String
     public let issueTitle: String
     public let read: Bool
-    public let createdAt: String
+    public let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -180,7 +233,7 @@ public struct InboxItem: Codable, Identifiable, Sendable {
     }
 
     public init(id: String, issueId: String, issueIdentifier: String, issueTitle: String,
-                read: Bool, createdAt: String) {
+                read: Bool, createdAt: Date) {
         self.id = id
         self.issueId = issueId
         self.issueIdentifier = issueIdentifier
@@ -197,7 +250,7 @@ public struct Project: Codable, Identifiable, Sendable {
     public let name: String
     public let description: String?
     public let workspaceId: String
-    public let createdAt: String
+    public let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id, name, description
@@ -205,7 +258,7 @@ public struct Project: Codable, Identifiable, Sendable {
         case createdAt = "created_at"
     }
 
-    public init(id: String, name: String, description: String?, workspaceId: String, createdAt: String) {
+    public init(id: String, name: String, description: String?, workspaceId: String, createdAt: Date) {
         self.id = id
         self.name = name
         self.description = description
@@ -220,8 +273,8 @@ public struct AgentTask: Codable, Identifiable, Sendable {
     public let id: String
     public let issueId: String
     public let status: String
-    public let startedAt: String?
-    public let completedAt: String?
+    public let startedAt: Date?
+    public let completedAt: Date?
     public let error: String?
 
     enum CodingKeys: String, CodingKey {
@@ -233,7 +286,7 @@ public struct AgentTask: Codable, Identifiable, Sendable {
         case error
     }
 
-    public init(id: String, issueId: String, status: String, startedAt: String?, completedAt: String?, error: String?) {
+    public init(id: String, issueId: String, status: String, startedAt: Date?, completedAt: Date?, error: String?) {
         self.id = id
         self.issueId = issueId
         self.status = status

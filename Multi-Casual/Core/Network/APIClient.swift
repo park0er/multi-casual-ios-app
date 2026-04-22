@@ -1,6 +1,8 @@
 import Foundation
+import Observation
 
-public final class APIClient: Sendable {
+@Observable
+public final class APIClient: @unchecked Sendable {
     public enum APIError: Error, @unchecked Sendable {
         case unauthorized
         case notFound
@@ -11,7 +13,21 @@ public final class APIClient: Sendable {
 
     private let session: URLSession
     private let baseURL: URL
-    private let tokenProvider: @Sendable () -> String?
+    private var tokenProvider: @Sendable () -> String?
+
+    /// Shared decoder — ISO8601 dates, single allocation across all requests.
+    private static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
+
+    /// Shared encoder — single allocation across all requests.
+    private static let encoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .iso8601
+        return e
+    }()
 
     // Production init: token provider runs off the main actor because
     // AuthSession.token() is nonisolated (Keychain access is thread-safe).
@@ -36,6 +52,12 @@ public final class APIClient: Sendable {
         } else {
             self.tokenProvider = tokenProvider ?? { nil }
         }
+    }
+
+    /// Reconfigure the token provider after initial construction.
+    /// Used by the app root to wire the environment-injected APIClient to AuthSession.
+    public func configure(authSession: AuthSession) {
+        self.tokenProvider = { authSession.token() }
     }
 
     // MARK: - Core request
@@ -64,7 +86,7 @@ public final class APIClient: Sendable {
         }
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.httpBody = try JSONEncoder().encode(body)
+            req.httpBody = try APIClient.encoder.encode(body)
         }
 
         let (data, response): (Data, URLResponse)
@@ -87,7 +109,7 @@ public final class APIClient: Sendable {
         }
 
         do {
-            return try JSONDecoder().decode(T.self, from: data)
+            return try APIClient.decoder.decode(T.self, from: data)
         } catch {
             throw APIError.decodingError(error)
         }

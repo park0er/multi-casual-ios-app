@@ -3,7 +3,7 @@ import SwiftUI
 
 public struct IssueDetailView: View {
     public let issueId: String
-    @Environment(AuthSession.self) private var authSession
+    @Environment(APIClient.self) private var api
     @State private var viewModel: IssueDetailViewModel?
     @State private var showTranscript = false
     @State private var selectedTaskId: String?
@@ -19,7 +19,7 @@ public struct IssueDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if viewModel == nil {
-                viewModel = IssueDetailViewModel(issueId: issueId, api: APIClient(authSession: authSession))
+                viewModel = IssueDetailViewModel(issueId: issueId, api: api)
                 Task {
                     await viewModel?.loadIssue()
                     await viewModel?.loadComments()
@@ -113,7 +113,7 @@ public struct CommentRowView: View {
                 Image(systemName: comment.authorType == "agent" ? "bolt.circle" : "person.circle")
                 Text(comment.authorType == "agent" ? "Agent" : "Member").font(.caption.bold())
                 Spacer()
-                Text(comment.createdAt.prefix(10)).font(.caption2).foregroundStyle(.secondary)
+                Text(iso8601DateOnlyFormatter.string(from: comment.createdAt)).font(.caption2).foregroundStyle(.secondary)
             }
             Text(comment.content).font(.body)
         }.padding(.horizontal).padding(.vertical, 6)
@@ -128,7 +128,7 @@ public struct AgentRunRowView: View {
             Image(systemName: statusIcon).foregroundStyle(statusColor)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Agent run").font(.subheadline.bold())
-                Text(run.startedAt?.prefix(19).replacingOccurrences(of: "T", with: " ") ?? "")
+                Text(run.startedAt.map(iso8601DisplayFormatter.string(from:)) ?? "")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()

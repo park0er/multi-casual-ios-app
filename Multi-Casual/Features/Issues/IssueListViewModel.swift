@@ -10,6 +10,7 @@ public final class IssueListViewModel {
     public var viewMode: ViewMode = .list
     public var showCreateSheet = false
     public var lastError: Error?
+    public private(set) var issuesByStatus: [IssueStatus: [Issue]] = [:]
 
     private let api: APIClient
     private let authSession: AuthSession
@@ -24,6 +25,7 @@ public final class IssueListViewModel {
             try await loader.loadNext { [api, wsId] offset in
                 try await api.listIssues(workspaceId: wsId, limit: 50, offset: offset)
             }
+            issuesByStatus = Dictionary(grouping: loader.items, by: \.status)
             lastError = nil
         } catch {
             lastError = error
@@ -31,9 +33,5 @@ public final class IssueListViewModel {
     }
 
     public func refresh() async { loader.reset(); await loadNext() }
-
-    public var issuesByStatus: [IssueStatus: [Issue]] {
-        Dictionary(grouping: loader.items, by: \.status)
-    }
 }
 #endif

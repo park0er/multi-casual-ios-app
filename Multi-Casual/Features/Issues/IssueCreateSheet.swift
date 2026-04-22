@@ -3,6 +3,7 @@ import SwiftUI
 
 public struct IssueCreateSheet: View {
     @Environment(AuthSession.self) private var authSession
+    @Environment(APIClient.self) private var api
     @Environment(\.dismiss) private var dismiss
     let onCreated: () -> Void
 
@@ -39,7 +40,7 @@ public struct IssueCreateSheet: View {
         guard let wsId = authSession.currentWorkspace?.id else { return }
         isLoading = true; errorMessage = nil; defer { isLoading = false }
         do {
-            _ = try await APIClient(authSession: authSession).createIssue(
+            _ = try await api.createIssue(
                 title: title.trimmingCharacters(in: .whitespaces),
                 description: description.isEmpty ? nil : description,
                 workspaceId: wsId

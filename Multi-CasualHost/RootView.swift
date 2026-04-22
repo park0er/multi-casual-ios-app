@@ -5,6 +5,7 @@ import MultiCasual
 
 struct RootView: View {
     @Environment(AuthSession.self) private var authSession
+    @Environment(APIClient.self) private var api
     @State private var selectedTab: AppTab = .inbox
 
     enum AppTab: Hashable { case inbox, issues, projects, settings }
@@ -17,10 +18,7 @@ struct RootView: View {
                 mainTabView
                     .onReceive(NotificationCenter.default.publisher(for: .didRegisterPushToken)) { note in
                         guard let token = note.object as? String else { return }
-                        Task {
-                            let api = APIClient(authSession: authSession)
-                            try? await api.registerPushToken(token)
-                        }
+                        Task { try? await api.registerPushToken(token) }
                     }
             } else {
                 LoginView()

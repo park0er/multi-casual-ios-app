@@ -4,6 +4,7 @@ import SwiftUI
 public struct ProjectDetailView: View {
     public let project: Project
     @Environment(AuthSession.self) private var authSession
+    @Environment(APIClient.self) private var api
     @State private var issues: [Issue] = []
     @State private var isLoading = true
 
@@ -28,8 +29,7 @@ public struct ProjectDetailView: View {
         .navigationTitle(project.name)
         .task {
             if let wsId = authSession.currentWorkspace?.id {
-                if let page = try? await APIClient(authSession: authSession)
-                    .listIssues(workspaceId: wsId, limit: 200, offset: 0) {
+                if let page = try? await api.listIssues(workspaceId: wsId, limit: 200, offset: 0) {
                     issues = page.items.filter { $0.projectId == project.id }
                 }
             }

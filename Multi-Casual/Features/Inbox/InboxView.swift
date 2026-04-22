@@ -2,7 +2,7 @@
 import SwiftUI
 
 public struct InboxView: View {
-    @Environment(AuthSession.self) private var authSession
+    @Environment(APIClient.self) private var api
     @State private var viewModel: InboxViewModel?
 
     public init() {}
@@ -31,7 +31,7 @@ public struct InboxView: View {
         .navigationTitle("Inbox")
         .onAppear {
             if viewModel == nil {
-                viewModel = InboxViewModel(api: APIClient(authSession: authSession))
+                viewModel = InboxViewModel(api: api)
                 Task { await viewModel?.loadNext() }
             }
         }

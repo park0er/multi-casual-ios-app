@@ -12,10 +12,12 @@ public struct TimelineItem: Identifiable, Sendable {
 public struct AgentLiveView: View {
     public let taskId: String
     @Environment(AuthSession.self) private var authSession
+    @Environment(APIClient.self) private var api
     @State private var timeline: [TimelineItem] = []
     @State private var isLoaded = false
     @State private var isCollapsed = false
     @State private var showTranscript = false
+    @State private var subscriptionTask: Task<Void, Never>?
 
     public init(taskId: String) { self.taskId = taskId }
 
@@ -53,23 +55,34 @@ public struct AgentLiveView: View {
         .padding(.horizontal)
         .task {
             if !isLoaded {
-                let api = APIClient(authSession: authSession)
                 if let messages = try? await api.listRunMessages(taskId: taskId) {
                     timeline = messages.map(TimelineItem.init(from:))
                 }
                 isLoaded = true
             }
-            guard let token = authSession.token() else { return }
+            subscribeToWebSocket()
+        }
+        .onDisappear {
+            subscriptionTask?.cancel()
+            subscriptionTask = nil
+        }
+        .fullScreenCover(isPresented: $showTranscript) {
+            AgentTranscriptView(taskId: taskId)
+        }
+    }
+
+    private func subscribeToWebSocket() {
+        subscriptionTask?.cancel()
+        guard let token = authSession.token() else { return }
+        subscriptionTask = Task {
             await WebSocketActor.shared.connect(token: token)
             for await event in await WebSocketActor.shared.subscribe(to: "task.message") {
+                guard !Task.isCancelled else { break }
                 guard event.taskId == taskId else { continue }
                 if let msg = try? JSONDecoder().decode(TaskMessage.self, from: event.payload) {
                     timeline.append(TimelineItem(from: msg))
                 }
             }
-        }
-        .fullScreenCover(isPresented: $showTranscript) {
-            AgentTranscriptView(taskId: taskId)
         }
     }
 }

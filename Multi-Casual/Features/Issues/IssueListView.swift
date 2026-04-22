@@ -3,6 +3,7 @@ import SwiftUI
 
 public struct IssueListView: View {
     @Environment(AuthSession.self) private var authSession
+    @Environment(APIClient.self) private var api
     @State private var viewModel: IssueListViewModel?
 
     public init() {}
@@ -40,7 +41,7 @@ public struct IssueListView: View {
         .navigationTitle("Issues")
         .onAppear {
             if viewModel == nil {
-                viewModel = IssueListViewModel(api: APIClient(authSession: authSession), authSession: authSession)
+                viewModel = IssueListViewModel(api: api, authSession: authSession)
                 Task { await viewModel?.loadNext() }
             }
         }

@@ -4,7 +4,7 @@ import SwiftUI
 public struct AgentTranscriptView: View {
     public let taskId: String
     @Environment(\.dismiss) private var dismiss
-    @Environment(AuthSession.self) private var authSession
+    @Environment(APIClient.self) private var api
     @State private var timeline: [TimelineItem] = []
     @State private var isLoading = true
 
@@ -31,7 +31,7 @@ public struct AgentTranscriptView: View {
             .navigationTitle("Agent Transcript").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
             .task {
-                if let messages = try? await APIClient(authSession: authSession).listRunMessages(taskId: taskId) {
+                if let messages = try? await api.listRunMessages(taskId: taskId) {
                     timeline = messages.map(TimelineItem.init(from:))
                 }
                 isLoading = false

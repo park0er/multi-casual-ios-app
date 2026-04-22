@@ -3,34 +3,24 @@ import XCTest
 
 final class DataStoreTests: XCTestCase {
 
-    func test_setIssues_replacesAll() async {
+    func test_invalidateIssue_marksId() async {
         let store = DataStore()
-        await store.setIssues(makeIssues(["a", "b"]))
-        await store.setIssues(makeIssues(["c"]))
-        let issues = await store.issues
-        XCTAssertEqual(issues.map(\.id), ["c"])
+        await store.invalidateIssue("a")
+        let result = await store.isIssueInvalidated("a")
+        XCTAssertTrue(result)
     }
 
-    func test_invalidateIssue_removesById() async {
+    func test_clearInvalidation_unmarksId() async {
         let store = DataStore()
-        await store.setIssues(makeIssues(["a", "b", "c"]))
         await store.invalidateIssue("b")
-        let issues = await store.issues
-        XCTAssertEqual(issues.map(\.id), ["a", "c"])
+        await store.clearInvalidation("b")
+        let result = await store.isIssueInvalidated("b")
+        XCTAssertFalse(result)
     }
 
-    func test_appendIssues_addsToExisting() async {
+    func test_isIssueInvalidated_returnsFalseForUnknown() async {
         let store = DataStore()
-        await store.setIssues(makeIssues(["a"]))
-        await store.appendIssues(makeIssues(["b", "c"]))
-        let issues = await store.issues
-        XCTAssertEqual(issues.map(\.id), ["a", "b", "c"])
-    }
-
-    private func makeIssues(_ ids: [String]) -> [Issue] {
-        ids.map { Issue(id: $0, identifier: "T-1", number: 1, title: "T",
-                        description: nil, status: .todo, priority: .medium,
-                        assigneeId: nil, assigneeType: nil, projectId: nil,
-                        workspaceId: "w", createdAt: "", updatedAt: "") }
+        let result = await store.isIssueInvalidated("never-seen")
+        XCTAssertFalse(result)
     }
 }

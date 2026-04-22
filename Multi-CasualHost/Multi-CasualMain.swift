@@ -7,14 +7,16 @@ import MultiCasual
 struct Multi-CasualMain: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var authSession = AuthSession()
+    @State private var apiClient = APIClient()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(authSession)
+                .environment(apiClient)
                 .task {
-                    let api = APIClient(authSession: authSession)
-                    await authSession.restore(using: api)
+                    apiClient.configure(authSession: authSession)
+                    await authSession.restore(using: apiClient)
                 }
         }
     }

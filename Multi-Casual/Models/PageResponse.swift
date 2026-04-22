@@ -5,22 +5,28 @@ public struct PageResponse<T: Decodable & Sendable>: Decodable, Sendable {
     public let hasMore: Bool
     public let total: Int?
 
+    private static var knownKeys: Set<String> {
+        ["issues", "items", "projects", "comments", "workspaces", "runs", "messages", "inbox"]
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DynamicKey.self)
         hasMore = (try? container.decode(Bool.self, forKey: DynamicKey("has_more"))) ?? false
         total = try? container.decode(Int.self, forKey: DynamicKey("total"))
 
-        if let issues = try? container.decode([T].self, forKey: DynamicKey("issues")) {
-            items = issues
-        } else if let itemsArr = try? container.decode([T].self, forKey: DynamicKey("items")) {
-            self.items = itemsArr
-        } else if let projects = try? container.decode([T].self, forKey: DynamicKey("projects")) {
-            items = projects
-        } else if let comments = try? container.decode([T].self, forKey: DynamicKey("comments")) {
-            items = comments
-        } else {
-            items = []
+        // Try each known collection key. If none match, surface the mismatch
+        // instead of silently returning an empty page.
+        for key in Self.knownKeys {
+            if let arr = try? container.decode([T].self, forKey: DynamicKey(key)) {
+                items = arr
+                return
+            }
         }
+        throw DecodingError.keyNotFound(
+            DynamicKey("items"),
+            .init(codingPath: container.codingPath,
+                  debugDescription: "No known collection key found in PageResponse. Keys: \(container.allKeys.map(\.stringValue))")
+        )
     }
 
     // Test-only initialiser (no JSON decoding needed)

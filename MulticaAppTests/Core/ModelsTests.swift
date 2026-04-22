@@ -1,6 +1,12 @@
 import XCTest
 @testable import MultiCasual
 
+private let decoder: JSONDecoder = {
+    let d = JSONDecoder()
+    d.dateDecodingStrategy = .iso8601
+    return d
+}()
+
 final class ModelsTests: XCTestCase {
 
     func test_issue_decodesFromJSON() throws {
@@ -21,7 +27,7 @@ final class ModelsTests: XCTestCase {
             "updated_at": "2026-01-02T00:00:00Z"
         }
         """.data(using: .utf8)!
-        let issue = try JSONDecoder().decode(Issue.self, from: json)
+        let issue = try decoder.decode(Issue.self, from: json)
         XCTAssertEqual(issue.id, "abc123")
         XCTAssertEqual(issue.identifier, "PAR-71")
         XCTAssertEqual(issue.status, .inProgress)
@@ -41,7 +47,7 @@ final class ModelsTests: XCTestCase {
             "created_at": "2026-01-01T00:00:00Z"
         }
         """.data(using: .utf8)!
-        let comment = try JSONDecoder().decode(Comment.self, from: json)
+        let comment = try decoder.decode(Comment.self, from: json)
         XCTAssertEqual(comment.content, "Hello world")
         XCTAssertEqual(comment.authorType, "member")
     }
@@ -51,10 +57,10 @@ final class ModelsTests: XCTestCase {
         {"issues": [
             {"id":"i1","identifier":"T-1","number":1,"title":"T","description":null,
              "status":"todo","priority":"medium","assignee_id":null,"assignee_type":null,
-             "project_id":null,"workspace_id":"w","created_at":"","updated_at":""}
+             "project_id":null,"workspace_id":"w","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
         ], "has_more": true, "total": 1}
         """.data(using: .utf8)!
-        let page = try JSONDecoder().decode(PageResponse<Issue>.self, from: json)
+        let page = try decoder.decode(PageResponse<Issue>.self, from: json)
         XCTAssertEqual(page.items.count, 1)
         XCTAssertTrue(page.hasMore)
     }
