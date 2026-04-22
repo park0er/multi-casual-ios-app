@@ -98,14 +98,6 @@ public final class APIClient: Sendable {
         let token: String
         let platform: String = "apns"
     }
-    private struct GoogleLoginRequest: Encodable {
-        let code: String
-        let redirectUri: String
-        enum CodingKeys: String, CodingKey {
-            case code
-            case redirectUri = "redirect_uri"
-        }
-    }
 
     public func sendCode(email: String) async throws {
         let _: EmptyResponse = try await request("POST", path: "auth/send-code",
@@ -115,15 +107,6 @@ public final class APIClient: Sendable {
     public func verifyCode(email: String, code: String) async throws -> String {
         let resp: TokenResponse = try await request("POST", path: "auth/verify-code",
                                                      body: VerifyCodeRequest(email: email, code: code))
-        return resp.token
-    }
-
-    public func googleLogin(code: String, redirectURI: String) async throws -> String {
-        let resp: TokenResponse = try await request(
-            "POST",
-            path: "auth/google",
-            body: GoogleLoginRequest(code: code, redirectUri: redirectURI)
-        )
         return resp.token
     }
 

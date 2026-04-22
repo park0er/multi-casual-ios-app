@@ -55,10 +55,6 @@ final class BackendSmokeTests: XCTestCase {
         try await assertEndpointExists(method: "POST", path: "auth/verify-code", body: "{}")
     }
 
-    func test_authGoogle_pathExists() async throws {
-        try await assertEndpointExists(method: "POST", path: "auth/google", body: "{}")
-    }
-
     // GET without Authorization should come back as 401, not 404.
     func test_apiMe_pathExists() async throws {
         try await assertEndpointExists(method: "GET", path: "api/me")
