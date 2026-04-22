@@ -77,7 +77,7 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedURL?.absoluteString.contains("limit=50") ?? false)
     }
 
-    func test_verifyGoogleCode_postsPayloadAndReturnsToken() async throws {
+    func test_googleLogin_postsToAuthGoogleAndReturnsToken() async throws {
         let json = """
         {"token":"multica-session-token"}
         """.data(using: .utf8)!
@@ -104,18 +104,43 @@ final class APIClientTests: XCTestCase {
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let token = try await client.verifyGoogleCode(
+        let token = try await client.googleLogin(
             code: "auth-code-123",
-            codeVerifier: "verifier-xyz",
             redirectURI: "ai.multica.app://auth/callback"
         )
 
         XCTAssertEqual(token, "multica-session-token")
-        XCTAssertEqual(capturedPath, "/api/auth/verify-google")
+        XCTAssertEqual(capturedPath, "/auth/google")
         XCTAssertEqual(capturedMethod, "POST")
         let bodyString = capturedBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
         XCTAssertTrue(bodyString.contains("\"code\":\"auth-code-123\""), "body was: \(bodyString)")
-        XCTAssertTrue(bodyString.contains("\"code_verifier\":\"verifier-xyz\""), "body was: \(bodyString)")
-        XCTAssertTrue(bodyString.contains("\"redirect_uri\":\"ai.multica.app:\\/\\/auth\\/callback\""), "body was: \(bodyString)")
+        XCTAssertFalse(bodyString.contains("code_verifier"),
+            "body should not contain code_verifier (backend uses client_secret flow): \(bodyString)")
+        XCTAssertTrue(bodyString.contains("\"redirect_uri\":\"ai.multica.app:\\/\\/auth\\/callback\""),
+            "body was: \(bodyString)")
+    }
+
+    func test_sendCode_usesAuthSendCodePath() async throws {
+        var capturedPath: String?
+        MockURLProtocol.handler = { req in
+            capturedPath = req.url?.path
+            return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data("{}".utf8))
+        }
+        try await client.sendCode(email: "x@y.com")
+        XCTAssertEqual(capturedPath, "/auth/send-code",
+            "sendCode must not use the /api/ prefix — backend auth endpoints are rooted at /auth/*")
+    }
+
+    func test_verifyCode_usesAuthVerifyCodePath() async throws {
+        let json = """
+        {"token":"t"}
+        """.data(using: .utf8)!
+        var capturedPath: String?
+        MockURLProtocol.handler = { req in
+            capturedPath = req.url?.path
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+        _ = try await client.verifyCode(email: "x@y.com", code: "123456")
+        XCTAssertEqual(capturedPath, "/auth/verify-code")
     }
 }

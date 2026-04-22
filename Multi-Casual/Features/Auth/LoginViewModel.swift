@@ -57,15 +57,11 @@ public final class LoginViewModel {
         await sendCode()
     }
 
-    public func completeGoogleLogin(code: String, codeVerifier: String, redirectURI: String) async {
+    public func completeGoogleLogin(code: String, redirectURI: String) async {
         isLoading = true; errorMessage = nil
         defer { isLoading = false }
         do {
-            let token = try await api.verifyGoogleCode(
-                code: code,
-                codeVerifier: codeVerifier,
-                redirectURI: redirectURI
-            )
+            let token = try await api.googleLogin(code: code, redirectURI: redirectURI)
             let user = try await api.getMe()
             let workspaces = try await api.listWorkspaces()
             try authSession.login(user: user, workspace: workspaces.first, token: token)

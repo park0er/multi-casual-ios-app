@@ -98,33 +98,31 @@ public final class APIClient: Sendable {
         let token: String
         let platform: String = "apns"
     }
-    private struct VerifyGoogleRequest: Encodable {
+    private struct GoogleLoginRequest: Encodable {
         let code: String
-        let codeVerifier: String
         let redirectUri: String
         enum CodingKeys: String, CodingKey {
             case code
-            case codeVerifier = "code_verifier"
             case redirectUri = "redirect_uri"
         }
     }
 
     public func sendCode(email: String) async throws {
-        let _: EmptyResponse = try await request("POST", path: "api/auth/send-code",
+        let _: EmptyResponse = try await request("POST", path: "auth/send-code",
                                                   body: SendCodeRequest(email: email))
     }
 
     public func verifyCode(email: String, code: String) async throws -> String {
-        let resp: TokenResponse = try await request("POST", path: "api/auth/verify-code",
+        let resp: TokenResponse = try await request("POST", path: "auth/verify-code",
                                                      body: VerifyCodeRequest(email: email, code: code))
         return resp.token
     }
 
-    public func verifyGoogleCode(code: String, codeVerifier: String, redirectURI: String) async throws -> String {
+    public func googleLogin(code: String, redirectURI: String) async throws -> String {
         let resp: TokenResponse = try await request(
             "POST",
-            path: "api/auth/verify-google",
-            body: VerifyGoogleRequest(code: code, codeVerifier: codeVerifier, redirectUri: redirectURI)
+            path: "auth/google",
+            body: GoogleLoginRequest(code: code, redirectUri: redirectURI)
         )
         return resp.token
     }
@@ -193,13 +191,13 @@ public final class APIClient: Sendable {
 
     private struct RunsResponse: Decodable { let runs: [AgentTask] }
     public func listAgentRuns(issueId: String) async throws -> [AgentTask] {
-        let resp: RunsResponse = try await request("GET", path: "api/issues/\(issueId)/runs")
+        let resp: RunsResponse = try await request("GET", path: "api/issues/\(issueId)/task-runs")
         return resp.runs
     }
 
     private struct MessagesResponse: Decodable { let messages: [TaskMessage] }
     public func listRunMessages(taskId: String) async throws -> [TaskMessage] {
-        let resp: MessagesResponse = try await request("GET", path: "api/issues/run-messages/\(taskId)")
+        let resp: MessagesResponse = try await request("GET", path: "api/tasks/\(taskId)/messages")
         return resp.messages
     }
 

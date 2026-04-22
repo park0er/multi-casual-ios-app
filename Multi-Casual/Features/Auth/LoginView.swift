@@ -67,14 +67,6 @@ public struct LoginView: View {
                         .frame(maxWidth: .infinity).padding()
                         .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
                 }
-
-                SignInWithAppleButton(.signIn) { req in
-                    req.requestedScopes = [.fullName, .email]
-                } onCompletion: { result in
-                    handleAppleSignIn(result: result, vm: vm)
-                }
-                .frame(height: 50)
-                .cornerRadius(12)
             }
             .padding(.horizontal, 24)
             Spacer()
@@ -84,7 +76,6 @@ public struct LoginView: View {
     private func startGoogleOAuth(vm: LoginViewModel) {
         guard let clientId = Bundle.main.object(forInfoDictionaryKey: "GOOGLE_CLIENT_ID") as? String,
               let bundleId = Bundle.main.bundleIdentifier else { return }
-        let pkce = PKCE()
         let state = PKCE.generateRandomString(byteLength: 32)
         let redirectURI = "\(bundleId)://auth/callback"
 
@@ -96,8 +87,6 @@ public struct LoginView: View {
             .init(name: "scope", value: "openid email profile"),
             .init(name: "access_type", value: "offline"),
             .init(name: "prompt", value: "select_account"),
-            .init(name: "code_challenge", value: pkce.challenge),
-            .init(name: "code_challenge_method", value: "S256"),
             .init(name: "state", value: state),
         ]
         guard let url = components.url else { return }
@@ -108,23 +97,11 @@ public struct LoginView: View {
                   let returnedState = items?.first(where: { $0.name == "state" })?.value,
                   returnedState == state else { return }
             Task { @MainActor in
-                await vm.completeGoogleLogin(
-                    code: code,
-                    codeVerifier: pkce.verifier,
-                    redirectURI: redirectURI
-                )
+                await vm.completeGoogleLogin(code: code, redirectURI: redirectURI)
             }
         }
         session.prefersEphemeralWebBrowserSession = false
         session.start()
-    }
-
-    private func handleAppleSignIn(result: Result<ASAuthorization, Error>, vm: LoginViewModel) {
-        guard case .success(let auth) = result,
-              let credential = auth.credential as? ASAuthorizationAppleIDCredential,
-              let tokenData = credential.identityToken,
-              let token = String(data: tokenData, encoding: .utf8) else { return }
-        Task { @MainActor in _ = token /* TODO: POST /api/auth/apple */ }
     }
 }
 #endif

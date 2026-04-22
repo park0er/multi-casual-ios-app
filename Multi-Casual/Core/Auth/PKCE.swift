@@ -1,6 +1,11 @@
 import Foundation
 import CryptoKit
 
+// Currently only `generateRandomString` is wired up (used for the OAuth
+// `state` CSRF value in LoginView). The verifier/challenge pair is kept
+// for the day the backend switches to PKCE-based server-side exchange
+// (no client_secret) — today it uses client_secret, so PKCE would break
+// Google's token exchange and must stay off.
 public struct PKCE: Sendable, Equatable {
     public let verifier: String
     public let challenge: String
