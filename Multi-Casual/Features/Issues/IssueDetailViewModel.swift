@@ -21,7 +21,7 @@ public final class IssueDetailViewModel {
 
     public func loadIssue() async {
         do { issue = try await api.getIssue(id: issueId) }
-        catch { self.error = "Failed to load issue." }
+        catch { self.error = error.localizedDescription }
     }
 
     public func loadComments() async {
@@ -35,7 +35,7 @@ public final class IssueDetailViewModel {
                 try await api.listComments(issueId: issueId, limit: 50, offset: offset)
             }
         } catch {
-            self.error = "Failed to load comments."
+            self.error = error.localizedDescription
         }
     }
 
@@ -51,7 +51,7 @@ public final class IssueDetailViewModel {
             commentDraft = ""
             commentLoader.items.append(comment)
             await DataStore.shared.invalidateIssue(issueId)
-        } catch { self.error = "Failed to post comment." }
+        } catch { self.error = error.localizedDescription }
     }
 }
 #endif

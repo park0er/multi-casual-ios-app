@@ -46,7 +46,7 @@ public struct IssueCreateSheet: View {
                 workspaceId: wsId
             )
             onCreated()
-        } catch { errorMessage = "Failed to create issue. Please try again." }
+        } catch { errorMessage = error.localizedDescription }
     }
 }
 #endif

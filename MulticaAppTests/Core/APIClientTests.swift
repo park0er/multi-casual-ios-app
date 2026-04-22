@@ -100,4 +100,35 @@ final class APIClientTests: XCTestCase {
         _ = try await client.verifyCode(email: "x@y.com", code: "123456")
         XCTAssertEqual(capturedPath, "/auth/verify-code")
     }
+
+    // MARK: - APIError LocalizedError
+
+    func test_apiError_unauthorized_localizesToSignOutPrompt() {
+        XCTAssertEqual(
+            APIClient.APIError.unauthorized.errorDescription,
+            "You're signed out. Please sign in again."
+        )
+    }
+
+    func test_apiError_serverError_withJSONErrorField_surfacesBackendMessage() {
+        let body = #"{"error":"Invalid verification code"}"#
+        XCTAssertEqual(
+            APIClient.APIError.serverError(400, body: body).errorDescription,
+            "Invalid verification code"
+        )
+    }
+
+    func test_apiError_serverError_withPlainText_includesStatusAndPreview() {
+        XCTAssertEqual(
+            APIClient.APIError.serverError(500, body: "something broke").errorDescription,
+            "Server error (500): something broke"
+        )
+    }
+
+    func test_apiError_serverError_withEmptyBody_fallsBackToGenericMessage() {
+        XCTAssertEqual(
+            APIClient.APIError.serverError(503, body: "").errorDescription,
+            "Server error (503). Please try again."
+        )
+    }
 }

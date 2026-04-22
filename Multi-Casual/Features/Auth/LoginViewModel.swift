@@ -34,7 +34,7 @@ public final class LoginViewModel {
             step = .otp
             startCooldown()
         } catch {
-            errorMessage = "Failed to send code. Please try again."
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -48,7 +48,7 @@ public final class LoginViewModel {
             let workspaces = try await api.listWorkspaces()
             try authSession.login(user: user, workspace: workspaces.first, token: token)
         } catch {
-            errorMessage = "Invalid or expired code. Try again."
+            errorMessage = error.localizedDescription
             code = ""
         }
     }

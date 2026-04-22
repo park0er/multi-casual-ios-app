@@ -48,12 +48,13 @@ public actor WebSocketActor {
     // MARK: - Internals
 
     private func openTask(token: String) {
-        // TODO(PAR-72): migrate auth to URLRequest header / short-lived ticket per #1.
-        guard let url = URL(string: "wss://api.multica.ai/ws?token=\(token)") else {
+        guard let url = URL(string: "wss://api.multica.ai/ws") else {
             finishAllStreams()
             return
         }
-        let task = URLSession.shared.webSocketTask(with: url)
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let task = URLSession.shared.webSocketTask(with: request)
         wsTask = task
         isConnected = true
         task.resume()

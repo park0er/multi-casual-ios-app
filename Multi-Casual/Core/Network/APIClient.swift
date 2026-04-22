@@ -234,3 +234,39 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/projects/\(id)")
     }
 }
+
+// MARK: - Localized error messages
+
+extension APIClient.APIError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .unauthorized:
+            return "You're signed out. Please sign in again."
+        case .notFound:
+            return "The requested resource was not found."
+        case .serverError(let status, let body):
+            if let decoded = Self.decodeBackendMessage(body) {
+                return decoded
+            }
+            let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                return "Server error (\(status)). Please try again."
+            }
+            let preview = trimmed.count > 200 ? String(trimmed.prefix(200)) + "…" : trimmed
+            return "Server error (\(status)): \(preview)"
+        case .decodingError:
+            return "The server returned data in an unexpected format."
+        case .networkError(let error):
+            return "Network problem: \(error.localizedDescription)"
+        }
+    }
+
+    private static func decodeBackendMessage(_ body: String) -> String? {
+        guard let data = body.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        if let s = obj["error"] as? String, !s.isEmpty { return s }
+        if let s = obj["message"] as? String, !s.isEmpty { return s }
+        return nil
+    }
+}
