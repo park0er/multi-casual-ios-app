@@ -249,7 +249,7 @@ public struct TaskMessage: Codable, Identifiable, Sendable {
     public let type: MessageType
     public let tool: String?
     public let content: String?
-    public let input: [String: AnyCodable]?
+    public let input: [String: JSONValue]?
     public let output: String?
 
     public enum MessageType: String, Codable, Sendable {
@@ -261,7 +261,7 @@ public struct TaskMessage: Codable, Identifiable, Sendable {
     }
 
     public init(id: String, seq: Int, type: MessageType, tool: String?, content: String?,
-                input: [String: AnyCodable]?, output: String?) {
+                input: [String: JSONValue]?, output: String?) {
         self.id = id
         self.seq = seq
         self.type = type
@@ -272,26 +272,54 @@ public struct TaskMessage: Codable, Identifiable, Sendable {
     }
 }
 
-public struct AnyCodable: Codable, @unchecked Sendable {
-    public let value: Any
-
-    public init(_ value: Any) { self.value = value }
+public indirect enum JSONValue: Codable, Sendable, Hashable {
+    case null
+    case bool(Bool)
+    case int(Int)
+    case double(Double)
+    case string(String)
+    case array([JSONValue])
+    case object([String: JSONValue])
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        if let str = try? container.decode(String.self) { value = str }
-        else if let int = try? container.decode(Int.self) { value = int }
-        else if let bool = try? container.decode(Bool.self) { value = bool }
-        else if let dict = try? container.decode([String: String].self) { value = dict }
-        else { value = "" }
+        if container.decodeNil() { self = .null; return }
+        if let b = try? container.decode(Bool.self) { self = .bool(b); return }
+        if let i = try? container.decode(Int.self) { self = .int(i); return }
+        if let d = try? container.decode(Double.self) { self = .double(d); return }
+        if let s = try? container.decode(String.self) { self = .string(s); return }
+        if let a = try? container.decode([JSONValue].self) { self = .array(a); return }
+        if let o = try? container.decode([String: JSONValue].self) { self = .object(o); return }
+        throw DecodingError.dataCorruptedError(
+            in: container,
+            debugDescription: "Unsupported JSON value"
+        )
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
-        if let str = value as? String { try container.encode(str) }
-        else if let int = value as? Int { try container.encode(int) }
-        else if let bool = value as? Bool { try container.encode(bool) }
-        else { try container.encode("") }
+        switch self {
+        case .null: try container.encodeNil()
+        case .bool(let v): try container.encode(v)
+        case .int(let v): try container.encode(v)
+        case .double(let v): try container.encode(v)
+        case .string(let v): try container.encode(v)
+        case .array(let v): try container.encode(v)
+        case .object(let v): try container.encode(v)
+        }
+    }
+
+    /// Flat string representation for UI summaries (not round-trip).
+    public var displayString: String {
+        switch self {
+        case .null: return ""
+        case .bool(let v): return String(v)
+        case .int(let v): return String(v)
+        case .double(let v): return String(v)
+        case .string(let v): return v
+        case .array(let v): return "[\(v.count) items]"
+        case .object(let v): return "{\(v.count) keys}"
+        }
     }
 }
 

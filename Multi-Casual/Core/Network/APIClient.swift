@@ -1,26 +1,24 @@
 import Foundation
 
 public final class APIClient: Sendable {
-    public enum APIError: Error, Sendable {
+    public enum APIError: Error, @unchecked Sendable {
         case unauthorized
         case notFound
-        case serverError(Int)
+        case serverError(Int, body: String)
         case decodingError(Error)
         case networkError(Error)
     }
 
     private let session: URLSession
     private let baseURL: URL
-    private let tokenProvider: @Sendable () async -> String?
+    private let tokenProvider: @Sendable () -> String?
 
-    // Production init: reads token from AuthSession on the main actor
-    @MainActor
+    // Production init: token provider runs off the main actor because
+    // AuthSession.token() is nonisolated (Keychain access is thread-safe).
     public convenience init(authSession: AuthSession) {
         self.init(
             session: .shared,
-            tokenProvider: { @Sendable in
-                await MainActor.run { authSession.token() }
-            }
+            tokenProvider: { authSession.token() }
         )
     }
 
@@ -29,7 +27,7 @@ public final class APIClient: Sendable {
         session: URLSession = .shared,
         baseURL: URL = URL(string: "https://api.multica.ai")!,
         token: String? = nil,
-        tokenProvider: (@Sendable () async -> String?)? = nil
+        tokenProvider: (@Sendable () -> String?)? = nil
     ) {
         self.session = session
         self.baseURL = baseURL
@@ -48,15 +46,20 @@ public final class APIClient: Sendable {
         queryItems: [URLQueryItem] = [],
         body: (any Encodable)? = nil
     ) async throws -> T {
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appendingPathComponent(path),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw APIError.serverError(-1, body: "Invalid base URL: \(baseURL) + \(path)")
+        }
         if !queryItems.isEmpty { components.queryItems = queryItems }
+        guard let url = components.url else {
+            throw APIError.serverError(-1, body: "Invalid URL components for path \(path)")
+        }
 
-        var req = URLRequest(url: components.url!)
+        var req = URLRequest(url: url)
         req.httpMethod = method
-        if let token = await tokenProvider() {
+        if let token = tokenProvider() {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         if let body {
@@ -72,13 +75,15 @@ public final class APIClient: Sendable {
         }
 
         guard let http = response as? HTTPURLResponse else {
-            throw APIError.serverError(-1)
+            throw APIError.serverError(-1, body: "Non-HTTP response: \(response)")
         }
         switch http.statusCode {
         case 200...299: break
         case 401: throw APIError.unauthorized
         case 404: throw APIError.notFound
-        default: throw APIError.serverError(http.statusCode)
+        default:
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw APIError.serverError(http.statusCode, body: body)
         }
 
         do {

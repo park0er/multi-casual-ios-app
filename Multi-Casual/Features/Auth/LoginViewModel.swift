@@ -16,6 +16,7 @@ public final class LoginViewModel {
 
     private let api: APIClient
     private let authSession: AuthSession
+    private var cooldownTask: Task<Void, Never>?
 
     public init(api: APIClient, authSession: AuthSession) {
         self.api = api
@@ -57,14 +58,22 @@ public final class LoginViewModel {
         await sendCode()
     }
 
-    public func backToEmail() { step = .email; code = ""; errorMessage = nil }
+    public func backToEmail() {
+        step = .email; code = ""; errorMessage = nil
+        cooldownTask?.cancel()
+        cooldownTask = nil
+        cooldownSeconds = 0
+    }
 
     private func startCooldown() {
+        cooldownTask?.cancel()
         cooldownSeconds = 60
-        Task {
-            while cooldownSeconds > 0 {
-                try? await Task.sleep(for: .seconds(1))
-                cooldownSeconds -= 1
+        cooldownTask = Task { [weak self] in
+            while let self, self.cooldownSeconds > 0 {
+                do { try await Task.sleep(for: .seconds(1)) }
+                catch { return } // cancelled
+                if Task.isCancelled { return }
+                self.cooldownSeconds -= 1
             }
         }
     }

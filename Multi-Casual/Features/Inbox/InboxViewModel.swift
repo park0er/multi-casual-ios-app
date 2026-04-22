@@ -6,12 +6,18 @@ import Observation
 @MainActor
 public final class InboxViewModel {
     public let loader = PaginatedLoader<InboxItem>()
+    public var lastError: Error?
     private let api: APIClient
 
     public init(api: APIClient) { self.api = api }
 
     public func loadNext() async {
-        await loader.loadNext { [api] offset in try await api.listInbox(limit: 50, offset: offset) }
+        do {
+            try await loader.loadNext { [api] offset in try await api.listInbox(limit: 50, offset: offset) }
+            lastError = nil
+        } catch {
+            lastError = error
+        }
     }
 
     public func refresh() async { loader.reset(); await loadNext() }

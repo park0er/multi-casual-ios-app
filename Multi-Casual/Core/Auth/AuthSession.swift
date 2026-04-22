@@ -22,7 +22,9 @@ public final class AuthSession {
         self.keychain = keychain
     }
 
-    public func token() -> String? {
+    // nonisolated so APIClient can fetch the bearer token off the main actor
+    // on every request path. Keychain access is thread-safe (SecItemCopyMatching).
+    nonisolated public func token() -> String? {
         try? keychain.load()
     }
 
@@ -68,7 +70,7 @@ public final class AuthSession {
         self.keychain = keychain
     }
 
-    public func token() -> String? { try? keychain.load() }
+    nonisolated public func token() -> String? { try? keychain.load() }
 
     public func login(user: User, workspace: Workspace?, token: String) throws {
         try keychain.save(token)

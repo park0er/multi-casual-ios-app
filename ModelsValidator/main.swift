@@ -151,12 +151,12 @@ Task { @MainActor in
     // Test PaginatedLoader
     struct Item: Identifiable, Sendable, Decodable { let id: String }
     let loader = PaginatedLoader<Item>()
-    await loader.loadNext { _ in PageResponse(items: [Item(id: "a"), Item(id: "b")], hasMore: true, total: 10) }
+    try! await loader.loadNext { _ in PageResponse(items: [Item(id: "a"), Item(id: "b")], hasMore: true, total: 10) }
     assert(loader.items.count == 2, "FAIL: loadNext should append 2 items")
     assert(loader.hasMore == true, "FAIL: hasMore should be true")
     print("ok  PaginatedLoader.loadNext appends items")
 
-    await loader.loadNext { _ in PageResponse(items: [Item(id: "c")], hasMore: false, total: 10) }
+    try! await loader.loadNext { _ in PageResponse(items: [Item(id: "c")], hasMore: false, total: 10) }
     assert(loader.items.count == 3, "FAIL: second page should add 1 item")
     assert(loader.hasMore == false, "FAIL: hasMore should now be false")
     print("ok  PaginatedLoader.hasMore=false stops loading")

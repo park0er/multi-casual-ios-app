@@ -43,10 +43,7 @@ public struct IssueDetailView: View {
                     Text("Comments").font(.headline).padding(.horizontal)
                     ForEach(vm.commentLoader.items) { comment in CommentRowView(comment: comment) }
                     if vm.commentLoader.hasMore { ProgressView().onAppear {
-                        Task { await vm.commentLoader.loadNext { [vm] offset in
-                            try await APIClient(authSession: authSession)
-                                .listComments(issueId: vm.issueId, limit: 50, offset: offset)
-                        }}
+                        Task { await vm.loadMoreComments() }
                     }}
                 }.padding(.vertical)
             }

@@ -26,8 +26,16 @@ public final class IssueDetailViewModel {
 
     public func loadComments() async {
         commentLoader.reset()
-        await commentLoader.loadNext { [api, issueId] offset in
-            try await api.listComments(issueId: issueId, limit: 50, offset: offset)
+        await loadMoreComments()
+    }
+
+    public func loadMoreComments() async {
+        do {
+            try await commentLoader.loadNext { [api, issueId] offset in
+                try await api.listComments(issueId: issueId, limit: 50, offset: offset)
+            }
+        } catch {
+            self.error = "Failed to load comments."
         }
     }
 

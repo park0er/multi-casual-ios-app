@@ -6,6 +6,7 @@ import Observation
 @MainActor
 public final class ProjectsViewModel {
     public let loader = PaginatedLoader<Project>()
+    public var lastError: Error?
     private let api: APIClient
     private let authSession: AuthSession
 
@@ -15,8 +16,13 @@ public final class ProjectsViewModel {
 
     public func loadNext() async {
         guard let wsId = authSession.currentWorkspace?.id else { return }
-        await loader.loadNext { [api, wsId] offset in
-            try await api.listProjects(workspaceId: wsId, limit: 50, offset: offset)
+        do {
+            try await loader.loadNext { [api, wsId] offset in
+                try await api.listProjects(workspaceId: wsId, limit: 50, offset: offset)
+            }
+            lastError = nil
+        } catch {
+            lastError = error
         }
     }
 

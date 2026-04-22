@@ -110,7 +110,7 @@ extension TimelineItem {
         case .toolUse:
             let toolName = msg.tool ?? "tool"
             let inputSummary = msg.input?.first(where: { ["file_path","query","command"].contains($0.key) })
-                .map { Self.shortenPath("\($0.value.value)") } ?? ""
+                .map { Self.shortenPath($0.value.displayString) } ?? ""
             summary = "\(toolName) \(inputSummary)".trimmingCharacters(in: .whitespaces)
         case .toolResult: summary = String((msg.output ?? "").prefix(80))
         case .thinking, .text: summary = String((msg.content ?? "").prefix(120))
