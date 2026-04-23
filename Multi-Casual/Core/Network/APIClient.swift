@@ -7,7 +7,7 @@ public final class APIClient: @unchecked Sendable {
         case unauthorized
         case notFound
         case serverError(Int, body: String)
-        case decodingError(Error)
+        case decodingError(underlying: Error, body: String)
         case networkError(Error)
     }
 
@@ -111,7 +111,8 @@ public final class APIClient: @unchecked Sendable {
         do {
             return try APIClient.decoder.decode(T.self, from: data)
         } catch {
-            throw APIError.decodingError(error)
+            let body = String(data: data, encoding: .utf8) ?? "<binary \(data.count) bytes>"
+            throw APIError.decodingError(underlying: error, body: body)
         }
     }
 
@@ -254,8 +255,10 @@ extension APIClient.APIError: LocalizedError {
             }
             let preview = trimmed.count > 200 ? String(trimmed.prefix(200)) + "…" : trimmed
             return "Server error (\(status)): \(preview)"
-        case .decodingError:
-            return "The server returned data in an unexpected format."
+        case .decodingError(let underlying, let body):
+            let preview = body.count > 300 ? String(body.prefix(300)) + "…" : body
+            let detail = Self.decodingErrorPath(underlying)
+            return "Couldn't parse server response\(detail). Raw: \(preview)"
         case .networkError(let error):
             return "Network problem: \(error.localizedDescription)"
         }
@@ -268,5 +271,27 @@ extension APIClient.APIError: LocalizedError {
         if let s = obj["error"] as? String, !s.isEmpty { return s }
         if let s = obj["message"] as? String, !s.isEmpty { return s }
         return nil
+    }
+
+    /// Pull the failing JSON key path out of a Swift `DecodingError` so the
+    /// error message points at the exact field that didn't match, e.g.
+    /// " (missing key 'name' at user)" or " (type mismatch at workspaces[0].slug)".
+    private static func decodingErrorPath(_ error: Error) -> String {
+        guard let decodingError = error as? DecodingError else { return "" }
+        func path(_ ctx: DecodingError.Context) -> String {
+            ctx.codingPath.map(\.stringValue).joined(separator: ".")
+        }
+        switch decodingError {
+        case .keyNotFound(let key, let ctx):
+            let loc = path(ctx); return " (missing key '\(key.stringValue)'\(loc.isEmpty ? "" : " at \(loc)"))"
+        case .typeMismatch(_, let ctx):
+            return " (type mismatch at \(path(ctx)))"
+        case .valueNotFound(_, let ctx):
+            return " (null value at \(path(ctx)))"
+        case .dataCorrupted(let ctx):
+            let loc = path(ctx); return loc.isEmpty ? " (corrupted body)" : " (corrupted at \(loc))"
+        @unknown default:
+            return ""
+        }
     }
 }
