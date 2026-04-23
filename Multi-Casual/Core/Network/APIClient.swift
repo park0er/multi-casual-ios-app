@@ -142,10 +142,10 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/me")
     }
 
-    private struct WorkspacesResponse: Decodable { let workspaces: [Workspace] }
+    // GET /api/workspaces returns a bare JSON array, not an object wrapper.
+    // Confirmed via desktop client consumer and real response body (PAR-72).
     public func listWorkspaces() async throws -> [Workspace] {
-        let resp: WorkspacesResponse = try await request("GET", path: "api/workspaces")
-        return resp.workspaces
+        try await request("GET", path: "api/workspaces")
     }
 
     public func registerPushToken(_ token: String) async throws {
