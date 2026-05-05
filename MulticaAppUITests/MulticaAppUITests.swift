@@ -45,6 +45,12 @@ final class Multi-CasualUITests: XCTestCase {
 
     func testCreateIssueSubmitsToBackendWhenMutationTestsEnabled() throws {
         try requireMutationTestsEnabled(reason: "create a real backend issue")
+        guard mutationFlagEnabled(
+            environmentKey: "MULTICA_UI_MUTATION_CREATE",
+            fileName: "create.enabled"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_CREATE=1 or touch /tmp/multica-ui-mutation-tests/create.enabled to create a real issue.")
+        }
 
         let app = launchApp(initialTab: "issues", openCreateSheet: true)
         let title = "iOS UI mutation \(Int(Date().timeIntervalSince1970))"
@@ -190,6 +196,12 @@ final class Multi-CasualUITests: XCTestCase {
 
     func testIssueDetailSubmitsCommentWhenMutationTestsEnabled() throws {
         try requireMutationTestsEnabled(reason: "post a real backend comment")
+        guard mutationFlagEnabled(
+            environmentKey: "MULTICA_UI_MUTATION_COMMENT",
+            fileName: "comment.enabled"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_COMMENT=1 or touch /tmp/multica-ui-mutation-tests/comment.enabled to post a real comment.")
+        }
         guard let issueId = mutationValue(
             environmentKey: "MULTICA_UI_MUTATION_ISSUE_ID",
             fileName: "issue-id"
