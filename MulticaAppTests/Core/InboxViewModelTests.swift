@@ -51,6 +51,59 @@ final class InboxViewModelTests: XCTestCase {
         XCTAssertNil(vm.lastError)
     }
 
+    func test_loadNext_deduplicatesInboxItemsByIssueKeepingNewestActiveItem() async throws {
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/inbox":
+                let body = Self.inboxItemsJSON([
+                    Self.inboxItemJSON(
+                        id: "old",
+                        issueId: "i1",
+                        title: "Old PAR-73 update",
+                        read: false,
+                        archived: false,
+                        createdAt: "2026-01-01T00:00:00Z"
+                    ),
+                    Self.inboxItemJSON(
+                        id: "new",
+                        issueId: "i1",
+                        title: "Newest PAR-73 update",
+                        read: false,
+                        archived: false,
+                        createdAt: "2026-01-02T00:00:00Z"
+                    ),
+                    Self.inboxItemJSON(
+                        id: "archived-newest",
+                        issueId: "i2",
+                        title: "Archived update",
+                        read: false,
+                        archived: true,
+                        createdAt: "2026-01-03T00:00:00Z"
+                    ),
+                    Self.inboxItemJSON(
+                        id: "other",
+                        issueId: "i3",
+                        title: "Other issue update",
+                        read: true,
+                        archived: false,
+                        createdAt: "2026-01-01T12:00:00Z"
+                    )
+                ])
+                return Self.response(for: req, body: body)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = InboxViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+
+        XCTAssertEqual(vm.loader.items.map(\.id), ["new", "other"])
+        XCTAssertEqual(vm.unreadCount, 1)
+        XCTAssertNil(vm.lastError)
+    }
+
     private func makeClient(handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)) -> APIClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -82,6 +135,27 @@ final class InboxViewModelTests: XCTestCase {
          "read":\(read),"archived":\(archived),"created_at":"2026-01-01T00:00:00Z",
          "details":{"identifier":"PAR-73"}}
         """.data(using: .utf8)!
+    }
+
+    private static func inboxItemsJSON(_ items: [String]) -> Data {
+        Data("[\(items.joined(separator: ","))]".utf8)
+    }
+
+    private static func inboxItemJSON(
+        id: String,
+        issueId: String,
+        title: String,
+        read: Bool,
+        archived: Bool,
+        createdAt: String
+    ) -> String {
+        """
+        {"id":"\(id)","workspace_id":"w1","recipient_type":"member","recipient_id":"u1",
+         "actor_type":null,"actor_id":null,"type":"new_comment","severity":"attention",
+         "issue_id":"\(issueId)","title":"\(title)","body":null,"issue_status":"todo",
+         "read":\(read),"archived":\(archived),"created_at":"\(createdAt)",
+         "details":{"identifier":"PAR-73"}}
+        """
     }
 
     private static func response(

@@ -24,6 +24,7 @@ public final class InboxViewModel {
             try await loader.loadNext { [api, workspaceId] offset in
                 try await api.listInbox(workspaceId: workspaceId, limit: 50, offset: offset)
             }
+            loader.items = Self.deduplicateInboxItems(loader.items)
             lastError = nil
             updateUnreadCount()
         } catch {
@@ -67,5 +68,17 @@ public final class InboxViewModel {
 
     private func updateUnreadCount() {
         unreadCount = loader.items.filter { !$0.read && !$0.archived }.count
+    }
+
+    private static func deduplicateInboxItems(_ items: [InboxItem]) -> [InboxItem] {
+        let active = items.filter { !$0.archived }
+        let groups = Dictionary(grouping: active) { item in
+            item.issueId.isEmpty ? item.id : item.issueId
+        }
+
+        return groups.values.compactMap { group in
+            group.max { $0.createdAt < $1.createdAt }
+        }
+        .sorted { $0.createdAt > $1.createdAt }
     }
 }
