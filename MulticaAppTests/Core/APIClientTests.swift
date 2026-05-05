@@ -174,6 +174,44 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(page.items.first?.issueTitle, "PAR-73 updated")
     }
 
+    func test_markInboxRead_usesDesktopReadEndpoint() async throws {
+        let json = """
+        {"id":"n1","workspace_id":"w1","recipient_type":"member","recipient_id":"u1",
+         "actor_type":null,"actor_id":null,"type":"new_comment","severity":"attention",
+         "issue_id":"i1","title":"PAR-73 updated","body":null,"issue_status":"todo",
+         "read":true,"archived":false,"created_at":"2026-01-01T00:00:00Z",
+         "details":{"identifier":"PAR-73"}}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/inbox/n1/read")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let item = try await client.markInboxRead(id: "n1")
+
+        XCTAssertTrue(item.read)
+    }
+
+    func test_archiveInbox_usesDesktopArchiveEndpoint() async throws {
+        let json = """
+        {"id":"n1","workspace_id":"w1","recipient_type":"member","recipient_id":"u1",
+         "actor_type":null,"actor_id":null,"type":"new_comment","severity":"attention",
+         "issue_id":"i1","title":"PAR-73 updated","body":null,"issue_status":"todo",
+         "read":true,"archived":true,"created_at":"2026-01-01T00:00:00Z",
+         "details":{"identifier":"PAR-73"}}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/inbox/n1/archive")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let item = try await client.archiveInbox(id: "n1")
+
+        XCTAssertTrue(item.archived)
+    }
+
     func test_listComments_decodesBareArrayResponse() async throws {
         let json = """
         [{"id":"c1","content":"Hi","author_id":"u1","author_type":"member",

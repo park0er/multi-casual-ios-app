@@ -261,6 +261,7 @@ public struct InboxItem: Codable, Identifiable, Sendable {
     public let issueIdentifier: String
     public let issueTitle: String
     public let read: Bool
+    public let archived: Bool
     public let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
@@ -268,23 +269,24 @@ public struct InboxItem: Codable, Identifiable, Sendable {
         case issueId = "issue_id"
         case issueIdentifier = "issue_identifier"
         case issueTitle = "issue_title"
-        case read
+        case read, archived
         case createdAt = "created_at"
     }
 
     private enum DesktopCodingKeys: String, CodingKey {
-        case id, title, read, details
+        case id, title, read, archived, details
         case issueId = "issue_id"
         case createdAt = "created_at"
     }
 
     public init(id: String, issueId: String, issueIdentifier: String, issueTitle: String,
-                read: Bool, createdAt: Date) {
+                read: Bool, archived: Bool = false, createdAt: Date) {
         self.id = id
         self.issueId = issueId
         self.issueIdentifier = issueIdentifier
         self.issueTitle = issueTitle
         self.read = read
+        self.archived = archived
         self.createdAt = createdAt
     }
 
@@ -301,6 +303,7 @@ public struct InboxItem: Codable, Identifiable, Sendable {
         issueTitle = try legacy.decodeIfPresent(String.self, forKey: .issueTitle)
             ?? desktop.decode(String.self, forKey: .title)
         read = try legacy.decode(Bool.self, forKey: .read)
+        archived = try legacy.decodeIfPresent(Bool.self, forKey: .archived) ?? false
         createdAt = try legacy.decode(Date.self, forKey: .createdAt)
     }
 }

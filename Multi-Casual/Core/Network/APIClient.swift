@@ -258,6 +258,14 @@ public final class APIClient: @unchecked Sendable {
         ])
     }
 
+    public func markInboxRead(id: String) async throws -> InboxItem {
+        try await request("POST", path: "api/inbox/\(id)/read")
+    }
+
+    public func archiveInbox(id: String) async throws -> InboxItem {
+        try await request("POST", path: "api/inbox/\(id)/archive")
+    }
+
     // MARK: - Projects
 
     public func listProjects(workspaceId: String, limit: Int = 50, offset: Int = 0) async throws -> PageResponse<Project> {

@@ -19,9 +19,31 @@ public struct InboxView: View {
                             }
                             .padding(.vertical, 4)
                         }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                Task { await vm.archive(id: item.id) }
+                            } label: {
+                                Label("Archive", systemImage: "archivebox")
+                            }
+                        }
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            if !item.read {
+                                Button {
+                                    Task { await vm.markRead(id: item.id) }
+                                } label: {
+                                    Label("Read", systemImage: "envelope.open")
+                                }
+                                .tint(.blue)
+                            }
+                        }
                     }
                     if vm.loader.hasMore {
                         ProgressView().onAppear { Task { await vm.loadNext() } }
+                    }
+                    if let error = vm.lastError {
+                        Text(error.localizedDescription)
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
                 }
                 .listStyle(.plain)
