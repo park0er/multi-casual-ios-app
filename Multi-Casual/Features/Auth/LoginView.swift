@@ -45,16 +45,18 @@ public struct LoginView: View {
                     Text(error).font(.caption).foregroundStyle(.red)
                 }
 
-                Button { Task { await vm.sendCode() } } label: {
-                    Group {
-                        if vm.isLoading { ProgressView() }
-                        else { Text("Continue") }
+                Button {
+                    Task { await vm.sendCode() }
+                } label: {
+                    if vm.isLoading {
+                        ProgressView().tint(.secondary)
+                    } else {
+                        Text("Continue")
                     }
-                    .frame(maxWidth: .infinity).padding()
-                    .background(.primary, in: RoundedRectangle(cornerRadius: 12))
-                    .foregroundStyle(.background)
                 }
+                .buttonStyle(.primary)
                 .disabled(vm.email.isEmpty || vm.isLoading)
+                .accessibilityLabel("Continue - send login code to \(vm.email.isEmpty ? "email" : vm.email)")
             }
             .padding(.horizontal, 24)
             Spacer()
