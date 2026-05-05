@@ -8,6 +8,28 @@ final class MockURLProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
+    static func bodyData(for request: URLRequest) -> Data {
+        if let body = request.httpBody {
+            return body
+        }
+
+        guard let stream = request.httpBodyStream else {
+            return Data()
+        }
+
+        stream.open()
+        defer { stream.close() }
+
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable {
+            let bytesRead = stream.read(&buffer, maxLength: buffer.count)
+            if bytesRead <= 0 { break }
+            data.append(buffer, count: bytesRead)
+        }
+        return data
+    }
+
     override func startLoading() {
         guard let handler = MockURLProtocol.handler else {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
@@ -93,6 +115,42 @@ final class APIClientTests: XCTestCase {
         _ = try await client.getIssue(id: "i1", workspaceId: "w1")
 
         XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+    }
+
+    func test_createIssue_sendsDesktopCreateFields() async throws {
+        let json = """
+        {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":"D",
+         "status":"backlog","priority":"high","assignee_id":"a1","assignee_type":"agent",
+         "project_id":"p1","workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+         "updated_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+        var body: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/issues")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await client.createIssue(
+            title: "T",
+            description: "D",
+            workspaceId: "w1",
+            status: .backlog,
+            priority: .high,
+            assigneeType: "agent",
+            assigneeId: "a1",
+            projectId: "p1",
+            dueDate: "2026-05-07T00:00:00Z"
+        )
+
+        XCTAssertEqual(body["workspace_id"] as? String, "w1")
+        XCTAssertEqual(body["status"] as? String, "backlog")
+        XCTAssertEqual(body["priority"] as? String, "high")
+        XCTAssertEqual(body["assignee_type"] as? String, "agent")
+        XCTAssertEqual(body["assignee_id"] as? String, "a1")
+        XCTAssertEqual(body["project_id"] as? String, "p1")
+        XCTAssertEqual(body["due_date"] as? String, "2026-05-07T00:00:00Z")
     }
 
     func test_listInbox_decodesBareArrayResponse() async throws {
@@ -191,6 +249,44 @@ final class APIClientTests: XCTestCase {
 
         XCTAssertEqual(page.total, 1)
         XCTAssertEqual(page.items.first?.name, "iOS MVP")
+    }
+
+    func test_listMembers_decodesWorkspaceMembers() async throws {
+        let json = """
+        [{"id":"m1","workspace_id":"w1","user_id":"u1","role":"owner",
+          "created_at":"2026-01-01T00:00:00Z","name":"Parker",
+          "email":"p@example.com","avatar_url":null}]
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/workspaces/w1/members")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let members = try await client.listMembers(workspaceId: "w1")
+
+        XCTAssertEqual(members.first?.name, "Parker")
+    }
+
+    func test_listAgents_decodesWorkspaceAgents() async throws {
+        let json = """
+        [{"id":"a1","workspace_id":"w1","runtime_id":"r1","name":"Codex",
+          "description":"","instructions":"","avatar_url":null,"runtime_mode":"cloud",
+          "runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,
+          "visibility":"workspace","status":"active","max_concurrent_tasks":1,
+          "model":"gpt","owner_id":null,"skills":[],"created_at":"2026-01-01T00:00:00Z",
+          "updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}]
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.url?.path, "/api/agents")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let agents = try await client.listAgents(workspaceId: "w1")
+
+        XCTAssertEqual(agents.first?.name, "Codex")
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
     func test_sendCode_usesAuthSendCodePath() async throws {

@@ -7,46 +7,145 @@ public struct IssueCreateSheet: View {
     @Environment(\.dismiss) private var dismiss
     let onCreated: () -> Void
 
-    @State private var title = ""
-    @State private var description = ""
-    @State private var isLoading = false
-    @State private var errorMessage: String?
+    @State private var viewModel: IssueCreateViewModel?
 
     public init(onCreated: @escaping () -> Void) { self.onCreated = onCreated }
 
     public var body: some View {
-        NavigationStack {
-            Form {
-                Section("Title") { TextField("Issue title", text: $title) }
-                Section("Description (optional)") {
-                    TextEditor(text: $description).frame(minHeight: 120)
-                }
-                if let error = errorMessage {
-                    Section { Text(error).foregroundStyle(.red).font(.caption) }
-                }
-            }
-            .navigationTitle("New Issue").navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") { Task { await submit() } }
-                        .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isLoading)
+        Group {
+            if let viewModel {
+                IssueCreateForm(
+                    viewModel: viewModel,
+                    onCancel: { dismiss() },
+                    onCreated: {
+                        onCreated()
+                        dismiss()
+                    }
+                )
+            } else {
+                NavigationStack {
+                    ProgressView()
+                        .navigationTitle("New Issue")
+                        .navigationBarTitleDisplayMode(.inline)
                 }
             }
         }
+        .task(id: authSession.currentWorkspace?.id) {
+            let vm = IssueCreateViewModel(api: api, authSession: authSession)
+            viewModel = vm
+            await vm.loadOptions()
+        }
     }
+}
 
-    private func submit() async {
-        guard let wsId = authSession.currentWorkspace?.id else { return }
-        isLoading = true; errorMessage = nil; defer { isLoading = false }
-        do {
-            _ = try await api.createIssue(
-                title: title.trimmingCharacters(in: .whitespaces),
-                description: description.isEmpty ? nil : description,
-                workspaceId: wsId
-            )
-            onCreated()
-        } catch { errorMessage = error.localizedDescription }
+private struct IssueCreateForm: View {
+    @Bindable var viewModel: IssueCreateViewModel
+    let onCancel: () -> Void
+    let onCreated: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Title") {
+                    TextField("Issue title", text: $viewModel.title)
+                }
+
+                Section("Description") {
+                    TextEditor(text: $viewModel.description)
+                        .frame(minHeight: 120)
+                }
+
+                Section("Details") {
+                    Picker("Status", selection: $viewModel.status) {
+                        ForEach(viewModel.statusOptions, id: \.self) { status in
+                            Label(status.displayName, systemImage: status.icon)
+                                .tag(status)
+                        }
+                    }
+
+                    Picker("Priority", selection: $viewModel.priority) {
+                        ForEach(viewModel.priorityOptions, id: \.self) { priority in
+                            Text(priority.displayName).tag(priority)
+                        }
+                    }
+                }
+
+                Section("Assignment") {
+                    Picker("Assignee", selection: $viewModel.selectedAssigneeOptionId) {
+                        Text("Unassigned").tag(IssueCreateViewModel.noAssigneeId)
+                        ForEach(viewModel.assigneeOptions) { option in
+                            Text(option.displayName).tag(option.id)
+                        }
+                    }
+
+                    if let assignee = viewModel.selectedAssignee {
+                        LabeledContent(assignee.subtitle, value: assignee.type.capitalized)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("Project") {
+                    Picker("Project", selection: $viewModel.selectedProjectId) {
+                        Text("No Project").tag(IssueCreateViewModel.noProjectId)
+                        ForEach(viewModel.projects) { project in
+                            Text(project.name).tag(project.id)
+                        }
+                    }
+                }
+
+                Section("Due Date") {
+                    Toggle("Set Due Date", isOn: $viewModel.includesDueDate)
+                    if viewModel.includesDueDate {
+                        DatePicker(
+                            "Due Date",
+                            selection: $viewModel.dueDate,
+                            displayedComponents: [.date]
+                        )
+                    }
+                }
+
+                if viewModel.isLoadingOptions {
+                    Section {
+                        HStack {
+                            ProgressView()
+                            Text("Loading workspace options")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                if let error = viewModel.errorMessage {
+                    Section {
+                        Text(error)
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                    }
+                }
+            }
+            .navigationTitle("New Issue")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        Task {
+                            guard await viewModel.submit() else { return }
+                            onCreated()
+                        }
+                    } label: {
+                        if viewModel.isSubmitting {
+                            ProgressView()
+                        } else {
+                            Text("Create")
+                        }
+                    }
+                    .disabled(!viewModel.canSubmit)
+                }
+            }
+        }
     }
 }
 #endif

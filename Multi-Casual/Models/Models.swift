@@ -40,6 +40,38 @@ public struct Workspace: Codable, Identifiable, Sendable {
     }
 }
 
+public struct WorkspaceMember: Codable, Identifiable, Sendable {
+    public let id: String
+    public let workspaceId: String
+    public let userId: String
+    public let role: String
+    public let name: String
+    public let email: String
+    public let avatarUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, role, name, email
+        case workspaceId = "workspace_id"
+        case userId = "user_id"
+        case avatarUrl = "avatar_url"
+    }
+}
+
+public struct Agent: Codable, Identifiable, Sendable {
+    public let id: String
+    public let workspaceId: String
+    public let name: String
+    public let description: String
+    public let status: String
+    public let avatarUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, status
+        case workspaceId = "workspace_id"
+        case avatarUrl = "avatar_url"
+    }
+}
+
 // MARK: - Date formatting
 
 /// Shared ISO8601 formatter for UI display (date + time, no Z suffix).

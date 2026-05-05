@@ -159,9 +159,19 @@ public final class APIClient: @unchecked Sendable {
         let title: String
         let description: String?
         let workspaceId: String
+        let status: IssueStatus?
+        let priority: IssuePriority?
+        let assigneeType: String?
+        let assigneeId: String?
+        let projectId: String?
+        let dueDate: String?
         enum CodingKeys: String, CodingKey {
-            case title, description
+            case title, description, status, priority
             case workspaceId = "workspace_id"
+            case assigneeType = "assignee_type"
+            case assigneeId = "assignee_id"
+            case projectId = "project_id"
+            case dueDate = "due_date"
         }
     }
 
@@ -177,9 +187,29 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/issues/\(id)", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func createIssue(title: String, description: String?, workspaceId: String) async throws -> Issue {
+    public func createIssue(
+        title: String,
+        description: String?,
+        workspaceId: String,
+        status: IssueStatus? = nil,
+        priority: IssuePriority? = nil,
+        assigneeType: String? = nil,
+        assigneeId: String? = nil,
+        projectId: String? = nil,
+        dueDate: String? = nil
+    ) async throws -> Issue {
         try await request("POST", path: "api/issues",
-                          body: CreateIssueRequest(title: title, description: description, workspaceId: workspaceId))
+                          body: CreateIssueRequest(
+                            title: title,
+                            description: description,
+                            workspaceId: workspaceId,
+                            status: status,
+                            priority: priority,
+                            assigneeType: assigneeType,
+                            assigneeId: assigneeId,
+                            projectId: projectId,
+                            dueDate: dueDate
+                          ))
     }
 
     public func listComments(issueId: String, workspaceId: String? = nil, limit: Int = 50, offset: Int = 0) async throws -> PageResponse<Comment> {
@@ -207,6 +237,16 @@ public final class APIClient: @unchecked Sendable {
 
     public func listRunMessages(taskId: String) async throws -> [TaskMessage] {
         try await request("GET", path: "api/tasks/\(taskId)/messages")
+    }
+
+    // MARK: - Workspace people and agents
+
+    public func listMembers(workspaceId: String) async throws -> [WorkspaceMember] {
+        try await request("GET", path: "api/workspaces/\(workspaceId)/members")
+    }
+
+    public func listAgents(workspaceId: String) async throws -> [Agent] {
+        try await request("GET", path: "api/agents", queryItems: workspaceQuery(workspaceId))
     }
 
     // MARK: - Inbox
