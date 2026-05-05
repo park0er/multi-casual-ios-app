@@ -52,6 +52,48 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.metadataError)
     }
 
+    func test_loadMetadata_fetchesLinkedProjectByIdWhenNotInFirstProjectsPage() async throws {
+        var capturedProjectURL: URL?
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/issues/i1":
+                let json = """
+                {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
+                 "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+                 "project_id":"p51","workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+                 "updated_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/workspaces/w1/members":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/agents":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/projects":
+                return Self.response(for: req, body: #"{"projects":[],"total":51}"#.data(using: .utf8)!)
+            case "/api/projects/p51":
+                capturedProjectURL = req.url
+                let json = """
+                {"id":"p51","workspace_id":"w1","title":"Page 2 Project","description":null,
+                 "icon":null,"status":"planned","priority":"none",
+                 "lead_type":null,"lead_id":null,"created_at":"2026-01-01T00:00:00Z",
+                 "updated_at":"2026-01-01T00:00:00Z","issue_count":1,"done_count":0}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadIssue()
+        await vm.loadMetadata()
+
+        XCTAssertEqual(vm.projectDisplayName, "Page 2 Project")
+        XCTAssertTrue(capturedProjectURL?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertNil(vm.metadataError)
+    }
+
     func test_loadAgentRuns_surfacesEndpointError() async throws {
         let client = makeClient { req in
             XCTAssertEqual(req.url?.path, "/api/issues/i1/task-runs")

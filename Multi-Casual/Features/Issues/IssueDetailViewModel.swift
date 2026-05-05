@@ -67,7 +67,11 @@ public final class IssueDetailViewModel {
             }
 
             if let projectId = issue.projectId {
-                projectDisplayName = loadedProjects.items.first { $0.id == projectId }?.name
+                if let project = loadedProjects.items.first(where: { $0.id == projectId }) {
+                    projectDisplayName = project.name
+                } else {
+                    projectDisplayName = try await api.getProject(id: projectId, workspaceId: workspaceId).name
+                }
             }
         } catch {
             metadataError = error.localizedDescription
