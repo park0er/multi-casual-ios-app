@@ -111,6 +111,7 @@ public final class IssueDetailViewModel {
             let comment = try await api.addComment(issueId: issueId, content: commentDraft, workspaceId: workspaceId)
             commentDraft = ""
             commentLoader.items.append(comment)
+            await loadIssue()
             await DataStore.shared.invalidateIssue(issueId)
         } catch { self.error = error.localizedDescription }
     }
