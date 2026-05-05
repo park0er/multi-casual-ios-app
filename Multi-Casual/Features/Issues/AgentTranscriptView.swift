@@ -5,17 +5,22 @@ public struct AgentTranscriptView: View {
     public let taskId: String
     @Environment(\.dismiss) private var dismiss
     @Environment(APIClient.self) private var api
-    @State private var timeline: [TimelineItem] = []
-    @State private var isLoading = true
+    @State private var viewModel: AgentTimelineViewModel?
 
     public init(taskId: String) { self.taskId = taskId }
 
     public var body: some View {
         NavigationStack {
             Group {
-                if isLoading { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
-                else {
-                    List(timeline) { item in
+                if let viewModel {
+                    if viewModel.isLoading {
+                        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if let error = viewModel.errorMessage {
+                        ContentUnavailableView("Transcript Unavailable", systemImage: "exclamationmark.triangle", description: Text(error))
+                    } else if viewModel.timeline.isEmpty {
+                        ContentUnavailableView("No Messages", systemImage: "text.bubble", description: Text("This agent run has no transcript messages yet."))
+                    } else {
+                        List(viewModel.timeline) { item in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Image(systemName: iconForType(item.type)).foregroundStyle(.secondary)
@@ -25,16 +30,18 @@ public struct AgentTranscriptView: View {
                             }
                             Text(item.summary).font(.system(.caption, design: .monospaced))
                         }.padding(.vertical, 2)
-                    }.listStyle(.plain)
-                }
+                        }.listStyle(.plain)
+                    }
+                } else { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
             }
             .navigationTitle("Agent Transcript").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
             .task {
-                if let messages = try? await api.listRunMessages(taskId: taskId) {
-                    timeline = messages.map(TimelineItem.init(from:))
+                if viewModel == nil {
+                    let vm = AgentTimelineViewModel(taskId: taskId, api: api)
+                    viewModel = vm
+                    await vm.loadHistory()
                 }
-                isLoading = false
             }
         }
     }
