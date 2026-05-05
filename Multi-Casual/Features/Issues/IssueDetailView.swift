@@ -32,8 +32,11 @@ public struct IssueDetailView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showTranscript) {
-            if let taskId = selectedTaskId { AgentTranscriptView(taskId: taskId) }
+        .sheet(isPresented: $showTranscript) {
+            if let taskId = selectedTaskId {
+                AgentTranscriptView(taskId: taskId)
+                    .presentationDragIndicator(.visible)
+            }
         }
     }
 

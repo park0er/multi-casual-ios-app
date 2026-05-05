@@ -90,6 +90,21 @@ public final class IssueListViewModel {
         await refresh()
     }
 
+    public func updateStatus(issueId: String, to status: IssueStatus) async {
+        guard let wsId = authSession.currentWorkspace?.id else {
+            lastError = UserVisibleError("Pick a workspace before updating Issues.")
+            return
+        }
+        do {
+            let updated = try await api.updateIssue(id: issueId, workspaceId: wsId, status: status)
+            replaceIssue(updated)
+            lastError = nil
+            await DataStore.shared.invalidateIssue(issueId)
+        } catch {
+            lastError = error
+        }
+    }
+
     public func issues(for status: IssueStatus) -> [Issue] {
         sorted(issuesByStatus[status] ?? [])
     }
@@ -124,6 +139,43 @@ public final class IssueListViewModel {
         let issues = IssueStatus.boardCases.flatMap { issuesByStatus[$0] ?? [] }
         loader.items = sorted(issues)
         loader.hasMore = IssueStatus.boardCases.contains { statusHasMore($0) }
+    }
+
+    private func replaceIssue(_ issue: Issue) {
+        let previousStatus = IssueStatus.boardCases.first { status in
+            issuesByStatus[status]?.contains { $0.id == issue.id } == true
+        }
+
+        for status in IssueStatus.boardCases {
+            issuesByStatus[status]?.removeAll { $0.id == issue.id }
+        }
+        if IssueStatus.boardCases.contains(issue.status) {
+            issuesByStatus[issue.status, default: []].append(issue)
+        }
+        reconcilePaginationAfterReplacingIssue(from: previousStatus, to: issue.status)
+        syncFlatIssues()
+    }
+
+    private func reconcilePaginationAfterReplacingIssue(from previousStatus: IssueStatus?, to newStatus: IssueStatus) {
+        var affectedStatuses = Set<IssueStatus>()
+        if let previousStatus {
+            affectedStatuses.insert(previousStatus)
+        }
+        if IssueStatus.boardCases.contains(newStatus) {
+            affectedStatuses.insert(newStatus)
+        }
+
+        for status in affectedStatuses {
+            offsetsByStatus[status] = issuesByStatus[status, default: []].count
+        }
+
+        guard let previousStatus, previousStatus != newStatus else { return }
+        if let total = totalsByStatus[previousStatus] {
+            totalsByStatus[previousStatus] = max(0, total - 1)
+        }
+        if IssueStatus.boardCases.contains(newStatus), let total = totalsByStatus[newStatus] {
+            totalsByStatus[newStatus] = total + 1
+        }
     }
 
     private func sorted(_ issues: [Issue]) -> [Issue] {

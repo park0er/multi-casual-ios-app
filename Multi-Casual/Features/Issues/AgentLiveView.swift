@@ -69,8 +69,9 @@ public struct AgentLiveView: View {
             subscriptionTask?.cancel()
             subscriptionTask = nil
         }
-        .fullScreenCover(isPresented: $showTranscript) {
+        .sheet(isPresented: $showTranscript) {
             AgentTranscriptView(taskId: taskId)
+                .presentationDragIndicator(.visible)
         }
     }
 

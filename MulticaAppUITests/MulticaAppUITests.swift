@@ -91,6 +91,18 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons["IssueDetailCommentSendButton"].isEnabled)
     }
 
+    func testIssueListSwipeShowsDoneActionWithoutSubmitting() {
+        let app = launchApp(initialTab: "issues")
+
+        XCTAssertTrue(app.staticTexts["Issues"].waitForExistence(timeout: 20))
+        let firstIssue = app.cells.element(boundBy: 0)
+        XCTAssertTrue(firstIssue.waitForExistence(timeout: 20))
+        let rowButton = firstIssue.buttons.element(boundBy: 0)
+        XCTAssertTrue(rowButton.waitForExistence(timeout: 5))
+        rowButton.swipeLeft()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+    }
+
     func testIssueDetailSubmitsCommentWhenMutationTestsEnabled() throws {
         try requireMutationTestsEnabled(reason: "post a real backend comment")
         guard let issueId = mutationValue(

@@ -65,6 +65,7 @@ public struct IssueListView: View {
                     set: { vm.showCreateSheet = $0 }
                 )) {
                     IssueCreateSheet { vm.showCreateSheet = false; Task { await vm.refresh() } }
+                        .presentationDragIndicator(.visible)
                 }
                 .refreshable { await vm.refresh() }
             } else { ProgressView() }
@@ -95,6 +96,16 @@ public struct IssueListView: View {
             ForEach(vm.loader.items) { issue in
                 NavigationLink(destination: IssueDetailView(issueId: issue.id)) {
                     IssueRowView(issue: issue)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    if issue.status != .done {
+                        Button {
+                            Task { await vm.updateStatus(issueId: issue.id, to: .done) }
+                        } label: {
+                            Label("Done", systemImage: "checkmark.circle")
+                        }
+                        .tint(.green)
+                    }
                 }
             }
             if vm.loader.hasMore { ProgressView().onAppear { Task { await vm.loadNext() } } }

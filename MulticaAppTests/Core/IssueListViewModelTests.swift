@@ -99,6 +99,42 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertEqual(vm.loader.items.map(\.id), ["todo-1", "backlog-1"])
     }
 
+    func test_updateStatus_updatesServerAndMovesIssueBetweenStatusBuckets() async throws {
+        var updateRequestBody: [String: Any] = [:]
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues"):
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+                if status == "todo" {
+                    return Self.issuesResponse(for: req, status: status, total: 1)
+                }
+                return Self.emptyIssuesResponse(for: req)
+            case ("PUT", "/api/issues/todo-1"):
+                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+                updateRequestBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return Self.response(
+                    for: req,
+                    body: Self.issueJSON(id: "todo-1", status: "done", priority: "none")
+                )
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        await vm.updateStatus(issueId: "todo-1", to: IssueStatus.done)
+
+        XCTAssertEqual(updateRequestBody["status"] as? String, "done")
+        XCTAssertEqual(vm.loader.items.map { $0.status }, [IssueStatus.done])
+        XCTAssertEqual(vm.issuesByStatus[IssueStatus.todo]?.map { $0.id } ?? [], [])
+        XCTAssertEqual(vm.issuesByStatus[IssueStatus.done]?.map { $0.id }, ["todo-1"])
+        XCTAssertFalse(vm.loader.hasMore)
+        XCTAssertNil(vm.lastError)
+    }
+
     private func makeClient(handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? = nil) -> APIClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -133,6 +169,17 @@ final class IssueListViewModelTests: XCTestCase {
         )
     }
 
+    private static func response(
+        for request: URLRequest,
+        body: Data,
+        status: Int = 200
+    ) -> (HTTPURLResponse, Data) {
+        (
+            HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!,
+            body
+        )
+    }
+
     private static func issuesResponse(
         for request: URLRequest,
         status: String,
@@ -152,5 +199,14 @@ final class IssueListViewModelTests: XCTestCase {
             HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
             json
         )
+    }
+
+    private static func issueJSON(id: String, status: String, priority: String) -> Data {
+        """
+        {"id":"\(id)","identifier":"PAR-1","number":1,
+         "title":"\(status) issue","description":null,"status":"\(status)","priority":"\(priority)",
+         "assignee_id":null,"assignee_type":null,"project_id":null,"workspace_id":"w1",
+         "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-02T00:00:00Z"}
+        """.data(using: .utf8)!
     }
 }
