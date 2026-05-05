@@ -50,9 +50,9 @@ public struct ProjectDetailView: View {
 
                     if let error = vm.errorMessage {
                         Section {
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(.red)
+                            ErrorRetryView(message: error) {
+                                Task { await vm.load() }
+                            }
                         }
                     }
                 }

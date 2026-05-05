@@ -42,7 +42,9 @@ public struct AgentLiveView: View {
                         ProgressView().padding(.vertical, 4)
                     }
                     if let error = viewModel?.errorMessage {
-                        Text(error).font(.caption).foregroundStyle(.red)
+                        ErrorRetryView(message: error) {
+                            Task { await viewModel?.loadHistory() }
+                        }
                     }
                     ForEach(timeline) { item in TimelineRowView(item: item) }
                 }

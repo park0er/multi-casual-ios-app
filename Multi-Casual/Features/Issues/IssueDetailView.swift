@@ -44,7 +44,9 @@ public struct IssueDetailView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     if let error = vm.error {
-                        ErrorMessageRow(message: error)
+                        ErrorMessageRow(message: error) {
+                            Task { await vm.loadIssue() }
+                        }
                     }
                     if let issue = vm.issue { issueHeader(issue: issue, vm: vm) }
                     Divider()
@@ -54,7 +56,9 @@ public struct IssueDetailView: View {
                     }
                     Text("Comments").font(.headline).padding(.horizontal)
                     if let commentsError = vm.commentsError {
-                        ErrorMessageRow(message: commentsError)
+                        ErrorMessageRow(message: commentsError) {
+                            Task { await vm.loadComments() }
+                        }
                     }
                     ForEach(vm.commentLoader.items) { comment in CommentRowView(comment: comment) }
                     if vm.commentLoader.hasMore { ProgressView().onAppear {
@@ -92,7 +96,9 @@ public struct IssueDetailView: View {
                 )
             }
             if let metadataError = vm.metadataError {
-                ErrorMessageRow(message: metadataError)
+                ErrorMessageRow(message: metadataError) {
+                    Task { await vm.loadMetadata() }
+                }
             }
         }.padding(.horizontal)
     }
@@ -132,7 +138,9 @@ public struct IssueDetailView: View {
                 ProgressView().padding(.horizontal)
             }
             if let agentRunsError = vm.agentRunsError {
-                ErrorMessageRow(message: agentRunsError)
+                ErrorMessageRow(message: agentRunsError) {
+                    Task { await vm.loadAgentRuns() }
+                }
             }
             if let running = vm.agentRuns.first(where: { $0.status == "running" }) {
                 AgentLiveView(taskId: running.id)
@@ -170,12 +178,19 @@ public struct IssueDetailView: View {
 
 private struct ErrorMessageRow: View {
     let message: String
+    var retry: (() -> Void)?
 
     var body: some View {
-        Text(message)
-            .font(.caption)
-            .foregroundStyle(.red)
-            .padding(.horizontal)
+        Group {
+            if let retry {
+                ErrorRetryView(message: message, retry: retry)
+            } else {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(.horizontal)
     }
 }
 

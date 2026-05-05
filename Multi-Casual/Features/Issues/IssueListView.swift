@@ -60,9 +60,9 @@ public struct IssueListView: View {
             }
             if vm.loader.hasMore { ProgressView().onAppear { Task { await vm.loadNext() } } }
             if let error = vm.lastError {
-                Text(error.localizedDescription)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                ErrorRetryView(message: error.localizedDescription) {
+                    Task { await vm.refresh() }
+                }
             }
         }
         .listStyle(.plain)
@@ -93,9 +93,9 @@ public struct IssueListView: View {
         }
         .overlay(alignment: .topLeading) {
             if let error = vm.lastError {
-                Text(error.localizedDescription)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                ErrorRetryView(message: error.localizedDescription) {
+                    Task { await vm.refresh() }
+                }
                     .padding()
             }
         }

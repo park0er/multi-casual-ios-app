@@ -43,9 +43,9 @@ public struct InboxView: View {
                         ProgressView().onAppear { Task { await vm.loadNext() } }
                     }
                     if let error = vm.lastError {
-                        Text(error.localizedDescription)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        ErrorRetryView(message: error.localizedDescription) {
+                            Task { await vm.refresh() }
+                        }
                     }
                 }
                 .listStyle(.plain)

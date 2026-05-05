@@ -16,7 +16,15 @@ public struct AgentTranscriptView: View {
                     if viewModel.isLoading {
                         ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if let error = viewModel.errorMessage {
-                        ContentUnavailableView("Transcript Unavailable", systemImage: "exclamationmark.triangle", description: Text(error))
+                        VStack(spacing: 12) {
+                            ContentUnavailableView("Transcript Unavailable", systemImage: "exclamationmark.triangle", description: Text(error))
+                            Button {
+                                Task { await viewModel.loadHistory() }
+                            } label: {
+                                Label("Retry", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
                     } else if viewModel.timeline.isEmpty {
                         ContentUnavailableView("No Messages", systemImage: "text.bubble", description: Text("This agent run has no transcript messages yet."))
                     } else {

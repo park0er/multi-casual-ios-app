@@ -31,9 +31,9 @@ public struct ProjectsView: View {
                     }
                     if vm.loader.hasMore { ProgressView().onAppear { Task { await vm.loadNext() } } }
                     if let error = vm.lastError {
-                        Text(error.localizedDescription)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        ErrorRetryView(message: error.localizedDescription) {
+                            Task { await vm.refresh() }
+                        }
                     }
                 }
                 .listStyle(.plain).refreshable { await vm.refresh() }
