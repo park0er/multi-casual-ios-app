@@ -154,8 +154,10 @@ final class APIClientTests: XCTestCase {
          "project_id":"p1","workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
          "updated_at":"2026-01-01T00:00:00Z"}
         """.data(using: .utf8)!
+        var capturedURL: URL?
         var body: [String: Any] = [:]
         MockURLProtocol.handler = { req in
+            capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/issues")
             body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
@@ -175,6 +177,7 @@ final class APIClientTests: XCTestCase {
         )
 
         XCTAssertEqual(body["workspace_id"] as? String, "w1")
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
         XCTAssertEqual(body["status"] as? String, "backlog")
         XCTAssertEqual(body["priority"] as? String, "high")
         XCTAssertEqual(body["assignee_type"] as? String, "agent")
@@ -317,16 +320,19 @@ final class APIClientTests: XCTestCase {
         let json = """
         [{"task_id":"t1","issue_id":"i1","seq":7,"type":"text","content":"done"}]
         """.data(using: .utf8)!
+        var capturedURL: URL?
         MockURLProtocol.handler = { req in
+            capturedURL = req.url
             XCTAssertEqual(req.url?.path, "/api/tasks/t1/messages")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let messages = try await client.listRunMessages(taskId: "t1")
+        let messages = try await client.listRunMessages(taskId: "t1", workspaceId: "w1")
 
         XCTAssertEqual(messages.first?.id, "t1:7")
         XCTAssertEqual(messages.first?.seq, 7)
         XCTAssertEqual(messages.first?.content, "done")
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
     func test_listProjects_decodesProjectsWrapper() async throws {
@@ -358,15 +364,37 @@ final class APIClientTests: XCTestCase {
             "label":null,"position":0,"created_at":"2026-01-01T00:00:00Z","created_by":null
         }],"total":1}
         """.data(using: .utf8)!
+        var capturedURL: URL?
         MockURLProtocol.handler = { req in
+            capturedURL = req.url
             XCTAssertEqual(req.url?.path, "/api/projects/p1/resources")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let page = try await client.listProjectResources(projectId: "p1")
+        let page = try await client.listProjectResources(projectId: "p1", workspaceId: "w1")
 
         XCTAssertEqual(page.total, 1)
         XCTAssertEqual(page.items.first?.displayTitle, "https://github.com/multica-ai/multica")
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+    }
+
+    func test_getProject_sendsWorkspaceIdParamWhenProvided() async throws {
+        let json = """
+        {"id":"p1","workspace_id":"w1","title":"iOS MVP","description":null,
+         "icon":null,"status":"in_progress","priority":"none",
+         "lead_type":null,"lead_id":null,"created_at":"2026-01-01T00:00:00Z",
+         "updated_at":"2026-01-01T00:00:00Z","issue_count":2,"done_count":1}
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.url?.path, "/api/projects/p1")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await client.getProject(id: "p1", workspaceId: "w1")
+
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
     func test_listMembers_decodesWorkspaceMembers() async throws {

@@ -16,6 +16,7 @@ final class ProjectDetailViewModelTests: XCTestCase {
 
     func test_load_fetchesProjectIssuesAndResources() async throws {
         var issueRequests: [(status: String?, projectId: String?)] = []
+        var resourcesWorkspaceIds: [String?] = []
         let client = makeClient { req in
             switch req.url?.path {
             case "/api/issues":
@@ -35,6 +36,8 @@ final class ProjectDetailViewModelTests: XCTestCase {
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
             case "/api/projects/p1/resources":
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                resourcesWorkspaceIds.append(components?.queryItems?.first(where: { $0.name == "workspace_id" })?.value)
                 let json = """
                 {"resources":[{
                     "id":"r1","project_id":"p1","workspace_id":"w1","resource_type":"github_repo",
@@ -55,6 +58,7 @@ final class ProjectDetailViewModelTests: XCTestCase {
         XCTAssertEqual(vm.issues.map(\.id), ["i1"])
         XCTAssertEqual(issueRequests.map(\.status), ["backlog", "todo", "in_progress", "in_review", "done", "blocked"])
         XCTAssertEqual(issueRequests.map(\.projectId), Array(repeating: "p1", count: 6))
+        XCTAssertEqual(resourcesWorkspaceIds, ["w1"])
         XCTAssertEqual(vm.resources.map(\.displayTitle), ["Multica repo"])
         XCTAssertNil(vm.errorMessage)
     }

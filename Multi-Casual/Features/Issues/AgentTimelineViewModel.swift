@@ -12,14 +12,16 @@ public struct TimelineItem: Identifiable, Sendable {
 @MainActor
 public final class AgentTimelineViewModel {
     public let taskId: String
+    public let workspaceId: String?
     public var timeline: [TimelineItem] = []
     public var isLoading = false
     public var errorMessage: String?
 
     private let api: APIClient
 
-    public init(taskId: String, api: APIClient) {
+    public init(taskId: String, workspaceId: String? = nil, api: APIClient) {
         self.taskId = taskId
+        self.workspaceId = workspaceId
         self.api = api
     }
 
@@ -29,7 +31,7 @@ public final class AgentTimelineViewModel {
         defer { isLoading = false }
 
         do {
-            timeline = try await api.listRunMessages(taskId: taskId)
+            timeline = try await api.listRunMessages(taskId: taskId, workspaceId: workspaceId)
                 .map(TimelineItem.init(from:))
                 .sorted { $0.id < $1.id }
         } catch {
@@ -46,6 +48,16 @@ public final class AgentTimelineViewModel {
             timeline.append(item)
         }
         timeline.sort { $0.id < $1.id }
+    }
+
+    public func applyRealtimePayload(_ data: Data) {
+        do {
+            let message = try JSONDecoder().decode(TaskMessage.self, from: data)
+            errorMessage = nil
+            applyRealtimeMessage(message)
+        } catch {
+            errorMessage = "Could not decode live agent update: \(error.localizedDescription)"
+        }
     }
 }
 

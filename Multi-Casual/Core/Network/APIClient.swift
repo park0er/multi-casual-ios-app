@@ -212,6 +212,7 @@ public final class APIClient: @unchecked Sendable {
         dueDate: String? = nil
     ) async throws -> Issue {
         try await request("POST", path: "api/issues",
+                          queryItems: workspaceQuery(workspaceId),
                           body: CreateIssueRequest(
                             title: title,
                             description: description,
@@ -249,8 +250,8 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/issues/\(issueId)/task-runs", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func listRunMessages(taskId: String) async throws -> [TaskMessage] {
-        try await request("GET", path: "api/tasks/\(taskId)/messages")
+    public func listRunMessages(taskId: String, workspaceId: String? = nil) async throws -> [TaskMessage] {
+        try await request("GET", path: "api/tasks/\(taskId)/messages", queryItems: workspaceQuery(workspaceId))
     }
 
     // MARK: - Workspace people and agents
@@ -291,12 +292,12 @@ public final class APIClient: @unchecked Sendable {
         ])
     }
 
-    public func getProject(id: String) async throws -> Project {
-        try await request("GET", path: "api/projects/\(id)")
+    public func getProject(id: String, workspaceId: String? = nil) async throws -> Project {
+        try await request("GET", path: "api/projects/\(id)", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func listProjectResources(projectId: String) async throws -> PageResponse<ProjectResource> {
-        try await request("GET", path: "api/projects/\(projectId)/resources")
+    public func listProjectResources(projectId: String, workspaceId: String? = nil) async throws -> PageResponse<ProjectResource> {
+        try await request("GET", path: "api/projects/\(projectId)/resources", queryItems: workspaceQuery(workspaceId))
     }
 
     private func workspaceQuery(_ workspaceId: String?) -> [URLQueryItem] {

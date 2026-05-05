@@ -55,7 +55,11 @@ public struct AgentLiveView: View {
         .padding(.horizontal)
         .task {
             if viewModel == nil {
-                let vm = AgentTimelineViewModel(taskId: taskId, api: api)
+                let vm = AgentTimelineViewModel(
+                    taskId: taskId,
+                    workspaceId: authSession.currentWorkspace?.id,
+                    api: api
+                )
                 viewModel = vm
                 await vm.loadHistory()
             }
@@ -80,10 +84,8 @@ public struct AgentLiveView: View {
             for await event in await WebSocketActor.shared.subscribe(to: "task:message") {
                 guard !Task.isCancelled else { break }
                 guard event.taskId == taskId else { continue }
-                if let msg = try? JSONDecoder().decode(TaskMessage.self, from: event.payload) {
-                    await MainActor.run {
-                        viewModel?.applyRealtimeMessage(msg)
-                    }
+                await MainActor.run {
+                    viewModel?.applyRealtimePayload(event.payload)
                 }
             }
         }

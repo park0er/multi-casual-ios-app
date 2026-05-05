@@ -6,9 +6,10 @@ final class AgentTimelineViewModelTests: XCTestCase {
     func test_loadHistory_surfacesEndpointError() async throws {
         let client = makeClient { req in
             XCTAssertEqual(req.url?.path, "/api/tasks/t1/messages")
+            XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
             return Self.response(for: req, body: Data(#"{"error":"messages unavailable"}"#.utf8), status: 500)
         }
-        let vm = AgentTimelineViewModel(taskId: "t1", api: client)
+        let vm = AgentTimelineViewModel(taskId: "t1", workspaceId: "w1", api: client)
 
         await vm.loadHistory()
 
@@ -51,6 +52,18 @@ final class AgentTimelineViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.timeline.map(\.id), [1, 2, 3])
         XCTAssertEqual(vm.timeline.map(\.summary), ["new", "middle", "failed"])
+    }
+
+    func test_applyRealtimePayloadSurfacesDecodeErrors() async throws {
+        let client = makeClient { req in
+            Self.response(for: req, body: Data("[]".utf8))
+        }
+        let vm = AgentTimelineViewModel(taskId: "t1", api: client)
+
+        vm.applyRealtimePayload(Data(#"{"task_id":"t1","type":"text","content":"missing seq"}"#.utf8))
+
+        XCTAssertTrue(vm.timeline.isEmpty)
+        XCTAssertNotNil(vm.errorMessage)
     }
 
     private func makeClient(handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)) -> APIClient {

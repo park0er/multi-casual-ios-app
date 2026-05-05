@@ -44,7 +44,7 @@ public final class ProjectDetailViewModel {
         }
 
         do {
-            let page = try await api.listProjectResources(projectId: project.id)
+            let page = try await api.listProjectResources(projectId: project.id, workspaceId: workspaceId)
             resources = page.items.sorted { $0.position < $1.position }
         } catch {
             messages.append(error.localizedDescription)

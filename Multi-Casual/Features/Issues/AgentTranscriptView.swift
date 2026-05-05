@@ -5,6 +5,7 @@ public struct AgentTranscriptView: View {
     public let taskId: String
     @Environment(\.dismiss) private var dismiss
     @Environment(APIClient.self) private var api
+    @Environment(AuthSession.self) private var authSession
     @State private var viewModel: AgentTimelineViewModel?
 
     public init(taskId: String) { self.taskId = taskId }
@@ -46,7 +47,11 @@ public struct AgentTranscriptView: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
             .task {
                 if viewModel == nil {
-                    let vm = AgentTimelineViewModel(taskId: taskId, api: api)
+                    let vm = AgentTimelineViewModel(
+                        taskId: taskId,
+                        workspaceId: authSession.currentWorkspace?.id,
+                        api: api
+                    )
                     viewModel = vm
                     await vm.loadHistory()
                 }
