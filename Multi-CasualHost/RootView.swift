@@ -66,7 +66,9 @@ struct RootView: View {
     @ViewBuilder
     private var debugInitialIssueView: some View {
         #if DEBUG
-        if let issueId = ProcessInfo.processInfo.environment["MULTICA_DEBUG_INITIAL_ISSUE_ID"], !issueId.isEmpty {
+        if let taskId = ProcessInfo.processInfo.environment["MULTICA_DEBUG_INITIAL_TASK_ID"], !taskId.isEmpty {
+            AgentTranscriptView(taskId: taskId)
+        } else if let issueId = ProcessInfo.processInfo.environment["MULTICA_DEBUG_INITIAL_ISSUE_ID"], !issueId.isEmpty {
             IssueDetailView(issueId: issueId)
         } else {
             IssueListView()
