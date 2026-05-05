@@ -103,6 +103,34 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
     }
 
+    func testIssueListMarksDoneWhenMutationTestsEnabled() throws {
+        try requireMutationTestsEnabled(reason: "mark a disposable issue done from the Issue list")
+        guard mutationFlagEnabled(
+            environmentKey: "MULTICA_UI_MUTATION_ISSUE_STATUS",
+            fileName: "issue-status.enabled"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_ISSUE_STATUS=1 or touch /tmp/multica-ui-mutation-tests/issue-status.enabled to update a disposable issue status.")
+        }
+        guard let issueTitle = mutationValue(
+            environmentKey: "MULTICA_UI_MUTATION_ISSUE_TITLE",
+            fileName: "issue-title"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_ISSUE_TITLE or write a disposable issue title to /tmp/multica-ui-mutation-tests/issue-title before updating status.")
+        }
+        let app = launchApp(initialTab: "issues")
+
+        XCTAssertTrue(app.staticTexts["Issues"].waitForExistence(timeout: 20))
+        XCTAssertTrue(scrollUntilStaticTextExists(issueTitle, app: app, timeout: 45))
+        let issueCell = app.cells.containing(.staticText, identifier: issueTitle).element(boundBy: 0)
+        XCTAssertTrue(issueCell.waitForExistence(timeout: 5))
+        let rowButton = issueCell.buttons.element(boundBy: 0)
+        XCTAssertTrue(rowButton.waitForExistence(timeout: 5))
+        rowButton.swipeLeft()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(waitForNonExistence(app.buttons["Done"], timeout: 10))
+    }
+
     func testIssueDetailSubmitsCommentWhenMutationTestsEnabled() throws {
         try requireMutationTestsEnabled(reason: "post a real backend comment")
         guard let issueId = mutationValue(
