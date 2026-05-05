@@ -132,6 +132,41 @@ final class IssueCreateViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_submitUsesUserIdForMemberAssignee() async throws {
+        var body: [String: Any] = [:]
+        let client = makeClient { req in
+            XCTAssertEqual(req.url?.path, "/api/issues")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            let json = """
+            {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
+             "status":"todo","priority":"none","assignee_id":"u1","assignee_type":"member",
+             "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+             "updated_at":"2026-01-01T00:00:00Z"}
+            """.data(using: .utf8)!
+            return Self.response(for: req, body: json)
+        }
+        let vm = IssueCreateViewModel(api: client, authSession: makeSession())
+        vm.title = "Assign to member"
+        vm.assigneeOptions = [
+            IssueAssigneeOption(
+                id: "member:u1",
+                type: "member",
+                assigneeId: "u1",
+                displayName: "Parker",
+                subtitle: "p@example.com"
+            )
+        ]
+        vm.selectedAssigneeOptionId = "member:u1"
+
+        let created = await vm.submit()
+
+        XCTAssertTrue(created)
+        XCTAssertEqual(body["assignee_type"] as? String, "member")
+        XCTAssertEqual(body["assignee_id"] as? String, "u1")
+        XCTAssertFalse(body.values.contains { ($0 as? String) == "m1" }, "Create Issue should use user_id for member assignees, not workspace member id.")
+        XCTAssertNil(vm.errorMessage)
+    }
+
     private func makeSession() -> AuthSession {
         let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.issue-create.test"))
         session.currentWorkspace = workspace
