@@ -47,6 +47,12 @@ public final class IssueDetailViewModel {
         }
     }
 
+    public func loadIssueAndMetadata() async {
+        await loadIssue()
+        guard issue != nil, error == nil else { return }
+        await loadMetadata()
+    }
+
     public func loadMetadata() async {
         guard let issue, let workspaceId else { return }
         metadataError = nil

@@ -26,8 +26,7 @@ public struct IssueDetailView: View {
                     api: api
                 )
                 Task {
-                    await viewModel?.loadIssue()
-                    await viewModel?.loadMetadata()
+                    await viewModel?.loadIssueAndMetadata()
                     await viewModel?.loadComments()
                     await viewModel?.loadAgentRuns()
                 }
@@ -45,7 +44,7 @@ public struct IssueDetailView: View {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     if let error = vm.error {
                         ErrorMessageRow(message: error) {
-                            Task { await vm.loadIssue() }
+                            Task { await vm.loadIssueAndMetadata() }
                         }
                     }
                     if let issue = vm.issue { issueHeader(issue: issue, vm: vm) }
