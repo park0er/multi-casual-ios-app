@@ -11,13 +11,24 @@ public actor WebSocketActor {
     private var isReconnecting = false
     private var reconnectAttempt = 0
     private var lastToken: String?
+    private var lastWorkspaceId: String?
 
     public init() {}
 
-    public func connect(token: String) async {
+    public func connect(token: String, workspaceId: String) async {
+        if isConnected, lastToken == token, lastWorkspaceId == workspaceId {
+            return
+        }
+        if isConnected {
+            wsTask?.cancel(with: .normalClosure, reason: nil)
+            wsTask = nil
+            isConnected = false
+            reconnectAttempt = 0
+            finishAllStreams()
+        }
         lastToken = token
-        guard !isConnected else { return }
-        openTask(token: token)
+        lastWorkspaceId = workspaceId
+        await openTask(token: token, workspaceId: workspaceId)
     }
 
     public func disconnect() {
@@ -27,7 +38,40 @@ public actor WebSocketActor {
         isReconnecting = false
         reconnectAttempt = 0
         lastToken = nil
+        lastWorkspaceId = nil
         finishAllStreams()
+    }
+
+    static func decodeEventFrame(data: Data) -> WSEvent? {
+        struct Envelope: Decodable {
+            let type: String
+            let payload: Data?
+
+            enum CodingKeys: String, CodingKey { case type, payload }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                type = try container.decode(String.self, forKey: .type)
+                if container.contains(.payload) {
+                    let rawPayload = try container.decode(JSONValue.self, forKey: .payload)
+                    payload = try JSONEncoder().encode(rawPayload)
+                } else {
+                    payload = nil
+                }
+            }
+        }
+
+        struct TaskPayloadProbe: Decodable {
+            let taskId: String?
+            enum CodingKeys: String, CodingKey { case taskId = "task_id" }
+        }
+
+        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else { return nil }
+        guard envelope.type != "auth_ack" else { return nil }
+
+        let payload = envelope.payload ?? data
+        let taskId = (try? JSONDecoder().decode(TaskPayloadProbe.self, from: payload))?.taskId
+        return WSEvent(type: envelope.type, taskId: taskId, payload: payload)
     }
 
     /// AsyncStream of WSEvents matching the given event type. Pass "*" for all events.
@@ -47,17 +91,33 @@ public actor WebSocketActor {
 
     // MARK: - Internals
 
-    private func openTask(token: String) {
-        guard let url = URL(string: "wss://api.multica.ai/ws") else {
+    private func openTask(token: String, workspaceId: String) async {
+        guard var components = URLComponents(string: "wss://api.multica.ai/ws") else {
             finishAllStreams()
             return
         }
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        components.queryItems = [
+            URLQueryItem(name: "workspace_id", value: workspaceId),
+            URLQueryItem(name: "client_platform", value: "ios"),
+        ]
+        guard let url = components.url else {
+            finishAllStreams()
+            return
+        }
+        let request = URLRequest(url: url)
         let task = URLSession.shared.webSocketTask(with: request)
         wsTask = task
         isConnected = true
         task.resume()
+        do {
+            let auth = #"{"type":"auth","payload":{"token":"\#(token)"}}"#
+            try await task.send(.string(auth))
+        } catch {
+            wsTask = nil
+            isConnected = false
+            finishAllStreams()
+            return
+        }
         Task { await receiveLoop(task: task) }
     }
 
@@ -110,7 +170,7 @@ public actor WebSocketActor {
         let nsError = error as NSError
         let transient = Self.isTransient(error: error)
 
-        if transient, let token = lastToken, reconnectAttempt < 5 {
+        if transient, let token = lastToken, let workspaceId = lastWorkspaceId, reconnectAttempt < 5 {
             isReconnecting = true
             reconnectAttempt += 1
             // Exponential backoff: 0.5s, 1s, 2s, 4s, 8s (capped)
@@ -122,8 +182,8 @@ public actor WebSocketActor {
             try? await Task.sleep(nanoseconds: delayNs)
             isReconnecting = false
             // Another caller may have disconnect()'d in the meantime.
-            guard lastToken != nil else { return }
-            openTask(token: token)
+            guard lastToken != nil, lastWorkspaceId != nil else { return }
+            await openTask(token: token, workspaceId: workspaceId)
         } else {
             // Terminal: tear down and notify subscribers.
             _ = nsError // kept for future logging
@@ -155,13 +215,8 @@ public actor WebSocketActor {
     }
 
     private func dispatch(data: Data) {
-        struct Envelope: Decodable {
-            let type: String
-            let task_id: String?
-        }
-        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else { return }
-        let event = WSEvent(type: envelope.type, taskId: envelope.task_id, payload: data)
-        let typed = continuations[envelope.type]?.values ?? Dictionary<UUID, AsyncStream<WSEvent>.Continuation>().values
+        guard let event = Self.decodeEventFrame(data: data) else { return }
+        let typed = continuations[event.type]?.values ?? Dictionary<UUID, AsyncStream<WSEvent>.Continuation>().values
         let wildcard = continuations["*"]?.values ?? Dictionary<UUID, AsyncStream<WSEvent>.Continuation>().values
         for c in typed { c.yield(event) }
         for c in wildcard { c.yield(event) }

@@ -72,10 +72,12 @@ public struct AgentLiveView: View {
 
     private func subscribeToWebSocket() {
         subscriptionTask?.cancel()
-        guard let token = authSession.token() else { return }
+        guard let token = authSession.token(),
+              let workspaceId = authSession.currentWorkspace?.id
+        else { return }
         subscriptionTask = Task {
-            await WebSocketActor.shared.connect(token: token)
-            for await event in await WebSocketActor.shared.subscribe(to: "task.message") {
+            await WebSocketActor.shared.connect(token: token, workspaceId: workspaceId)
+            for await event in await WebSocketActor.shared.subscribe(to: "task:message") {
                 guard !Task.isCancelled else { break }
                 guard event.taskId == taskId else { continue }
                 if let msg = try? JSONDecoder().decode(TaskMessage.self, from: event.payload) {
