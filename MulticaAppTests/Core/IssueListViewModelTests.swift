@@ -60,6 +60,45 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertFalse(vm.loader.hasMore)
     }
 
+    func test_loadNext_appliesPriorityFilterToStatusBuckets() async throws {
+        var requestedPriorities: [String?] = []
+        let client = makeClient { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+            requestedPriorities.append(components?.queryItems?.first(where: { $0.name == "priority" })?.value)
+            return Self.issuesResponse(for: req, status: status, priority: "urgent", total: 1)
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+        vm.priorityFilter = .urgent
+
+        await vm.loadNext()
+
+        XCTAssertEqual(requestedPriorities, Array(repeating: "urgent", count: IssueStatus.boardCases.count))
+        XCTAssertEqual(Set(vm.loader.items.map(\.priority)), [.urgent])
+    }
+
+    func test_setSortOption_sortsLoadedIssuesByPriority() async throws {
+        let client = makeClient { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+            switch status {
+            case "backlog":
+                return Self.issuesResponse(for: req, status: status, priority: "low", total: 1)
+            case "todo":
+                return Self.issuesResponse(for: req, status: status, priority: "urgent", total: 1)
+            default:
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        vm.setSortOption(.priority)
+
+        XCTAssertEqual(vm.loader.items.map(\.priority), [.urgent, .low])
+        XCTAssertEqual(vm.loader.items.map(\.id), ["todo-1", "backlog-1"])
+    }
+
     private func makeClient(handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? = nil) -> APIClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -98,12 +137,13 @@ final class IssueListViewModelTests: XCTestCase {
         for request: URLRequest,
         status: String,
         suffix: String = "1",
+        priority: String = "none",
         total: Int
     ) -> (HTTPURLResponse, Data) {
         let id = "\(status)-\(suffix)"
         let json = """
         {"issues":[{"id":"\(id)","identifier":"PAR-\(suffix)","number":\(suffix),
-         "title":"\(status) issue","description":null,"status":"\(status)","priority":"none",
+         "title":"\(status) issue","description":null,"status":"\(status)","priority":"\(priority)",
          "assignee_id":null,"assignee_type":null,"project_id":null,"workspace_id":"w1",
          "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}],
          "has_more":false,"total":\(total)}

@@ -5,11 +5,31 @@ import Observation
 @MainActor
 public final class IssueListViewModel {
     public enum ViewMode { case list, board }
+    public enum SortOption: String, CaseIterable {
+        case position
+        case priority
+        case updated
+        case created
+        case title
+
+        public var displayName: String {
+            switch self {
+            case .position: return "Default"
+            case .priority: return "Priority"
+            case .updated: return "Updated"
+            case .created: return "Created"
+            case .title: return "Title"
+            }
+        }
+    }
+
     public static let pageSize = 50
     public let loader = PaginatedLoader<Issue>()
     public var viewMode: ViewMode = .list
     public var showCreateSheet = false
     public var lastError: Error?
+    public var priorityFilter: IssuePriority?
+    public private(set) var sortOption: SortOption = .position
     public private(set) var issuesByStatus: [IssueStatus: [Issue]] = [:]
 
     private let api: APIClient
@@ -40,6 +60,7 @@ public final class IssueListViewModel {
                 let page = try await api.listIssues(
                     workspaceId: wsId,
                     status: status,
+                    priority: priorityFilter,
                     limit: Self.pageSize,
                     offset: offset
                 )
@@ -59,12 +80,27 @@ public final class IssueListViewModel {
         await loadNext()
     }
 
+    public func setSortOption(_ option: SortOption) {
+        sortOption = option
+        syncFlatIssues()
+    }
+
+    public func setPriorityFilter(_ priority: IssuePriority?) async {
+        priorityFilter = priority
+        await refresh()
+    }
+
+    public func issues(for status: IssueStatus) -> [Issue] {
+        sorted(issuesByStatus[status] ?? [])
+    }
+
     private func loadFirstPages(workspaceId: String) async throws {
         resetBuckets()
         for status in IssueStatus.boardCases {
             let page = try await api.listIssues(
                 workspaceId: workspaceId,
                 status: status,
+                priority: priorityFilter,
                 limit: Self.pageSize,
                 offset: 0
             )
@@ -85,8 +121,29 @@ public final class IssueListViewModel {
     }
 
     private func syncFlatIssues() {
-        loader.items = IssueStatus.boardCases.flatMap { issuesByStatus[$0] ?? [] }
+        let issues = IssueStatus.boardCases.flatMap { issuesByStatus[$0] ?? [] }
+        loader.items = sorted(issues)
         loader.hasMore = IssueStatus.boardCases.contains { statusHasMore($0) }
+    }
+
+    private func sorted(_ issues: [Issue]) -> [Issue] {
+        switch sortOption {
+        case .position:
+            return issues
+        case .priority:
+            return issues.sorted { lhs, rhs in
+                if lhs.priority.sortRank == rhs.priority.sortRank {
+                    return lhs.updatedAt > rhs.updatedAt
+                }
+                return lhs.priority.sortRank < rhs.priority.sortRank
+            }
+        case .updated:
+            return issues.sorted { $0.updatedAt > $1.updatedAt }
+        case .created:
+            return issues.sorted { $0.createdAt > $1.createdAt }
+        case .title:
+            return issues.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        }
     }
 
     private func statusHasMore(_ status: IssueStatus) -> Bool {
@@ -113,5 +170,18 @@ public final class IssueListViewModel {
         offsetsByStatus = [:]
         totalsByStatus = [:]
         pageHasMoreByStatus = [:]
+    }
+}
+
+private extension IssuePriority {
+    var sortRank: Int {
+        switch self {
+        case .urgent: return 0
+        case .high: return 1
+        case .medium: return 2
+        case .low: return 3
+        case .noPriority: return 4
+        case .unknown: return 5
+        }
     }
 }

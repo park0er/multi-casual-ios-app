@@ -19,6 +19,37 @@ public struct IssueListView: View {
                 }
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
+                        Menu {
+                            Button {
+                                Task { await vm.setPriorityFilter(nil) }
+                            } label: {
+                                Label("All Priorities", systemImage: vm.priorityFilter == nil ? "checkmark" : "line.3.horizontal.decrease.circle")
+                            }
+                            ForEach(IssuePriority.allCases.filter { $0 != .unknown }, id: \.self) { priority in
+                                Button {
+                                    Task { await vm.setPriorityFilter(priority) }
+                                } label: {
+                                    Label(priority.displayName, systemImage: vm.priorityFilter == priority ? "checkmark" : "flag")
+                                }
+                            }
+                        } label: {
+                            Image(systemName: vm.priorityFilter == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Menu {
+                            ForEach(IssueListViewModel.SortOption.allCases, id: \.self) { option in
+                                Button {
+                                    vm.setSortOption(option)
+                                } label: {
+                                    Label(option.displayName, systemImage: vm.sortOption == option ? "checkmark" : "arrow.up.arrow.down")
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "arrow.up.arrow.down")
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
                         Button { vm.viewMode = vm.viewMode == .list ? .board : .list } label: {
                             Image(systemName: vm.viewMode == .list ? "square.grid.2x2" : "list.bullet")
                         }
@@ -72,7 +103,7 @@ public struct IssueListView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 16) {
                 ForEach(IssueStatus.boardCases, id: \.self) { status in
-                    let issues = vm.issuesByStatus[status] ?? []
+                    let issues = vm.issues(for: status)
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Image(systemName: status.icon)

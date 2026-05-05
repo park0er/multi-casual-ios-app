@@ -183,6 +183,7 @@ public final class APIClient: @unchecked Sendable {
     public func listIssues(
         workspaceId: String,
         status: IssueStatus? = nil,
+        priority: IssuePriority? = nil,
         projectId: String? = nil,
         limit: Int = 50,
         offset: Int = 0
@@ -194,6 +195,9 @@ public final class APIClient: @unchecked Sendable {
         ]
         if let status {
             queryItems.append(.init(name: "status", value: status.rawValue))
+        }
+        if let priority {
+            queryItems.append(.init(name: "priority", value: priority.rawValue))
         }
         if let projectId {
             queryItems.append(.init(name: "project_id", value: projectId))
