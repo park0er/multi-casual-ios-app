@@ -50,7 +50,7 @@ public struct IssueDetailView: View {
                     }
                     if let issue = vm.issue { issueHeader(issue: issue, vm: vm) }
                     Divider()
-                    if !vm.agentRuns.isEmpty || vm.agentRunsError != nil || vm.isLoadingAgentRuns {
+                    if vm.didLoadAgentRuns || vm.agentRunsError != nil || vm.isLoadingAgentRuns {
                         agentRunsSection(vm: vm)
                         Divider()
                     }
@@ -59,6 +59,10 @@ public struct IssueDetailView: View {
                         ErrorMessageRow(message: commentsError) {
                             Task { await vm.loadComments() }
                         }
+                    }
+                    if vm.didLoadComments && vm.commentLoader.items.isEmpty && vm.commentsError == nil && !vm.isLoadingComments {
+                        ContentUnavailableView("No Comments", systemImage: "text.bubble", description: Text("This issue has no comments yet."))
+                            .padding(.horizontal)
                     }
                     ForEach(vm.commentLoader.items) { comment in CommentRowView(comment: comment) }
                     if vm.commentLoader.hasMore { ProgressView().onAppear {
@@ -180,6 +184,10 @@ public struct IssueDetailView: View {
                 ErrorMessageRow(message: agentRunsError) {
                     Task { await vm.loadAgentRuns() }
                 }
+            }
+            if vm.didLoadAgentRuns && vm.agentRuns.isEmpty && vm.agentRunsError == nil && !vm.isLoadingAgentRuns {
+                ContentUnavailableView("No Agent Activity", systemImage: "bolt", description: Text("This issue has no agent runs yet."))
+                    .padding(.horizontal)
             }
             if let running = vm.agentRuns.first(where: { $0.status == "running" }) {
                 AgentLiveView(taskId: running.id)

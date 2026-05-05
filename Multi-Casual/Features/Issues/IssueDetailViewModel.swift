@@ -14,6 +14,8 @@ public final class IssueDetailViewModel {
     public var isLoadingIssue = false
     public var isLoadingComments = false
     public var isLoadingAgentRuns = false
+    public var didLoadComments = false
+    public var didLoadAgentRuns = false
     public var error: String?
     public var commentsError: String?
     public var agentRunsError: String?
@@ -80,6 +82,7 @@ public final class IssueDetailViewModel {
     }
 
     public func loadComments() async {
+        didLoadComments = false
         commentLoader.reset()
         await loadMoreComments()
     }
@@ -92,6 +95,7 @@ public final class IssueDetailViewModel {
             try await commentLoader.loadNext { [api, issueId, workspaceId] offset in
                 try await api.listComments(issueId: issueId, workspaceId: workspaceId, limit: 50, offset: offset)
             }
+            didLoadComments = true
         } catch {
             commentsError = error.localizedDescription
         }
@@ -103,8 +107,10 @@ public final class IssueDetailViewModel {
         defer { isLoadingAgentRuns = false }
         do {
             agentRuns = try await api.listAgentRuns(issueId: issueId, workspaceId: workspaceId)
+            didLoadAgentRuns = true
         } catch {
             agentRuns = []
+            didLoadAgentRuns = true
             agentRunsError = error.localizedDescription
         }
     }

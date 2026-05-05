@@ -107,6 +107,34 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertEqual(vm.agentRunsError, "runs unavailable")
     }
 
+    func test_loadAgentRuns_marksLoadedForEmptyResponse() async throws {
+        let client = makeClient { req in
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/task-runs")
+            return Self.response(for: req, body: Data("[]".utf8))
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadAgentRuns()
+
+        XCTAssertTrue(vm.didLoadAgentRuns)
+        XCTAssertTrue(vm.agentRuns.isEmpty)
+        XCTAssertNil(vm.agentRunsError)
+    }
+
+    func test_loadComments_marksLoadedForEmptyResponse() async throws {
+        let client = makeClient { req in
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/comments")
+            return Self.response(for: req, body: Data("[]".utf8))
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadComments()
+
+        XCTAssertTrue(vm.didLoadComments)
+        XCTAssertTrue(vm.commentLoader.items.isEmpty)
+        XCTAssertNil(vm.commentsError)
+    }
+
     func test_submitComment_appendsCommentAndRefreshesIssueMetadata() async throws {
         var issueFetchCount = 0
         let client = makeClient { req in
