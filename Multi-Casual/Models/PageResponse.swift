@@ -10,6 +10,13 @@ public struct PageResponse<T: Decodable & Sendable>: Decodable, Sendable {
     }
 
     public init(from decoder: Decoder) throws {
+        if let array = try? [T](from: decoder) {
+            items = array
+            hasMore = false
+            total = array.count
+            return
+        }
+
         let container = try decoder.container(keyedBy: DynamicKey.self)
         hasMore = (try? container.decode(Bool.self, forKey: DynamicKey("has_more"))) ?? false
         total = try? container.decode(Int.self, forKey: DynamicKey("total"))

@@ -16,7 +16,14 @@ struct Multi-CasualMain: App {
                 .environment(apiClient)
                 .task {
                     apiClient.configure(authSession: authSession)
-                    await authSession.restore(using: apiClient)
+                    #if DEBUG
+                    let env = ProcessInfo.processInfo.environment
+                    try? authSession.installDebugToken(env["MULTICA_DEBUG_TOKEN"])
+                    let preferredWorkspaceId = env["MULTICA_DEBUG_WORKSPACE_ID"]
+                    #else
+                    let preferredWorkspaceId: String? = nil
+                    #endif
+                    await authSession.restore(using: apiClient, preferredWorkspaceId: preferredWorkspaceId)
                 }
         }
     }

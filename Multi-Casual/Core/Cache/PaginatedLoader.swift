@@ -17,7 +17,13 @@ public final class PaginatedLoader<T: Identifiable & Sendable & Decodable> {
         guard hasMore && !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
-        let page = try await fetch(offset)
+        let page: PageResponse<T>
+        do {
+            page = try await fetch(offset)
+        } catch {
+            hasMore = false
+            throw error
+        }
         items.append(contentsOf: page.items)
         offset += page.items.count
         hasMore = page.hasMore

@@ -6,6 +6,7 @@ import Observation
 @MainActor
 public final class IssueDetailViewModel {
     public let issueId: String
+    public let workspaceId: String?
     public var issue: Issue?
     public var agentRuns: [AgentTask] = []
     public let commentLoader = PaginatedLoader<Comment>()
@@ -15,12 +16,14 @@ public final class IssueDetailViewModel {
 
     private let api: APIClient
 
-    public init(issueId: String, api: APIClient) {
-        self.issueId = issueId; self.api = api
+    public init(issueId: String, workspaceId: String? = nil, api: APIClient) {
+        self.issueId = issueId
+        self.workspaceId = workspaceId
+        self.api = api
     }
 
     public func loadIssue() async {
-        do { issue = try await api.getIssue(id: issueId) }
+        do { issue = try await api.getIssue(id: issueId, workspaceId: workspaceId) }
         catch { self.error = error.localizedDescription }
     }
 
@@ -31,8 +34,8 @@ public final class IssueDetailViewModel {
 
     public func loadMoreComments() async {
         do {
-            try await commentLoader.loadNext { [api, issueId] offset in
-                try await api.listComments(issueId: issueId, limit: 50, offset: offset)
+            try await commentLoader.loadNext { [api, issueId, workspaceId] offset in
+                try await api.listComments(issueId: issueId, workspaceId: workspaceId, limit: 50, offset: offset)
             }
         } catch {
             self.error = error.localizedDescription
@@ -40,14 +43,14 @@ public final class IssueDetailViewModel {
     }
 
     public func loadAgentRuns() async {
-        agentRuns = (try? await api.listAgentRuns(issueId: issueId)) ?? []
+        agentRuns = (try? await api.listAgentRuns(issueId: issueId, workspaceId: workspaceId)) ?? []
     }
 
     public func submitComment() async {
         guard !commentDraft.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         isSubmittingComment = true; defer { isSubmittingComment = false }
         do {
-            let comment = try await api.addComment(issueId: issueId, content: commentDraft)
+            let comment = try await api.addComment(issueId: issueId, content: commentDraft, workspaceId: workspaceId)
             commentDraft = ""
             commentLoader.items.append(comment)
             await DataStore.shared.invalidateIssue(issueId)

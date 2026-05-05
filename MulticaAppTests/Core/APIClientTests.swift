@@ -77,6 +77,122 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedURL?.absoluteString.contains("limit=50") ?? false)
     }
 
+    func test_getIssue_sendsWorkspaceIdParamWhenProvided() async throws {
+        let json = """
+        {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
+         "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+         "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+         "updated_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await client.getIssue(id: "i1", workspaceId: "w1")
+
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+    }
+
+    func test_listInbox_decodesBareArrayResponse() async throws {
+        let json = """
+        [{
+            "id":"n1","workspace_id":"w1","recipient_type":"member","recipient_id":"u1",
+            "actor_type":null,"actor_id":null,"type":"new_comment","severity":"attention",
+            "issue_id":"i1","title":"PAR-73 updated","body":null,"issue_status":"todo",
+            "read":false,"archived":false,"created_at":"2026-01-01T00:00:00Z",
+            "details":{"identifier":"PAR-73"}
+        }]
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/inbox")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let page = try await client.listInbox()
+
+        XCTAssertEqual(page.items.count, 1)
+        XCTAssertEqual(page.items.first?.issueTitle, "PAR-73 updated")
+    }
+
+    func test_listComments_decodesBareArrayResponse() async throws {
+        let json = """
+        [{"id":"c1","content":"Hi","author_id":"u1","author_type":"member",
+          "parent_id":null,"issue_id":"i1","created_at":"2026-01-01T00:00:00Z"}]
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/comments")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let page = try await client.listComments(issueId: "i1", workspaceId: "w1")
+
+        XCTAssertEqual(page.items.map(\.id), ["c1"])
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+    }
+
+    func test_listAgentRuns_decodesBareArrayResponse() async throws {
+        let json = """
+        [{
+            "id":"t1","agent_id":"a1","runtime_id":"r1","issue_id":"i1",
+            "status":"running","priority":0,"dispatched_at":null,
+            "started_at":"2026-01-01T00:00:00Z","completed_at":null,
+            "result":null,"error":null,"created_at":"2026-01-01T00:00:00Z"
+        }]
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/task-runs")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let runs = try await client.listAgentRuns(issueId: "i1", workspaceId: "w1")
+
+        XCTAssertEqual(runs.map(\.id), ["t1"])
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+    }
+
+    func test_listRunMessages_decodesBareArrayResponse() async throws {
+        let json = """
+        [{"task_id":"t1","issue_id":"i1","seq":7,"type":"text","content":"done"}]
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/tasks/t1/messages")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let messages = try await client.listRunMessages(taskId: "t1")
+
+        XCTAssertEqual(messages.first?.id, "t1:7")
+        XCTAssertEqual(messages.first?.seq, 7)
+        XCTAssertEqual(messages.first?.content, "done")
+    }
+
+    func test_listProjects_decodesProjectsWrapper() async throws {
+        let json = """
+        {"projects":[{
+            "id":"p1","workspace_id":"w1","title":"iOS MVP","description":null,
+            "icon":null,"status":"in_progress","priority":"none",
+            "lead_type":null,"lead_id":null,
+            "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z",
+            "issue_count":2,"done_count":1
+        }],"total":1}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/projects")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let page = try await client.listProjects(workspaceId: "w1")
+
+        XCTAssertEqual(page.total, 1)
+        XCTAssertEqual(page.items.first?.name, "iOS MVP")
+    }
+
     func test_sendCode_usesAuthSendCodePath() async throws {
         var capturedPath: String?
         MockURLProtocol.handler = { req in

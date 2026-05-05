@@ -63,5 +63,6 @@ final class PaginatedLoaderTests: XCTestCase {
         }
         XCTAssertFalse(loader.isLoading, "isLoading should reset even when fetch throws")
         XCTAssertTrue(loader.items.isEmpty)
+        XCTAssertFalse(loader.hasMore, "Failed fetch should stop automatic pagination until the view model resets")
     }
 }

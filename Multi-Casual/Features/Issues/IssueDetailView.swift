@@ -3,6 +3,7 @@ import SwiftUI
 
 public struct IssueDetailView: View {
     public let issueId: String
+    @Environment(AuthSession.self) private var authSession
     @Environment(APIClient.self) private var api
     @State private var viewModel: IssueDetailViewModel?
     @State private var showTranscript = false
@@ -19,7 +20,11 @@ public struct IssueDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if viewModel == nil {
-                viewModel = IssueDetailViewModel(issueId: issueId, api: api)
+                viewModel = IssueDetailViewModel(
+                    issueId: issueId,
+                    workspaceId: authSession.currentWorkspace?.id,
+                    api: api
+                )
                 Task {
                     await viewModel?.loadIssue()
                     await viewModel?.loadComments()
@@ -37,6 +42,12 @@ public struct IssueDetailView: View {
         VStack(spacing: 0) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
+                    if let error = vm.error {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .padding(.horizontal)
+                    }
                     if let issue = vm.issue { issueHeader(issue: issue) }
                     Divider()
                     if !vm.agentRuns.isEmpty { agentRunsSection(vm: vm); Divider() }

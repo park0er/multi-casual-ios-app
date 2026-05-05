@@ -41,7 +41,7 @@ public final class AuthSession {
         currentWorkspace = nil
     }
 
-    public func restore(using api: APIClient) async {
+    public func restore(using api: APIClient, preferredWorkspaceId: String? = nil) async {
         isLoading = true
         defer { isLoading = false }
         guard (try? keychain.load()) != nil else { return }
@@ -49,7 +49,7 @@ public final class AuthSession {
             let user = try await api.getMe()
             let workspaces = try await api.listWorkspaces()
             currentUser = user
-            currentWorkspace = workspaces.first
+            currentWorkspace = Self.preferredWorkspace(from: workspaces, preferredId: preferredWorkspaceId)
         } catch {
             try? keychain.delete()
         }
@@ -85,7 +85,7 @@ public final class AuthSession {
         currentWorkspace = nil
     }
 
-    public func restore(using api: APIClient) async {
+    public func restore(using api: APIClient, preferredWorkspaceId: String? = nil) async {
         isLoading = true
         defer { isLoading = false }
         guard (try? keychain.load()) != nil else { return }
@@ -93,10 +93,27 @@ public final class AuthSession {
             let user = try await api.getMe()
             let workspaces = try await api.listWorkspaces()
             currentUser = user
-            currentWorkspace = workspaces.first
+            currentWorkspace = Self.preferredWorkspace(from: workspaces, preferredId: preferredWorkspaceId)
         } catch {
             try? keychain.delete()
         }
     }
 }
 #endif
+
+public extension AuthSession {
+    static func preferredWorkspace(from workspaces: [Workspace], preferredId: String?) -> Workspace? {
+        if let preferredId, let workspace = workspaces.first(where: { $0.id == preferredId }) {
+            return workspace
+        }
+        return workspaces.first
+    }
+
+    #if DEBUG
+    @MainActor
+    func installDebugToken(_ token: String?) throws {
+        guard let token, !token.isEmpty else { return }
+        try keychain.save(token)
+    }
+    #endif
+}

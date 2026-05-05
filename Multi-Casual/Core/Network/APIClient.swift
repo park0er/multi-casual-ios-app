@@ -173,8 +173,8 @@ public final class APIClient: @unchecked Sendable {
         ])
     }
 
-    public func getIssue(id: String) async throws -> Issue {
-        try await request("GET", path: "api/issues/\(id)")
+    public func getIssue(id: String, workspaceId: String? = nil) async throws -> Issue {
+        try await request("GET", path: "api/issues/\(id)", queryItems: workspaceQuery(workspaceId))
     }
 
     public func createIssue(title: String, description: String?, workspaceId: String) async throws -> Issue {
@@ -182,11 +182,11 @@ public final class APIClient: @unchecked Sendable {
                           body: CreateIssueRequest(title: title, description: description, workspaceId: workspaceId))
     }
 
-    public func listComments(issueId: String, limit: Int = 50, offset: Int = 0) async throws -> PageResponse<Comment> {
+    public func listComments(issueId: String, workspaceId: String? = nil, limit: Int = 50, offset: Int = 0) async throws -> PageResponse<Comment> {
         try await request("GET", path: "api/issues/\(issueId)/comments", queryItems: [
             .init(name: "limit", value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
-        ])
+        ] + workspaceQuery(workspaceId))
     }
 
     private struct AddCommentRequest: Encodable {
@@ -195,21 +195,18 @@ public final class APIClient: @unchecked Sendable {
         enum CodingKeys: String, CodingKey { case content; case parentId = "parent_id" }
     }
 
-    public func addComment(issueId: String, content: String, parentId: String? = nil) async throws -> Comment {
+    public func addComment(issueId: String, content: String, parentId: String? = nil, workspaceId: String? = nil) async throws -> Comment {
         try await request("POST", path: "api/issues/\(issueId)/comments",
+                          queryItems: workspaceQuery(workspaceId),
                           body: AddCommentRequest(content: content, parentId: parentId))
     }
 
-    private struct RunsResponse: Decodable { let runs: [AgentTask] }
-    public func listAgentRuns(issueId: String) async throws -> [AgentTask] {
-        let resp: RunsResponse = try await request("GET", path: "api/issues/\(issueId)/task-runs")
-        return resp.runs
+    public func listAgentRuns(issueId: String, workspaceId: String? = nil) async throws -> [AgentTask] {
+        try await request("GET", path: "api/issues/\(issueId)/task-runs", queryItems: workspaceQuery(workspaceId))
     }
 
-    private struct MessagesResponse: Decodable { let messages: [TaskMessage] }
     public func listRunMessages(taskId: String) async throws -> [TaskMessage] {
-        let resp: MessagesResponse = try await request("GET", path: "api/tasks/\(taskId)/messages")
-        return resp.messages
+        try await request("GET", path: "api/tasks/\(taskId)/messages")
     }
 
     // MARK: - Inbox
@@ -233,6 +230,11 @@ public final class APIClient: @unchecked Sendable {
 
     public func getProject(id: String) async throws -> Project {
         try await request("GET", path: "api/projects/\(id)")
+    }
+
+    private func workspaceQuery(_ workspaceId: String?) -> [URLQueryItem] {
+        guard let workspaceId, !workspaceId.isEmpty else { return [] }
+        return [.init(name: "workspace_id", value: workspaceId)]
     }
 }
 

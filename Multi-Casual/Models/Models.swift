@@ -64,11 +64,13 @@ public let iso8601DateOnlyFormatter: DateFormatter = {
 // MARK: - Issues
 
 public enum IssueStatus: String, Codable, CaseIterable, Sendable, Comparable {
+    case backlog
     case todo
     case inProgress = "in_progress"
     case inReview = "in_review"
     case done
     case blocked
+    case cancelled
 
     /// Fallback for unknown future statuses — prevents decoding crash.
     case unknown
@@ -81,11 +83,13 @@ public enum IssueStatus: String, Codable, CaseIterable, Sendable, Comparable {
     private var sortOrder: Int {
         switch self {
         case .blocked: return 0
-        case .todo: return 1
-        case .inProgress: return 2
-        case .inReview: return 3
-        case .done: return 4
-        case .unknown: return 5
+        case .backlog: return 1
+        case .todo: return 2
+        case .inProgress: return 3
+        case .inReview: return 4
+        case .done: return 5
+        case .cancelled: return 6
+        case .unknown: return 7
         }
     }
 
@@ -95,22 +99,26 @@ public enum IssueStatus: String, Codable, CaseIterable, Sendable, Comparable {
 
     public var displayName: String {
         switch self {
+        case .backlog: return "Backlog"
         case .todo: return "Todo"
         case .inProgress: return "In Progress"
         case .inReview: return "In Review"
         case .done: return "Done"
         case .blocked: return "Blocked"
+        case .cancelled: return "Cancelled"
         case .unknown: return "Unknown"
         }
     }
 
     public var icon: String {
         switch self {
+        case .backlog: return "tray"
         case .todo: return "circle"
         case .inProgress: return "circle.dotted"
         case .inReview: return "circle.lefthalf.filled"
         case .done: return "checkmark.circle.fill"
         case .blocked: return "minus.circle.fill"
+        case .cancelled: return "xmark.circle.fill"
         case .unknown: return "questionmark.circle"
         }
     }
@@ -118,12 +126,12 @@ public enum IssueStatus: String, Codable, CaseIterable, Sendable, Comparable {
 
 public enum IssuePriority: String, Codable, CaseIterable, Sendable {
     case urgent, high, medium, low
-    case noPriority = "no_priority"
+    case noPriority = "none"
     case unknown
 
     public init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
-        self = IssuePriority(rawValue: raw) ?? .unknown
+        self = raw == "no_priority" ? .noPriority : (IssuePriority(rawValue: raw) ?? .unknown)
     }
 
     public var displayName: String {
@@ -232,6 +240,12 @@ public struct InboxItem: Codable, Identifiable, Sendable {
         case createdAt = "created_at"
     }
 
+    private enum DesktopCodingKeys: String, CodingKey {
+        case id, title, read, details
+        case issueId = "issue_id"
+        case createdAt = "created_at"
+    }
+
     public init(id: String, issueId: String, issueIdentifier: String, issueTitle: String,
                 read: Bool, createdAt: Date) {
         self.id = id
@@ -240,6 +254,22 @@ public struct InboxItem: Codable, Identifiable, Sendable {
         self.issueTitle = issueTitle
         self.read = read
         self.createdAt = createdAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let legacy = try decoder.container(keyedBy: CodingKeys.self)
+        let desktop = try decoder.container(keyedBy: DesktopCodingKeys.self)
+        let details = (try? desktop.decodeIfPresent([String: String].self, forKey: .details)) ?? nil
+
+        id = try legacy.decode(String.self, forKey: .id)
+        issueId = try legacy.decodeIfPresent(String.self, forKey: .issueId) ?? ""
+        issueIdentifier = try legacy.decodeIfPresent(String.self, forKey: .issueIdentifier)
+            ?? details?["identifier"]
+            ?? issueId
+        issueTitle = try legacy.decodeIfPresent(String.self, forKey: .issueTitle)
+            ?? desktop.decode(String.self, forKey: .title)
+        read = try legacy.decode(Bool.self, forKey: .read)
+        createdAt = try legacy.decode(Date.self, forKey: .createdAt)
     }
 }
 
@@ -251,19 +281,50 @@ public struct Project: Codable, Identifiable, Sendable {
     public let description: String?
     public let workspaceId: String
     public let createdAt: Date
+    public let issueCount: Int
+    public let doneCount: Int
 
     enum CodingKeys: String, CodingKey {
         case id, name, description
         case workspaceId = "workspace_id"
         case createdAt = "created_at"
+        case title
+        case issueCount = "issue_count"
+        case doneCount = "done_count"
     }
 
-    public init(id: String, name: String, description: String?, workspaceId: String, createdAt: Date) {
+    public init(id: String, name: String, description: String?, workspaceId: String,
+                createdAt: Date, issueCount: Int = 0, doneCount: Int = 0) {
         self.id = id
         self.name = name
         self.description = description
         self.workspaceId = workspaceId
         self.createdAt = createdAt
+        self.issueCount = issueCount
+        self.doneCount = doneCount
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+            ?? container.decode(String.self, forKey: .title)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        workspaceId = try container.decode(String.self, forKey: .workspaceId)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        issueCount = try container.decodeIfPresent(Int.self, forKey: .issueCount) ?? 0
+        doneCount = try container.decodeIfPresent(Int.self, forKey: .doneCount) ?? 0
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encode(workspaceId, forKey: .workspaceId)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(issueCount, forKey: .issueCount)
+        try container.encode(doneCount, forKey: .doneCount)
     }
 }
 
@@ -322,6 +383,39 @@ public struct TaskMessage: Codable, Identifiable, Sendable {
         self.content = content
         self.input = input
         self.output = output
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, seq, type, tool, content, input, output
+        case taskId = "task_id"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        seq = try container.decode(Int.self, forKey: .seq)
+        type = try container.decode(MessageType.self, forKey: .type)
+        tool = try container.decodeIfPresent(String.self, forKey: .tool)
+        content = try container.decodeIfPresent(String.self, forKey: .content)
+        input = try container.decodeIfPresent([String: JSONValue].self, forKey: .input)
+        output = try container.decodeIfPresent(String.self, forKey: .output)
+        if let decodedId = try container.decodeIfPresent(String.self, forKey: .id) {
+            id = decodedId
+        } else if let taskId = try container.decodeIfPresent(String.self, forKey: .taskId) {
+            id = "\(taskId):\(seq)"
+        } else {
+            id = "\(seq)"
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(seq, forKey: .seq)
+        try container.encode(type, forKey: .type)
+        try container.encodeIfPresent(tool, forKey: .tool)
+        try container.encodeIfPresent(content, forKey: .content)
+        try container.encodeIfPresent(input, forKey: .input)
+        try container.encodeIfPresent(output, forKey: .output)
     }
 }
 
