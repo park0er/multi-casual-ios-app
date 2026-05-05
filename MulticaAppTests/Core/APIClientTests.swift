@@ -294,6 +294,32 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(body["type"] as? String, "comment")
     }
 
+    func test_updateIssue_sendsWorkspaceIdAndMutableFields() async throws {
+        let json = """
+        {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
+         "status":"in_review","priority":"urgent","assignee_id":null,"assignee_type":null,
+         "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+         "updated_at":"2026-01-02T00:00:00Z"}
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        var body: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.httpMethod, "PUT")
+            XCTAssertEqual(req.url?.path, "/api/issues/i1")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let issue = try await client.updateIssue(id: "i1", workspaceId: "w1", status: .inReview, priority: .urgent)
+
+        XCTAssertEqual(issue.status, .inReview)
+        XCTAssertEqual(issue.priority, .urgent)
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertEqual(body["status"] as? String, "in_review")
+        XCTAssertEqual(body["priority"] as? String, "urgent")
+    }
+
     func test_listAgentRuns_decodesBareArrayResponse() async throws {
         let json = """
         [{

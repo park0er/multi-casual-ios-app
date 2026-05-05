@@ -74,11 +74,37 @@ public struct IssueDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(issue.title).font(.title2.bold())
             HStack(spacing: 12) {
-                Label(issue.status.displayName, systemImage: issue.status.icon)
-                    .font(.caption).padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(.secondary.opacity(0.12), in: Capsule())
-                Label(issue.priority.displayName, systemImage: "flag")
-                    .font(.caption).foregroundStyle(.secondary)
+                Menu {
+                    ForEach(IssueStatus.displayCases, id: \.self) { status in
+                        Button {
+                            Task { await vm.updateStatus(status) }
+                        } label: {
+                            Label(status.displayName, systemImage: status.icon)
+                        }
+                    }
+                } label: {
+                    Label(issue.status.displayName, systemImage: issue.status.icon)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.secondary.opacity(0.12), in: Capsule())
+                }
+                .disabled(vm.isUpdatingIssue)
+
+                Menu {
+                    ForEach(IssuePriority.allCases.filter { $0 != .unknown }, id: \.self) { priority in
+                        Button {
+                            Task { await vm.updatePriority(priority) }
+                        } label: {
+                            Label(priority.displayName, systemImage: "flag")
+                        }
+                    }
+                } label: {
+                    Label(issue.priority.displayName, systemImage: "flag")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .disabled(vm.isUpdatingIssue)
             }
             if let desc = issue.description, !desc.isEmpty {
                 Text(desc).font(.body)

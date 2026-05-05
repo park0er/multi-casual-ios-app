@@ -142,6 +142,37 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.error)
     }
 
+    func test_updateStatus_replacesIssueWithServerResponse() async throws {
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/i1"):
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-01T00:00:00Z"))
+            case ("PUT", "/api/issues/i1"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                XCTAssertEqual(body["status"] as? String, "blocked")
+                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+                let json = """
+                {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
+                 "status":"blocked","priority":"none","assignee_id":null,"assignee_type":null,
+                 "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+                 "updated_at":"2026-01-02T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadIssue()
+        await vm.updateStatus(.blocked)
+
+        XCTAssertEqual(vm.issue?.status, .blocked)
+        XCTAssertNil(vm.error)
+        XCTAssertFalse(vm.isUpdatingIssue)
+    }
+
     private func makeClient(handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)) -> APIClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]

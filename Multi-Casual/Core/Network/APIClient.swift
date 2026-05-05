@@ -175,6 +175,11 @@ public final class APIClient: @unchecked Sendable {
         }
     }
 
+    private struct UpdateIssueRequest: Encodable {
+        let status: IssueStatus?
+        let priority: IssuePriority?
+    }
+
     public func listIssues(
         workspaceId: String,
         status: IssueStatus? = nil,
@@ -244,6 +249,20 @@ public final class APIClient: @unchecked Sendable {
         try await request("POST", path: "api/issues/\(issueId)/comments",
                           queryItems: workspaceQuery(workspaceId),
                           body: AddCommentRequest(content: content, type: "comment", parentId: parentId))
+    }
+
+    public func updateIssue(
+        id: String,
+        workspaceId: String? = nil,
+        status: IssueStatus? = nil,
+        priority: IssuePriority? = nil
+    ) async throws -> Issue {
+        try await request(
+            "PUT",
+            path: "api/issues/\(id)",
+            queryItems: workspaceQuery(workspaceId),
+            body: UpdateIssueRequest(status: status, priority: priority)
+        )
     }
 
     public func listAgentRuns(issueId: String, workspaceId: String? = nil) async throws -> [AgentTask] {

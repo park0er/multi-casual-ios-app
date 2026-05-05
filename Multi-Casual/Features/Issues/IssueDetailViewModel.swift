@@ -20,6 +20,7 @@ public final class IssueDetailViewModel {
     public var metadataError: String?
     public var assigneeDisplayName: String?
     public var projectDisplayName: String?
+    public var isUpdatingIssue = false
 
     private let api: APIClient
 
@@ -118,5 +119,32 @@ public final class IssueDetailViewModel {
             await loadIssue()
             await DataStore.shared.invalidateIssue(issueId)
         } catch { self.error = error.localizedDescription }
+    }
+
+    public func updateStatus(_ status: IssueStatus) async {
+        await updateIssue(status: status, priority: nil)
+    }
+
+    public func updatePriority(_ priority: IssuePriority) async {
+        await updateIssue(status: nil, priority: priority)
+    }
+
+    private func updateIssue(status: IssueStatus?, priority: IssuePriority?) async {
+        guard !isUpdatingIssue else { return }
+        isUpdatingIssue = true
+        error = nil
+        defer { isUpdatingIssue = false }
+
+        do {
+            issue = try await api.updateIssue(
+                id: issueId,
+                workspaceId: workspaceId,
+                status: status,
+                priority: priority
+            )
+            await DataStore.shared.invalidateIssue(issueId)
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }
