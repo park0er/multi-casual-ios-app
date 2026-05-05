@@ -18,8 +18,15 @@ public struct SettingsView: View {
                         }
                     }.padding(.vertical, 4)
                 }
-                if let ws = authSession.currentWorkspace {
-                    LabeledContent("Workspace", value: ws.name)
+                if authSession.workspaces.isEmpty {
+                    LabeledContent("Workspace", value: "No workspace")
+                } else {
+                    Picker("Workspace", selection: workspaceSelection) {
+                        ForEach(authSession.workspaces) { workspace in
+                            Text(workspace.name).tag(workspace.id)
+                        }
+                    }
+                    .disabled(authSession.workspaces.count == 1)
                 }
             }
 
@@ -40,6 +47,16 @@ public struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+    }
+
+    private var workspaceSelection: Binding<String> {
+        Binding(
+            get: { authSession.currentWorkspace?.id ?? "" },
+            set: { workspaceId in
+                guard let workspace = authSession.workspaces.first(where: { $0.id == workspaceId }) else { return }
+                authSession.setWorkspace(workspace)
+            }
+        )
     }
 }
 

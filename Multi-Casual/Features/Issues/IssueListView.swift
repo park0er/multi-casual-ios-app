@@ -45,6 +45,10 @@ public struct IssueListView: View {
                 Task { await viewModel?.loadNext() }
             }
         }
+        .onChange(of: authSession.currentWorkspace?.id) { _, _ in
+            guard let viewModel else { return }
+            Task { await viewModel.refresh() }
+        }
     }
 
     private func listView(vm: IssueListViewModel) -> some View {

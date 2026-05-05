@@ -12,14 +12,22 @@ import Observation
 public final class AuthSession {
     public var currentUser: User?
     public var currentWorkspace: Workspace?
+    public var workspaces: [Workspace] = []
     public var isLoading = true
 
     public var isAuthenticated: Bool { currentUser != nil }
+    public var preferredWorkspaceId: String? {
+        userDefaults.string(forKey: Self.selectedWorkspaceDefaultsKey)
+    }
 
     private let keychain: KeychainStore
+    private let userDefaults: UserDefaults
 
-    public init(keychain: KeychainStore = KeychainStore()) {
+    static let selectedWorkspaceDefaultsKey = "selected_workspace_id"
+
+    public init(keychain: KeychainStore = KeychainStore(), userDefaults: UserDefaults = .standard) {
         self.keychain = keychain
+        self.userDefaults = userDefaults
     }
 
     // nonisolated so APIClient can fetch the bearer token off the main actor
@@ -29,16 +37,28 @@ public final class AuthSession {
     }
 
     public func login(user: User, workspace: Workspace?, token: String) throws {
+        try login(user: user, workspaces: workspace.map { [$0] } ?? [], token: token)
+    }
+
+    public func login(user: User, workspaces: [Workspace], token: String) throws {
         try keychain.save(token)
         currentUser = user
-        currentWorkspace = workspace
+        self.workspaces = workspaces
+        if let workspace = Self.preferredWorkspace(from: workspaces, preferredId: preferredWorkspaceId) {
+            setWorkspace(workspace)
+        } else {
+            currentWorkspace = nil
+            userDefaults.removeObject(forKey: Self.selectedWorkspaceDefaultsKey)
+        }
         isLoading = false
     }
 
     public func logout() {
         try? keychain.delete()
+        userDefaults.removeObject(forKey: Self.selectedWorkspaceDefaultsKey)
         currentUser = nil
         currentWorkspace = nil
+        workspaces = []
     }
 
     public func restore(using api: APIClient, preferredWorkspaceId: String? = nil) async {
@@ -47,9 +67,16 @@ public final class AuthSession {
         guard (try? keychain.load()) != nil else { return }
         do {
             let user = try await api.getMe()
-            let workspaces = try await api.listWorkspaces()
+            let fetchedWorkspaces = try await api.listWorkspaces()
             currentUser = user
-            currentWorkspace = Self.preferredWorkspace(from: workspaces, preferredId: preferredWorkspaceId)
+            workspaces = fetchedWorkspaces
+            currentWorkspace = Self.preferredWorkspace(
+                from: fetchedWorkspaces,
+                preferredId: preferredWorkspaceId ?? self.preferredWorkspaceId
+            )
+            if let currentWorkspace {
+                setWorkspace(currentWorkspace)
+            }
         } catch {
             try? keychain.delete()
         }
@@ -61,28 +88,48 @@ public final class AuthSession {
 public final class AuthSession {
     public var currentUser: User?
     public var currentWorkspace: Workspace?
+    public var workspaces: [Workspace] = []
     public var isLoading = true
     public var isAuthenticated: Bool { currentUser != nil }
+    public var preferredWorkspaceId: String? {
+        userDefaults.string(forKey: Self.selectedWorkspaceDefaultsKey)
+    }
 
     private let keychain: KeychainStore
+    private let userDefaults: UserDefaults
 
-    public init(keychain: KeychainStore = KeychainStore()) {
+    static let selectedWorkspaceDefaultsKey = "selected_workspace_id"
+
+    public init(keychain: KeychainStore = KeychainStore(), userDefaults: UserDefaults = .standard) {
         self.keychain = keychain
+        self.userDefaults = userDefaults
     }
 
     nonisolated public func token() -> String? { try? keychain.load() }
 
     public func login(user: User, workspace: Workspace?, token: String) throws {
+        try login(user: user, workspaces: workspace.map { [$0] } ?? [], token: token)
+    }
+
+    public func login(user: User, workspaces: [Workspace], token: String) throws {
         try keychain.save(token)
         currentUser = user
-        currentWorkspace = workspace
+        self.workspaces = workspaces
+        if let workspace = Self.preferredWorkspace(from: workspaces, preferredId: preferredWorkspaceId) {
+            setWorkspace(workspace)
+        } else {
+            currentWorkspace = nil
+            userDefaults.removeObject(forKey: Self.selectedWorkspaceDefaultsKey)
+        }
         isLoading = false
     }
 
     public func logout() {
         try? keychain.delete()
+        userDefaults.removeObject(forKey: Self.selectedWorkspaceDefaultsKey)
         currentUser = nil
         currentWorkspace = nil
+        workspaces = []
     }
 
     public func restore(using api: APIClient, preferredWorkspaceId: String? = nil) async {
@@ -91,9 +138,16 @@ public final class AuthSession {
         guard (try? keychain.load()) != nil else { return }
         do {
             let user = try await api.getMe()
-            let workspaces = try await api.listWorkspaces()
+            let fetchedWorkspaces = try await api.listWorkspaces()
             currentUser = user
-            currentWorkspace = Self.preferredWorkspace(from: workspaces, preferredId: preferredWorkspaceId)
+            workspaces = fetchedWorkspaces
+            currentWorkspace = Self.preferredWorkspace(
+                from: fetchedWorkspaces,
+                preferredId: preferredWorkspaceId ?? self.preferredWorkspaceId
+            )
+            if let currentWorkspace {
+                setWorkspace(currentWorkspace)
+            }
         } catch {
             try? keychain.delete()
         }
@@ -102,6 +156,11 @@ public final class AuthSession {
 #endif
 
 public extension AuthSession {
+    func setWorkspace(_ workspace: Workspace) {
+        currentWorkspace = workspace
+        userDefaults.set(workspace.id, forKey: Self.selectedWorkspaceDefaultsKey)
+    }
+
     static func preferredWorkspace(from workspaces: [Workspace], preferredId: String?) -> Workspace? {
         if let preferredId, let workspace = workspaces.first(where: { $0.id == preferredId }) {
             return workspace

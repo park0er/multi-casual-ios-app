@@ -46,7 +46,7 @@ public final class LoginViewModel {
             let token = try await api.verifyCode(email: email, code: code)
             let user = try await api.getMe()
             let workspaces = try await api.listWorkspaces()
-            try authSession.login(user: user, workspace: workspaces.first, token: token)
+            try authSession.login(user: user, workspaces: workspaces, token: token)
         } catch {
             errorMessage = error.localizedDescription
             code = ""
