@@ -170,6 +170,55 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.error)
     }
 
+    func test_submitComment_trimsContentBeforeSending() async throws {
+        var submittedContent: String?
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/issues/i1/comments"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                submittedContent = body["content"] as? String
+                let json = """
+                {"id":"c1","content":"Ship it","author_id":"u1","author_type":"member",
+                 "parent_id":null,"issue_id":"i1","created_at":"2026-01-02T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("GET", "/api/issues/i1"):
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-02T00:00:00Z"))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        vm.commentDraft = " \nShip it\t "
+        XCTAssertTrue(vm.canSubmitComment)
+        await vm.submitComment()
+
+        XCTAssertEqual(submittedContent, "Ship it")
+        XCTAssertEqual(vm.commentDraft, "")
+        XCTAssertNil(vm.error)
+    }
+
+    func test_submitComment_ignoresWhitespaceOnlyDraft() async throws {
+        var requestCount = 0
+        let client = makeClient { req in
+            requestCount += 1
+            XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+            return Self.response(for: req, body: Data("{}".utf8), status: 404)
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        vm.commentDraft = " \n\t "
+        XCTAssertFalse(vm.canSubmitComment)
+        await vm.submitComment()
+
+        XCTAssertEqual(requestCount, 0)
+        XCTAssertEqual(vm.commentDraft, " \n\t ")
+        XCTAssertFalse(vm.isSubmittingComment)
+        XCTAssertNil(vm.error)
+    }
+
     func test_updateStatus_replacesIssueWithServerResponse() async throws {
         let client = makeClient { req in
             switch (req.httpMethod, req.url?.path) {

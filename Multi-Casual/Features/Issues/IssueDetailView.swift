@@ -213,10 +213,10 @@ public struct IssueDetailView: View {
                 else {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title2)
-                        .foregroundStyle(vm.commentDraft.isEmpty ? Color.secondary : Color.blue)
+                        .foregroundStyle(vm.canSubmitComment ? Color.blue : Color.secondary)
                 }
             }
-            .disabled(vm.commentDraft.isEmpty || vm.isSubmittingComment)
+            .disabled(!vm.canSubmitComment)
         }
         .padding(.horizontal).padding(.vertical, 8).background(.background)
         .overlay(alignment: .top) { Divider() }

@@ -32,6 +32,10 @@ public final class IssueDetailViewModel {
         self.api = api
     }
 
+    public var canSubmitComment: Bool {
+        !commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSubmittingComment
+    }
+
     public func loadIssue() async {
         isLoadingIssue = true
         error = nil
@@ -116,10 +120,11 @@ public final class IssueDetailViewModel {
     }
 
     public func submitComment() async {
-        guard !commentDraft.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        let content = commentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty else { return }
         isSubmittingComment = true; defer { isSubmittingComment = false }
         do {
-            let comment = try await api.addComment(issueId: issueId, content: commentDraft, workspaceId: workspaceId)
+            let comment = try await api.addComment(issueId: issueId, content: content, workspaceId: workspaceId)
             commentDraft = ""
             commentLoader.items.append(comment)
             await loadIssue()
