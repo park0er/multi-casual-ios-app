@@ -112,14 +112,24 @@ public enum IssueStatus: String, Codable, CaseIterable, Sendable, Comparable {
         self = IssueStatus(rawValue: raw) ?? .unknown
     }
 
+    public static let displayCases: [IssueStatus] = [
+        .backlog,
+        .todo,
+        .inProgress,
+        .inReview,
+        .done,
+        .blocked,
+        .cancelled,
+    ]
+
     private var sortOrder: Int {
         switch self {
-        case .blocked: return 0
-        case .backlog: return 1
-        case .todo: return 2
-        case .inProgress: return 3
-        case .inReview: return 4
-        case .done: return 5
+        case .backlog: return 0
+        case .todo: return 1
+        case .inProgress: return 2
+        case .inReview: return 3
+        case .done: return 4
+        case .blocked: return 5
         case .cancelled: return 6
         case .unknown: return 7
         }
