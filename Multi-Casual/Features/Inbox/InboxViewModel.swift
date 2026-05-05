@@ -7,6 +7,7 @@ public final class InboxViewModel {
     public let loader = PaginatedLoader<InboxItem>()
     public var lastError: Error?
     public var unreadCount: Int = 0
+    public var pendingArchiveItem: InboxItem?
     private let api: APIClient
     private let authSession: AuthSession
 
@@ -51,7 +52,25 @@ public final class InboxViewModel {
         }
     }
 
-    public func archive(id: String) async {
+    public func requestArchive(id: String) {
+        pendingArchiveItem = loader.items.first { $0.id == id }
+    }
+
+    public func cancelPendingArchive() {
+        pendingArchiveItem = nil
+    }
+
+    public func confirmPendingArchive() async {
+        guard let item = pendingArchiveItem else { return }
+        await archive(id: item.id)
+        pendingArchiveItem = nil
+    }
+
+    public var pendingArchiveConfirmation: DestructiveConfirmation {
+        DestructiveConfirmation.archiveInboxItem(issueTitle: pendingArchiveItem?.issueTitle ?? "")
+    }
+
+    private func archive(id: String) async {
         guard let workspaceId = authSession.currentWorkspace?.id else {
             lastError = UserVisibleError("Pick a workspace before updating Inbox.")
             return

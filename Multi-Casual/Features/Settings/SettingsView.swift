@@ -3,6 +3,7 @@ import SwiftUI
 
 public struct SettingsView: View {
     @Environment(AuthSession.self) private var authSession
+    @State private var showingLogoutConfirmation = false
 
     public init() {}
 
@@ -39,14 +40,24 @@ public struct SettingsView: View {
 
             Section {
                 Button("Log Out", role: .destructive) {
-                    Task {
-                        await WebSocketActor.shared.disconnect()
-                        authSession.logout()
-                    }
+                    showingLogoutConfirmation = true
                 }
             }
         }
         .navigationTitle("Settings")
+        .destructiveConfirmation(
+            logoutConfirmation,
+            isPresented: $showingLogoutConfirmation
+        ) {
+            Task {
+                await WebSocketActor.shared.disconnect()
+                authSession.logout()
+            }
+        }
+    }
+
+    private var logoutConfirmation: DestructiveConfirmation {
+        DestructiveConfirmation.logout(workspaceName: authSession.currentWorkspace?.name)
     }
 
     private var workspaceSelection: Binding<String> {

@@ -27,7 +27,7 @@ final class InboxViewModelTests: XCTestCase {
         XCTAssertNil(vm.lastError)
     }
 
-    func test_archive_removesItemAndRecomputesUnreadCount() async throws {
+    func test_confirmPendingArchive_removesItemAndRecomputesUnreadCount() async throws {
         let client = makeClient { req in
             switch req.url?.path {
             case "/api/inbox":
@@ -44,11 +44,87 @@ final class InboxViewModelTests: XCTestCase {
         let vm = InboxViewModel(api: client, authSession: makeAuthSession())
 
         await vm.loadNext()
-        await vm.archive(id: "n1")
+        vm.requestArchive(id: "n1")
+        await vm.confirmPendingArchive()
 
         XCTAssertTrue(vm.loader.items.isEmpty)
         XCTAssertEqual(vm.unreadCount, 0)
         XCTAssertNil(vm.lastError)
+    }
+
+    func test_requestArchive_storesPendingItemWithoutArchiving() async throws {
+        var didCallArchive = false
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/inbox":
+                return Self.response(for: req, body: Self.inboxItemJSON(read: false, archived: false))
+            case "/api/inbox/n1/archive":
+                didCallArchive = true
+                return Self.response(for: req, body: Self.singleInboxItemJSON(read: false, archived: true))
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = InboxViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        vm.requestArchive(id: "n1")
+
+        XCTAssertEqual(vm.pendingArchiveItem?.id, "n1")
+        XCTAssertFalse(didCallArchive)
+        XCTAssertEqual(vm.loader.items.map(\.id), ["n1"])
+    }
+
+    func test_confirmPendingArchive_archivesAndClearsPendingItem() async throws {
+        var archiveRequestCount = 0
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/inbox":
+                return Self.response(for: req, body: Self.inboxItemJSON(read: false, archived: false))
+            case "/api/inbox/n1/archive":
+                archiveRequestCount += 1
+                return Self.response(for: req, body: Self.singleInboxItemJSON(read: false, archived: true))
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = InboxViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        vm.requestArchive(id: "n1")
+        await vm.confirmPendingArchive()
+
+        XCTAssertNil(vm.pendingArchiveItem)
+        XCTAssertEqual(archiveRequestCount, 1)
+        XCTAssertTrue(vm.loader.items.isEmpty)
+        XCTAssertEqual(vm.unreadCount, 0)
+    }
+
+    func test_cancelPendingArchive_clearsPendingItemWithoutArchiving() async throws {
+        var didCallArchive = false
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/inbox":
+                return Self.response(for: req, body: Self.inboxItemJSON(read: false, archived: false))
+            case "/api/inbox/n1/archive":
+                didCallArchive = true
+                return Self.response(for: req, body: Self.singleInboxItemJSON(read: false, archived: true))
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = InboxViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        vm.requestArchive(id: "n1")
+        vm.cancelPendingArchive()
+
+        XCTAssertNil(vm.pendingArchiveItem)
+        XCTAssertFalse(didCallArchive)
+        XCTAssertEqual(vm.loader.items.map(\.id), ["n1"])
     }
 
     func test_loadNext_deduplicatesInboxItemsByIssueKeepingNewestActiveItem() async throws {

@@ -17,6 +17,10 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
         XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Log Out"].exists)
+        app.buttons["Log Out"].tap()
+        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
     }
 
     func testCreateIssueSheetRendersRequiredFields() {
@@ -67,6 +71,11 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(rowButton.waitForExistence(timeout: 5))
         rowButton.swipeLeft()
         XCTAssertTrue(app.buttons["Archive"].waitForExistence(timeout: 5))
+        app.buttons["Archive"].tap()
+        XCTAssertTrue(app.staticTexts["Archive this notification?"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(firstNotification.waitForExistence(timeout: 5))
     }
 
     func testIssueDetailRendersMetadataCommentsAndInput() {
@@ -140,6 +149,9 @@ final class Multi-CasualUITests: XCTestCase {
 
         rowButton.swipeLeft()
         XCTAssertTrue(app.buttons["Archive"].waitForExistence(timeout: 5))
+        app.buttons["Archive"].tap()
+        XCTAssertTrue(app.staticTexts["Archive this notification?"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
         app.buttons["Archive"].tap()
         XCTAssertTrue(waitForNonExistence(unreadCell, timeout: 10))
     }

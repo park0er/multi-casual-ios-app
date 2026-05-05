@@ -6,6 +6,7 @@ public struct InboxView: View {
     @Environment(AuthSession.self) private var authSession
     @State private var viewModel: InboxViewModel?
     @State private var observedWorkspaceId: String?
+    @State private var showingArchiveConfirmation = false
 
     public init() {}
 
@@ -22,7 +23,8 @@ public struct InboxView: View {
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
-                                Task { await vm.archive(id: item.id) }
+                                vm.requestArchive(id: item.id)
+                                showingArchiveConfirmation = vm.pendingArchiveItem != nil
                             } label: {
                                 Label("Archive", systemImage: "archivebox")
                             }
@@ -49,6 +51,14 @@ public struct InboxView: View {
                 }
                 .listStyle(.plain)
                 .refreshable { await vm.refresh() }
+                .destructiveConfirmation(
+                    vm.pendingArchiveConfirmation,
+                    isPresented: $showingArchiveConfirmation
+                ) {
+                    Task { await vm.confirmPendingArchive() }
+                } onCancel: {
+                    vm.cancelPendingArchive()
+                }
             } else { ProgressView() }
         }
         .navigationTitle("Inbox")
