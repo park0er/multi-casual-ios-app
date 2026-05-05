@@ -59,6 +59,42 @@ final class ProjectDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_load_paginatesProjectIssuesWithinStatusBuckets() async throws {
+        var issueRequests: [(status: String?, offset: String?)] = []
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/issues":
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let status = components?.queryItems?.first(where: { $0.name == "status" })?.value
+                let offset = components?.queryItems?.first(where: { $0.name == "offset" })?.value
+                issueRequests.append((status, offset))
+                if status == "todo" && offset == "0" {
+                    return Self.response(for: req, body: Self.issuesJSON([
+                        Self.issueJSON(id: "i1", number: 1, status: "todo")
+                    ], total: 2))
+                }
+                if status == "todo" && offset == "1" {
+                    return Self.response(for: req, body: Self.issuesJSON([
+                        Self.issueJSON(id: "i2", number: 2, status: "todo")
+                    ], total: 2))
+                }
+                return Self.response(for: req, body: Self.issuesJSON([], total: 0))
+            case "/api/projects/p1/resources":
+                return Self.response(for: req, body: #"{"resources":[],"total":0}"#.data(using: .utf8)!)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = ProjectDetailViewModel(project: project, api: client, authSession: makeSession())
+
+        await vm.load()
+
+        XCTAssertTrue(issueRequests.contains { $0.status == "todo" && $0.offset == "1" })
+        XCTAssertEqual(vm.issues.map(\.id), ["i1", "i2"])
+        XCTAssertNil(vm.errorMessage)
+    }
+
     private func makeSession() -> AuthSession {
         let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.project-detail.test"))
         session.currentWorkspace = workspace
@@ -82,5 +118,18 @@ final class ProjectDetailViewModelTests: XCTestCase {
             HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!,
             body
         )
+    }
+
+    private static func issuesJSON(_ issues: [String], total: Int) -> Data {
+        let raw = #"{"issues":["# + issues.joined(separator: ",") + #"],"total":"# + "\(total)" + "}"
+        return Data(raw.utf8)
+    }
+
+    private static func issueJSON(id: String, number: Int, status: String) -> String {
+        """
+        {"id":"\(id)","identifier":"PAR-\(number)","number":\(number),"title":"Issue \(number)","description":null,
+         "status":"\(status)","priority":"none","assignee_id":null,"assignee_type":null,
+         "project_id":"p1","workspace_id":"w1","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
+        """
     }
 }

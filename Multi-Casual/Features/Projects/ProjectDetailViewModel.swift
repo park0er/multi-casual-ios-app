@@ -56,14 +56,29 @@ public final class ProjectDetailViewModel {
     private func loadProjectIssues(workspaceId: String) async throws -> [Issue] {
         var loaded: [Issue] = []
         for status in IssueStatus.boardCases {
-            let page = try await api.listIssues(
-                workspaceId: workspaceId,
-                status: status,
-                projectId: project.id,
-                limit: Self.pageSize,
-                offset: 0
-            )
-            loaded.append(contentsOf: page.items.filter { $0.projectId == project.id && $0.status == status })
+            var statusItems: [Issue] = []
+            var rawLoaded = 0
+            var hasMore = true
+            while hasMore {
+                let page = try await api.listIssues(
+                    workspaceId: workspaceId,
+                    status: status,
+                    projectId: project.id,
+                    limit: Self.pageSize,
+                    offset: rawLoaded
+                )
+                rawLoaded += page.items.count
+                statusItems.append(contentsOf: page.items.filter { $0.projectId == project.id && $0.status == status })
+                if let total = page.total {
+                    hasMore = rawLoaded < total
+                } else {
+                    hasMore = page.hasMore
+                }
+                if page.items.isEmpty {
+                    hasMore = false
+                }
+            }
+            loaded.append(contentsOf: statusItems)
         }
         return loaded
     }
