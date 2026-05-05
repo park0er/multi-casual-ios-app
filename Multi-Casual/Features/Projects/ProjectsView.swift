@@ -12,6 +12,9 @@ public struct ProjectsView: View {
         Group {
             if let vm = viewModel {
                 List {
+                    if vm.loader.items.isEmpty && !vm.loader.hasMore && !vm.loader.isLoading && vm.lastError == nil {
+                        ContentUnavailableView("No Projects", systemImage: "folder", description: Text("There are no projects in this workspace."))
+                    }
                     ForEach(vm.loader.items) { project in
                         NavigationLink(destination: ProjectDetailView(project: project)) {
                             VStack(alignment: .leading, spacing: 4) {

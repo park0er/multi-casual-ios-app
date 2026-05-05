@@ -42,6 +42,13 @@ public struct PageResponse<T: Decodable & Sendable>: Decodable, Sendable {
         self.hasMore = hasMore
         self.total = total
     }
+
+    public func inferringHasMore(fromOffset offset: Int) -> PageResponse<T> {
+        guard let total else { return self }
+        let inferredHasMore = offset + items.count < total
+        guard inferredHasMore != hasMore else { return self }
+        return PageResponse(items: items, hasMore: inferredHasMore, total: total)
+    }
 }
 
 public struct DynamicKey: CodingKey {

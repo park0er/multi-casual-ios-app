@@ -89,6 +89,9 @@ public struct IssueListView: View {
 
     private func listView(vm: IssueListViewModel) -> some View {
         List {
+            if vm.loader.items.isEmpty && !vm.loader.hasMore && !vm.loader.isLoading && vm.lastError == nil {
+                ContentUnavailableView("No Issues", systemImage: "checklist", description: Text("There are no issues in this workspace."))
+            }
             ForEach(vm.loader.items) { issue in
                 NavigationLink(destination: IssueDetailView(issueId: issue.id)) {
                     IssueRowView(issue: issue)

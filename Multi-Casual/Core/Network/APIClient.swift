@@ -308,11 +308,12 @@ public final class APIClient: @unchecked Sendable {
     // MARK: - Projects
 
     public func listProjects(workspaceId: String, limit: Int = 50, offset: Int = 0) async throws -> PageResponse<Project> {
-        try await request("GET", path: "api/projects", queryItems: [
+        let page: PageResponse<Project> = try await request("GET", path: "api/projects", queryItems: [
             .init(name: "workspace_id", value: workspaceId),
             .init(name: "limit", value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
         ])
+        return page.inferringHasMore(fromOffset: offset)
     }
 
     public func getProject(id: String, workspaceId: String? = nil) async throws -> Project {

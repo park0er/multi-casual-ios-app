@@ -13,6 +13,9 @@ public struct InboxView: View {
         Group {
             if let vm = viewModel {
                 List {
+                    if vm.loader.items.isEmpty && !vm.loader.hasMore && !vm.loader.isLoading && vm.lastError == nil {
+                        ContentUnavailableView("No Inbox Items", systemImage: "tray", description: Text("There are no active notifications in this workspace."))
+                    }
                     ForEach(vm.loader.items) { item in
                         NavigationLink(destination: IssueDetailView(issueId: item.issueId)) {
                             InboxRow(item: item)

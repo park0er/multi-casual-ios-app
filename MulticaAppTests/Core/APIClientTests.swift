@@ -397,6 +397,28 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(page.items.first?.name, "iOS MVP")
     }
 
+    func test_listProjects_infersHasMoreFromTotalWhenWrapperOmitsFlag() async throws {
+        let json = """
+        {"projects":[{
+            "id":"p1","workspace_id":"w1","title":"iOS MVP","description":null,
+            "icon":null,"status":"in_progress","priority":"none",
+            "lead_type":null,"lead_id":null,
+            "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z",
+            "issue_count":2,"done_count":1
+        }],"total":2}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/projects")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let page = try await client.listProjects(workspaceId: "w1", limit: 1, offset: 0)
+
+        XCTAssertTrue(page.hasMore)
+        XCTAssertEqual(page.total, 2)
+        XCTAssertEqual(page.items.map(\.id), ["p1"])
+    }
+
     func test_listProjectResources_decodesResourcesWrapper() async throws {
         let json = """
         {"resources":[{
