@@ -236,10 +236,11 @@ public final class APIClient: @unchecked Sendable {
     }
 
     public func listComments(issueId: String, workspaceId: String? = nil, limit: Int = 50, offset: Int = 0) async throws -> PageResponse<Comment> {
-        try await request("GET", path: "api/issues/\(issueId)/comments", queryItems: [
+        let page: PageResponse<Comment> = try await request("GET", path: "api/issues/\(issueId)/comments", queryItems: [
             .init(name: "limit", value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
         ] + workspaceQuery(workspaceId))
+        return page.inferringHasMore(fromOffset: offset)
     }
 
     private struct AddCommentRequest: Encodable {

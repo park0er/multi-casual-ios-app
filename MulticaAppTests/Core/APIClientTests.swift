@@ -287,6 +287,24 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
+    func test_listComments_infersHasMoreFromTotalWhenWrapperOmitsFlag() async throws {
+        let json = """
+        {"comments":[{"id":"c1","content":"Hi","author_id":"u1","author_type":"member",
+          "parent_id":null,"issue_id":"i1","created_at":"2026-01-01T00:00:00Z"}],
+         "total":2}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/comments")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let page = try await client.listComments(issueId: "i1", workspaceId: "w1", limit: 1, offset: 0)
+
+        XCTAssertTrue(page.hasMore)
+        XCTAssertEqual(page.total, 2)
+        XCTAssertEqual(page.items.map(\.id), ["c1"])
+    }
+
     func test_addComment_sendsDesktopCommentType() async throws {
         let json = """
         {"id":"c1","content":"Hi","author_id":"u1","author_type":"member",

@@ -196,6 +196,33 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.commentsError)
     }
 
+    func test_loadMoreComments_appendsPaginatedCommentPages() async throws {
+        var offsets: [String] = []
+        let client = makeClient { req in
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/comments")
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            let offset = components?.queryItems?.first(where: { $0.name == "offset" })?.value ?? "0"
+            offsets.append(offset)
+            let commentId = offset == "0" ? "c1" : "c2"
+            let content = offset == "0" ? "First page" : "Second page"
+            let json = """
+            {"comments":[{"id":"\(commentId)","content":"\(content)","author_id":"u1","author_type":"member",
+              "parent_id":null,"issue_id":"i1","created_at":"2026-01-01T00:00:00Z"}],
+             "total":2}
+            """.data(using: .utf8)!
+            return Self.response(for: req, body: json)
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadComments()
+        await vm.loadMoreComments()
+
+        XCTAssertEqual(offsets, ["0", "1"])
+        XCTAssertEqual(vm.commentLoader.items.map(\.id), ["c1", "c2"])
+        XCTAssertFalse(vm.commentLoader.hasMore)
+        XCTAssertNil(vm.commentsError)
+    }
+
     func test_submitComment_appendsCommentAndRefreshesIssueMetadata() async throws {
         var issueFetchCount = 0
         let client = makeClient { req in
