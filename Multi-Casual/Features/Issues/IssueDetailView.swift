@@ -72,6 +72,7 @@ public struct IssueDetailView: View {
                     }}
                 }.padding(.vertical)
             }
+            .accessibilityIdentifier("IssueDetailScrollView")
             commentInputBar(vm: vm)
         }
     }

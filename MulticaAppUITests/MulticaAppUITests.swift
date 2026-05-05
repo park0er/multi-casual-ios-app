@@ -92,6 +92,25 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons["IssueDetailCommentSendButton"].isEnabled)
     }
 
+    func testIssueDetailLongCommentsScrollKeepsComposerReachable() {
+        let app = launchApp(initialTab: "issues", issueId: par73IssueId)
+
+        XCTAssertTrue(app.staticTexts["Comments"].waitForExistence(timeout: 20))
+        let scrollView = app.scrollViews["IssueDetailScrollView"]
+        XCTAssertTrue(scrollView.waitForExistence(timeout: 10))
+
+        for _ in 0..<3 {
+            scrollView.swipeUp()
+        }
+
+        let commentField = app.descendants(matching: .any)["IssueDetailCommentInput"].firstMatch
+        XCTAssertTrue(commentField.waitForExistence(timeout: 5))
+        commentField.tap()
+        commentField.typeText("Scroll smoke")
+        XCTAssertTrue(commentField.value.debugDescription.contains("Scroll smoke"))
+        XCTAssertTrue(app.buttons["IssueDetailCommentSendButton"].isEnabled)
+    }
+
     func testIssueListSwipeShowsDoneActionWithoutSubmitting() {
         let app = launchApp(initialTab: "issues")
 
