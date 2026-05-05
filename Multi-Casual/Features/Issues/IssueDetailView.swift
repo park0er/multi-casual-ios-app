@@ -206,6 +206,7 @@ public struct IssueDetailView: View {
             ), axis: .vertical)
             .lineLimit(1...4).padding(.horizontal, 12).padding(.vertical, 8)
             .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 20))
+            .accessibilityIdentifier("IssueDetailCommentInput")
 
             Button { Task { await vm.submitComment() } } label: {
                 if vm.isSubmittingComment { ProgressView() }
@@ -216,6 +217,7 @@ public struct IssueDetailView: View {
                 }
             }
             .disabled(!vm.canSubmitComment)
+            .accessibilityIdentifier("IssueDetailCommentSendButton")
         }
         .padding(.horizontal).padding(.vertical, 8).background(.background)
         .overlay(alignment: .top) { Divider() }
