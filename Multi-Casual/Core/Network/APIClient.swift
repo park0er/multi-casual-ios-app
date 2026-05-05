@@ -221,14 +221,15 @@ public final class APIClient: @unchecked Sendable {
 
     private struct AddCommentRequest: Encodable {
         let content: String
+        let type: String
         let parentId: String?
-        enum CodingKeys: String, CodingKey { case content; case parentId = "parent_id" }
+        enum CodingKeys: String, CodingKey { case content, type; case parentId = "parent_id" }
     }
 
     public func addComment(issueId: String, content: String, parentId: String? = nil, workspaceId: String? = nil) async throws -> Comment {
         try await request("POST", path: "api/issues/\(issueId)/comments",
                           queryItems: workspaceQuery(workspaceId),
-                          body: AddCommentRequest(content: content, parentId: parentId))
+                          body: AddCommentRequest(content: content, type: "comment", parentId: parentId))
     }
 
     public func listAgentRuns(issueId: String, workspaceId: String? = nil) async throws -> [AgentTask] {

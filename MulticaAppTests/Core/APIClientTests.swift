@@ -230,6 +230,28 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
+    func test_addComment_sendsDesktopCommentType() async throws {
+        let json = """
+        {"id":"c1","content":"Hi","author_id":"u1","author_type":"member",
+         "parent_id":null,"issue_id":"i1","created_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        var body: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/comments")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await client.addComment(issueId: "i1", content: "Hi", workspaceId: "w1")
+
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertEqual(body["content"] as? String, "Hi")
+        XCTAssertEqual(body["type"] as? String, "comment")
+    }
+
     func test_listAgentRuns_decodesBareArrayResponse() async throws {
         let json = """
         [{
