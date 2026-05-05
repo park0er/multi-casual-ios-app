@@ -51,6 +51,44 @@ final class IssueCreateViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_loadOptions_paginatesProjectChoices() async throws {
+        var projectOffsets: [String?] = []
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/workspaces/w1/members":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/agents":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/projects":
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let offset = components?.queryItems?.first(where: { $0.name == "offset" })?.value ?? "0"
+                projectOffsets.append(offset)
+                let title = offset == "0" ? "First page" : "Second page"
+                let id = offset == "0" ? "p1" : "p2"
+                let json = """
+                {"projects":[{
+                    "id":"\(id)","workspace_id":"w1","title":"\(title)","description":null,
+                    "icon":null,"status":"in_progress","priority":"none",
+                    "lead_type":null,"lead_id":null,
+                    "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z",
+                    "issue_count":2,"done_count":1
+                }],"total":2}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueCreateViewModel(api: client, authSession: makeSession())
+
+        await vm.loadOptions()
+
+        XCTAssertEqual(projectOffsets, ["0", "1"])
+        XCTAssertEqual(vm.projects.map { $0.id }, ["p1", "p2"])
+        XCTAssertNil(vm.errorMessage)
+    }
+
     func test_submitSendsSelectedDesktopFields() async throws {
         let dueDate = Date(timeIntervalSince1970: 1_778_025_600)
         var body: [String: Any] = [:]
