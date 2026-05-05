@@ -4,6 +4,7 @@ final class Multi-CasualUITests: XCTestCase {
     private let workspaceId = "7f97e6b9-2db3-489c-a270-4e4c6d354469"
     private let par73IssueId = "9a808431-341f-4ead-8d8c-055e2e00686e"
     private let projectId = "f96f29f2-abbd-4aae-8962-f44a2c68c3aa"
+    private let memberUserId = "4b05a80a-fa79-45e6-8568-f3bf08e7057b"
     private let transcriptTaskId = "9eab0d97-de00-4f90-82a6-d70cbb5161a2"
     private let mutationFlagDirectory = URL(fileURLWithPath: "/tmp/multica-ui-mutation-tests", isDirectory: true)
 
@@ -60,6 +61,42 @@ final class Multi-CasualUITests: XCTestCase {
 
         XCTAssertTrue(waitForNonExistence(app.navigationBars["New Issue"], timeout: 20))
         XCTAssertTrue(scrollUntilStaticTextExists(title, app: app, timeout: 45))
+    }
+
+    func testCreateIssueSubmitsMemberProjectDueDateWhenMutationTestsEnabled() throws {
+        try requireMutationTestsEnabled(reason: "create a real backend issue with member, project, and due date")
+        guard mutationFlagEnabled(
+            environmentKey: "MULTICA_UI_MUTATION_CREATE_FIELDS",
+            fileName: "create-fields.enabled"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_CREATE_FIELDS=1 or touch /tmp/multica-ui-mutation-tests/create-fields.enabled to create a real issue with extra fields.")
+        }
+
+        let title = mutationValue(
+            environmentKey: "MULTICA_UI_MUTATION_CREATE_TITLE",
+            fileName: "create-title"
+        ) ?? "iOS UI field mutation \(Int(Date().timeIntervalSince1970))"
+        let app = launchApp(
+            initialTab: "issues",
+            openCreateSheet: true,
+            createDefaults: [
+                "MULTICA_DEBUG_CREATE_TITLE": title,
+                "MULTICA_DEBUG_CREATE_STATUS": "todo",
+                "MULTICA_DEBUG_CREATE_PRIORITY": "high",
+                "MULTICA_DEBUG_CREATE_ASSIGNEE_OPTION_ID": "member:\(memberUserId)",
+                "MULTICA_DEBUG_CREATE_PROJECT_ID": projectId,
+                "MULTICA_DEBUG_CREATE_DUE_DATE": "2026-12-31T00:00:00Z",
+            ]
+        )
+
+        XCTAssertTrue(app.navigationBars["New Issue"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.textFields["Issue title"].exists)
+
+        let createButton = app.buttons["Create"]
+        XCTAssertTrue(waitForEnabled(createButton, timeout: 30))
+        createButton.tap()
+
+        XCTAssertTrue(waitForNonExistence(app.navigationBars["New Issue"], timeout: 20))
     }
 
     func testInboxSwipeShowsArchiveActionWithoutSubmitting() {
@@ -229,7 +266,8 @@ final class Multi-CasualUITests: XCTestCase {
         issueId: String? = nil,
         projectId: String? = nil,
         taskId: String? = nil,
-        openCreateSheet: Bool = false
+        openCreateSheet: Bool = false,
+        createDefaults: [String: String] = [:]
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["MULTICA_DEBUG_SKIP_PUSH_PROMPT"] = "1"
@@ -246,6 +284,9 @@ final class Multi-CasualUITests: XCTestCase {
         }
         if openCreateSheet {
             app.launchEnvironment["MULTICA_DEBUG_OPEN_CREATE_SHEET"] = "1"
+        }
+        for (key, value) in createDefaults {
+            app.launchEnvironment[key] = value
         }
         addTeardownBlock {
             if app.state != .notRunning {
@@ -298,6 +339,15 @@ final class Multi-CasualUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         return !element.exists
+    }
+
+    private func waitForEnabled(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.exists && element.isEnabled { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return element.exists && element.isEnabled
     }
 
     private func scrollUntilStaticTextExists(_ text: String, app: XCUIApplication, timeout: TimeInterval) -> Bool {

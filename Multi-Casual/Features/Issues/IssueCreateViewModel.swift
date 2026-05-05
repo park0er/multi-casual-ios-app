@@ -113,6 +113,7 @@ public final class IssueCreateViewModel {
             if selectedProjectId != Self.noProjectId && selectedProject == nil {
                 selectedProjectId = Self.noProjectId
             }
+            applyDebugCreateDefaults()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -174,5 +175,38 @@ public final class IssueCreateViewModel {
             errorMessage = error.localizedDescription
             return false
         }
+    }
+
+    private func applyDebugCreateDefaults() {
+        #if DEBUG
+        let env = ProcessInfo.processInfo.environment
+
+        if title.isEmpty, let debugTitle = env["MULTICA_DEBUG_CREATE_TITLE"], !debugTitle.isEmpty {
+            title = debugTitle
+        }
+        if let rawStatus = env["MULTICA_DEBUG_CREATE_STATUS"],
+           let debugStatus = IssueStatus(rawValue: rawStatus),
+           debugStatus != .unknown {
+            status = debugStatus
+        }
+        if let rawPriority = env["MULTICA_DEBUG_CREATE_PRIORITY"],
+           let debugPriority = IssuePriority(rawValue: rawPriority),
+           debugPriority != .unknown {
+            priority = debugPriority
+        }
+        if let assigneeOptionId = env["MULTICA_DEBUG_CREATE_ASSIGNEE_OPTION_ID"],
+           assigneeOptions.contains(where: { $0.id == assigneeOptionId }) {
+            selectedAssigneeOptionId = assigneeOptionId
+        }
+        if let projectId = env["MULTICA_DEBUG_CREATE_PROJECT_ID"],
+           projects.contains(where: { $0.id == projectId }) {
+            selectedProjectId = projectId
+        }
+        if let dueDateRaw = env["MULTICA_DEBUG_CREATE_DUE_DATE"],
+           let debugDueDate = dateFormatter.date(from: dueDateRaw) {
+            includesDueDate = true
+            dueDate = debugDueDate
+        }
+        #endif
     }
 }
