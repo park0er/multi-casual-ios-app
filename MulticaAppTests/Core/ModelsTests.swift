@@ -156,9 +156,17 @@ final class ModelsTests: XCTestCase {
         let project = try decoder.decode(Project.self, from: json)
 
         XCTAssertEqual(project.name, "iOS MVP")
+        XCTAssertEqual(project.status, .inProgress)
+        XCTAssertEqual(project.priority, .noPriority)
         XCTAssertEqual(project.workspaceId, "w1")
         XCTAssertEqual(project.issueCount, 8)
         XCTAssertEqual(project.doneCount, 3)
+    }
+
+    func test_projectStatus_allCases_haveDisplayName() {
+        for status in ProjectStatus.allCases {
+            XCTAssertFalse(status.displayName.isEmpty, "Project status \(status) missing displayName")
+        }
     }
 
     func test_issueStatus_allCases_haveDisplayName() {

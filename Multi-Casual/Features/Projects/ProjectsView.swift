@@ -19,6 +19,13 @@ public struct ProjectsView: View {
                                 if let desc = project.description {
                                     Text(desc).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                                 }
+                                HStack(spacing: 8) {
+                                    Label(project.status.displayName, systemImage: project.status.icon)
+                                    Label(project.priority.displayName, systemImage: "flag")
+                                    Text("\(project.doneCount)/\(project.issueCount) done")
+                                }
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                             }.padding(.vertical, 4)
                         }
                     }

@@ -17,6 +17,8 @@ public struct ProjectDetailView: View {
                         if let desc = vm.project.description {
                             Text(desc).foregroundStyle(.secondary)
                         }
+                        LabeledContent("Status", value: vm.project.status.displayName)
+                        LabeledContent("Priority", value: vm.project.priority.displayName)
                         LabeledContent("Progress", value: vm.progressText)
                     }
 

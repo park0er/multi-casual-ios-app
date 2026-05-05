@@ -320,17 +320,55 @@ public struct InboxItem: Codable, Identifiable, Sendable {
 
 // MARK: - Projects
 
+public enum ProjectStatus: String, Codable, CaseIterable, Sendable {
+    case planned
+    case inProgress = "in_progress"
+    case paused
+    case completed
+    case cancelled
+    case unknown
+
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = ProjectStatus(rawValue: raw) ?? .unknown
+    }
+
+    public var displayName: String {
+        switch self {
+        case .planned: return "Planned"
+        case .inProgress: return "In Progress"
+        case .paused: return "Paused"
+        case .completed: return "Completed"
+        case .cancelled: return "Cancelled"
+        case .unknown: return "Unknown"
+        }
+    }
+
+    public var icon: String {
+        switch self {
+        case .planned: return "calendar"
+        case .inProgress: return "circle.dotted"
+        case .paused: return "pause.circle"
+        case .completed: return "checkmark.circle"
+        case .cancelled: return "xmark.circle"
+        case .unknown: return "questionmark.circle"
+        }
+    }
+}
+
 public struct Project: Codable, Identifiable, Sendable {
     public let id: String
     public let name: String
     public let description: String?
+    public let status: ProjectStatus
+    public let priority: IssuePriority
     public let workspaceId: String
     public let createdAt: Date
     public let issueCount: Int
     public let doneCount: Int
 
     enum CodingKeys: String, CodingKey {
-        case id, name, description
+        case id, name, description, status, priority
         case workspaceId = "workspace_id"
         case createdAt = "created_at"
         case title
@@ -339,10 +377,13 @@ public struct Project: Codable, Identifiable, Sendable {
     }
 
     public init(id: String, name: String, description: String?, workspaceId: String,
-                createdAt: Date, issueCount: Int = 0, doneCount: Int = 0) {
+                createdAt: Date, issueCount: Int = 0, doneCount: Int = 0,
+                status: ProjectStatus = .unknown, priority: IssuePriority = .unknown) {
         self.id = id
         self.name = name
         self.description = description
+        self.status = status
+        self.priority = priority
         self.workspaceId = workspaceId
         self.createdAt = createdAt
         self.issueCount = issueCount
@@ -355,6 +396,8 @@ public struct Project: Codable, Identifiable, Sendable {
         name = try container.decodeIfPresent(String.self, forKey: .name)
             ?? container.decode(String.self, forKey: .title)
         description = try container.decodeIfPresent(String.self, forKey: .description)
+        status = try container.decodeIfPresent(ProjectStatus.self, forKey: .status) ?? .unknown
+        priority = try container.decodeIfPresent(IssuePriority.self, forKey: .priority) ?? .unknown
         workspaceId = try container.decode(String.self, forKey: .workspaceId)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         issueCount = try container.decodeIfPresent(Int.self, forKey: .issueCount) ?? 0
@@ -366,6 +409,8 @@ public struct Project: Codable, Identifiable, Sendable {
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encodeIfPresent(description, forKey: .description)
+        try container.encode(status, forKey: .status)
+        try container.encode(priority, forKey: .priority)
         try container.encode(workspaceId, forKey: .workspaceId)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(issueCount, forKey: .issueCount)
