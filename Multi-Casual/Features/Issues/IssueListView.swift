@@ -74,6 +74,11 @@ public struct IssueListView: View {
             if viewModel == nil {
                 viewModel = IssueListViewModel(api: api, authSession: authSession)
                 Task { await viewModel?.loadNext() }
+                #if DEBUG
+                if ProcessInfo.processInfo.environment["MULTICA_DEBUG_OPEN_CREATE_SHEET"] == "1" {
+                    viewModel?.showCreateSheet = true
+                }
+                #endif
             }
         }
         .onChange(of: authSession.currentWorkspace?.id) { _, _ in
