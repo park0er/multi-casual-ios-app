@@ -117,9 +117,9 @@ private struct IssueCreateForm: View {
 
                 if let error = viewModel.errorMessage {
                     Section {
-                        Text(error)
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                        ErrorRetryView(message: error) {
+                            Task { await viewModel.loadOptions() }
+                        }
                     }
                 }
             }
