@@ -4,6 +4,7 @@ final class Multi-CasualUITests: XCTestCase {
     private let workspaceId = "7f97e6b9-2db3-489c-a270-4e4c6d354469"
     private let par73IssueId = "9a808431-341f-4ead-8d8c-055e2e00686e"
     private let transcriptTaskId = "9eab0d97-de00-4f90-82a6-d70cbb5161a2"
+    private let mutationFlagDirectory = URL(fileURLWithPath: "/tmp/multica-ui-mutation-tests", isDirectory: true)
 
     override func setUp() {
         super.setUp()
@@ -36,6 +37,26 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Create"].isEnabled)
     }
 
+    func testCreateIssueSubmitsToBackendWhenMutationTestsEnabled() throws {
+        try requireMutationTestsEnabled(reason: "create a real backend issue")
+
+        let app = launchApp(initialTab: "issues", openCreateSheet: true)
+        let title = "iOS UI mutation \(Int(Date().timeIntervalSince1970))"
+
+        XCTAssertTrue(app.navigationBars["New Issue"].waitForExistence(timeout: 20))
+        let titleField = app.textFields["Issue title"]
+        XCTAssertTrue(titleField.exists)
+        titleField.tap()
+        titleField.typeText(title)
+
+        let createButton = app.buttons["Create"]
+        XCTAssertTrue(createButton.isEnabled)
+        createButton.tap()
+
+        XCTAssertTrue(waitForNonExistence(app.navigationBars["New Issue"], timeout: 20))
+        XCTAssertTrue(scrollUntilStaticTextExists(title, app: app, timeout: 45))
+    }
+
     func testInboxSwipeShowsArchiveActionWithoutSubmitting() {
         let app = launchApp(initialTab: "inbox")
 
@@ -61,11 +82,66 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons["IssueDetailCommentSendButton"].isEnabled)
     }
 
+    func testIssueDetailSubmitsCommentWhenMutationTestsEnabled() throws {
+        try requireMutationTestsEnabled(reason: "post a real backend comment")
+        guard let issueId = mutationValue(
+            environmentKey: "MULTICA_UI_MUTATION_ISSUE_ID",
+            fileName: "issue-id"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_ISSUE_ID or write a disposable issue id to /tmp/multica-ui-mutation-tests/issue-id before posting a real comment.")
+        }
+
+        let app = launchApp(initialTab: "issues", issueId: issueId)
+        let comment = "iOS UI mutation comment \(Int(Date().timeIntervalSince1970))"
+
+        XCTAssertTrue(app.staticTexts["Comments"].waitForExistence(timeout: 20))
+        let commentField = app.descendants(matching: .any)["IssueDetailCommentInput"].firstMatch
+        XCTAssertTrue(commentField.waitForExistence(timeout: 10))
+        commentField.tap()
+        commentField.typeText(comment)
+
+        let sendButton = app.buttons["IssueDetailCommentSendButton"]
+        XCTAssertTrue(sendButton.isEnabled)
+        sendButton.tap()
+
+        XCTAssertTrue(app.staticTexts[comment].waitForExistence(timeout: 30))
+    }
+
     func testAgentTranscriptRendersTimeline() {
         let app = launchApp(initialTab: "issues", taskId: transcriptTaskId)
 
         XCTAssertTrue(app.staticTexts["Agent Transcript"].waitForExistence(timeout: 20))
         XCTAssertTrue(app.staticTexts["Tool Use"].waitForExistence(timeout: 20))
+    }
+
+    func testInboxMarksReadAndArchivesWhenMutationTestsEnabled() throws {
+        try requireMutationTestsEnabled(reason: "mark a real inbox item read and archive it")
+        guard mutationFlagEnabled(
+            environmentKey: "MULTICA_UI_MUTATION_INBOX_ACTIONS",
+            fileName: "inbox-actions.enabled"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_INBOX_ACTIONS=1 or touch /tmp/multica-ui-mutation-tests/inbox-actions.enabled to mutate a real Inbox item.")
+        }
+
+        let app = launchApp(initialTab: "inbox")
+
+        XCTAssertTrue(app.staticTexts["Inbox"].waitForExistence(timeout: 20))
+        let unreadCell = app.cells.containing(.staticText, identifier: "Unread").element(boundBy: 0)
+        guard unreadCell.waitForExistence(timeout: 20) else {
+            throw XCTSkip("No unread Inbox item is available to mark read.")
+        }
+
+        let rowButton = unreadCell.buttons.element(boundBy: 0)
+        XCTAssertTrue(rowButton.waitForExistence(timeout: 5))
+        rowButton.swipeRight()
+        XCTAssertTrue(app.buttons["Read"].waitForExistence(timeout: 5))
+        app.buttons["Read"].tap()
+        XCTAssertTrue(unreadCell.staticTexts["Read"].waitForExistence(timeout: 10))
+
+        rowButton.swipeLeft()
+        XCTAssertTrue(app.buttons["Archive"].waitForExistence(timeout: 5))
+        app.buttons["Archive"].tap()
+        XCTAssertTrue(waitForNonExistence(unreadCell, timeout: 10))
     }
 
     private func launchApp(
@@ -87,8 +163,63 @@ final class Multi-CasualUITests: XCTestCase {
         if openCreateSheet {
             app.launchEnvironment["MULTICA_DEBUG_OPEN_CREATE_SHEET"] = "1"
         }
+        addTeardownBlock {
+            if app.state != .notRunning {
+                app.terminate()
+            }
+        }
         app.launch()
         return app
     }
 
+    private func requireMutationTestsEnabled(reason: String) throws {
+        guard mutationFlagEnabled(
+            environmentKey: "MULTICA_UI_MUTATION_TESTS",
+            fileName: "enabled"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_TESTS=1 in the Xcode test runner, or touch /tmp/multica-ui-mutation-tests/enabled, to \(reason).")
+        }
+    }
+
+    private func mutationFlagEnabled(environmentKey: String, fileName: String) -> Bool {
+        if ProcessInfo.processInfo.environment[environmentKey] == "1" {
+            return true
+        }
+        return FileManager.default.fileExists(atPath: mutationFlagDirectory.appendingPathComponent(fileName).path)
+    }
+
+    private func mutationValue(environmentKey: String, fileName: String) -> String? {
+        if let value = ProcessInfo.processInfo.environment[environmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !value.isEmpty {
+            return value
+        }
+
+        let url = mutationFlagDirectory.appendingPathComponent(fileName)
+        guard let value = try? String(contentsOf: url, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value
+    }
+
+    private func waitForNonExistence(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !element.exists { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return !element.exists
+    }
+
+    private func scrollUntilStaticTextExists(_ text: String, app: XCUIApplication, timeout: TimeInterval) -> Bool {
+        let element = app.staticTexts[text]
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.exists { return true }
+            app.swipeUp()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        }
+        return element.exists
+    }
 }
