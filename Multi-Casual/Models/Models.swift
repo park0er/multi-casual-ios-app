@@ -122,6 +122,15 @@ public enum IssueStatus: String, Codable, CaseIterable, Sendable, Comparable {
         .cancelled,
     ]
 
+    public static let boardCases: [IssueStatus] = [
+        .backlog,
+        .todo,
+        .inProgress,
+        .inReview,
+        .done,
+        .blocked,
+    ]
+
     private var sortOrder: Int {
         switch self {
         case .backlog: return 0

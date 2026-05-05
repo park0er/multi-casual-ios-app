@@ -175,12 +175,16 @@ public final class APIClient: @unchecked Sendable {
         }
     }
 
-    public func listIssues(workspaceId: String, limit: Int = 50, offset: Int = 0) async throws -> PageResponse<Issue> {
-        try await request("GET", path: "api/issues", queryItems: [
+    public func listIssues(workspaceId: String, status: IssueStatus? = nil, limit: Int = 50, offset: Int = 0) async throws -> PageResponse<Issue> {
+        var queryItems: [URLQueryItem] = [
             .init(name: "workspace_id", value: workspaceId),
             .init(name: "limit", value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
-        ])
+        ]
+        if let status {
+            queryItems.append(.init(name: "status", value: status.rawValue))
+        }
+        return try await request("GET", path: "api/issues", queryItems: queryItems)
     }
 
     public func getIssue(id: String, workspaceId: String? = nil) async throws -> Issue {

@@ -49,8 +49,12 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(scrambled.sorted(), [.backlog, .todo, .inProgress, .inReview, .done, .blocked, .cancelled])
     }
 
-    func test_issueStatus_displayCasesExcludeUnknownAndMatchDesktopBoardOrder() {
+    func test_issueStatus_displayCasesExcludeUnknownAndKeepCancelledForForms() {
         XCTAssertEqual(IssueStatus.displayCases, [.backlog, .todo, .inProgress, .inReview, .done, .blocked, .cancelled])
+    }
+
+    func test_issueStatus_boardCasesMatchDesktopBoardStatuses() {
+        XCTAssertEqual(IssueStatus.boardCases, [.backlog, .todo, .inProgress, .inReview, .done, .blocked])
     }
 
     func test_issuePriority_decodesDesktopNonePriority() throws {

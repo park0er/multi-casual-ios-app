@@ -71,7 +71,7 @@ public struct IssueListView: View {
     private func boardView(vm: IssueListViewModel) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 16) {
-                ForEach(IssueStatus.displayCases, id: \.self) { status in
+                ForEach(IssueStatus.boardCases, id: \.self) { status in
                     let issues = vm.issuesByStatus[status] ?? []
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
