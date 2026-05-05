@@ -6,6 +6,8 @@ final class Multi-CasualUITests: XCTestCase {
     private let par73IssueId = "9a808431-341f-4ead-8d8c-055e2e00686e"
     private let projectId = "f96f29f2-abbd-4aae-8962-f44a2c68c3aa"
     private let memberUserId = "4b05a80a-fa79-45e6-8568-f3bf08e7057b"
+    private let memberDisplayName = "XishengGmail"
+    private let agentDisplayName = "RollieCC"
     private let transcriptTaskId = "9eab0d97-de00-4f90-82a6-d70cbb5161a2"
     private let mutationFlagDirectory = URL(fileURLWithPath: "/tmp/multica-ui-mutation-tests", isDirectory: true)
 
@@ -43,6 +45,22 @@ final class Multi-CasualUITests: XCTestCase {
         titleField.tap()
         titleField.typeText("UI smoke draft")
         XCTAssertTrue(app.buttons["Create"].isEnabled)
+    }
+
+    func testCreateIssueAssigneePickerShowsMembersAndAgents() {
+        let app = launchApp(initialTab: "issues", openCreateSheet: true)
+
+        XCTAssertTrue(app.navigationBars["New Issue"].waitForExistence(timeout: 20))
+        let assigneePicker = app.buttons["IssueCreateAssigneePicker"]
+        XCTAssertTrue(assigneePicker.waitForExistence(timeout: 20))
+        XCTAssertTrue(waitForValue(assigneePicker, timeout: 30) { value in
+            value.contains("Assignee options loaded:") && !value.contains("Assignee options loaded: 0")
+        })
+        assigneePicker.tap()
+
+        XCTAssertTrue(app.buttons["Unassigned"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[memberDisplayName].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[agentDisplayName].waitForExistence(timeout: 10))
     }
 
     func testCreateIssueSubmitsToBackendWhenMutationTestsEnabled() throws {
@@ -362,6 +380,15 @@ final class Multi-CasualUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         return element.exists && element.isEnabled
+    }
+
+    private func waitForValue(_ element: XCUIElement, timeout: TimeInterval, matches predicate: (String) -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.exists, predicate(String(describing: element.value)) { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return element.exists && predicate(String(describing: element.value))
     }
 
     private func scrollUntilStaticTextExists(_ text: String, app: XCUIApplication, timeout: TimeInterval) -> Bool {

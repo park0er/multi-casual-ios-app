@@ -77,6 +77,14 @@ private struct IssueCreateForm: View {
                             Text(option.displayName).tag(option.id)
                         }
                     }
+                    .accessibilityIdentifier("IssueCreateAssigneePicker")
+                    .accessibilityValue(
+                        viewModel.isLoadingOptions
+                            ? "Loading assignees"
+                            : "Assignee options loaded: \(viewModel.assigneeOptions.count)"
+                    )
+                    .pickerStyle(.navigationLink)
+                    .disabled(viewModel.isLoadingOptions)
 
                     if let assignee = viewModel.selectedAssignee {
                         LabeledContent(assignee.subtitle, value: assignee.type.capitalized)
