@@ -280,6 +280,10 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/projects/\(id)")
     }
 
+    public func listProjectResources(projectId: String) async throws -> PageResponse<ProjectResource> {
+        try await request("GET", path: "api/projects/\(projectId)/resources")
+    }
+
     private func workspaceQuery(_ workspaceId: String?) -> [URLQueryItem] {
         guard let workspaceId, !workspaceId.isEmpty else { return [] }
         return [.init(name: "workspace_id", value: workspaceId)]

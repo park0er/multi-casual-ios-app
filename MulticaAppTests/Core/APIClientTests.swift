@@ -289,6 +289,25 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(page.items.first?.name, "iOS MVP")
     }
 
+    func test_listProjectResources_decodesResourcesWrapper() async throws {
+        let json = """
+        {"resources":[{
+            "id":"r1","project_id":"p1","workspace_id":"w1","resource_type":"github_repo",
+            "resource_ref":{"url":"https://github.com/multica-ai/multica","default_branch_hint":"main"},
+            "label":null,"position":0,"created_at":"2026-01-01T00:00:00Z","created_by":null
+        }],"total":1}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/projects/p1/resources")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let page = try await client.listProjectResources(projectId: "p1")
+
+        XCTAssertEqual(page.total, 1)
+        XCTAssertEqual(page.items.first?.displayTitle, "https://github.com/multica-ai/multica")
+    }
+
     func test_listMembers_decodesWorkspaceMembers() async throws {
         let json = """
         [{"id":"m1","workspace_id":"w1","user_id":"u1","role":"owner",

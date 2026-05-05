@@ -6,7 +6,7 @@ public struct PageResponse<T: Decodable & Sendable>: Decodable, Sendable {
     public let total: Int?
 
     private static var knownKeys: Set<String> {
-        ["issues", "items", "projects", "comments", "workspaces", "runs", "messages", "inbox"]
+        ["issues", "items", "projects", "comments", "workspaces", "runs", "messages", "inbox", "resources"]
     }
 
     public init(from decoder: Decoder) throws {

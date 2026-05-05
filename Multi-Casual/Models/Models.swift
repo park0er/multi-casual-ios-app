@@ -363,6 +363,40 @@ public struct Project: Codable, Identifiable, Sendable {
     }
 }
 
+public struct ProjectResource: Codable, Identifiable, Sendable {
+    public let id: String
+    public let projectId: String
+    public let workspaceId: String
+    public let resourceType: String
+    public let resourceRef: [String: JSONValue]
+    public let label: String?
+    public let position: Int
+    public let createdAt: Date
+    public let createdBy: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, label, position
+        case projectId = "project_id"
+        case workspaceId = "workspace_id"
+        case resourceType = "resource_type"
+        case resourceRef = "resource_ref"
+        case createdAt = "created_at"
+        case createdBy = "created_by"
+    }
+
+    public var displayTitle: String {
+        if let label, !label.isEmpty {
+            return label
+        }
+        if resourceType == "github_repo",
+           case .string(let url)? = resourceRef["url"],
+           !url.isEmpty {
+            return url
+        }
+        return resourceType
+    }
+}
+
 // MARK: - Agent Tasks
 
 public struct AgentTask: Codable, Identifiable, Sendable {
