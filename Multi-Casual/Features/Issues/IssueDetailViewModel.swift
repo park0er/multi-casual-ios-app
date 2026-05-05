@@ -1,4 +1,3 @@
-#if canImport(SwiftUI) && canImport(UIKit)
 import Foundation
 import Observation
 
@@ -12,7 +11,15 @@ public final class IssueDetailViewModel {
     public let commentLoader = PaginatedLoader<Comment>()
     public var commentDraft = ""
     public var isSubmittingComment = false
+    public var isLoadingIssue = false
+    public var isLoadingComments = false
+    public var isLoadingAgentRuns = false
     public var error: String?
+    public var commentsError: String?
+    public var agentRunsError: String?
+    public var metadataError: String?
+    public var assigneeDisplayName: String?
+    public var projectDisplayName: String?
 
     private let api: APIClient
 
@@ -23,8 +30,48 @@ public final class IssueDetailViewModel {
     }
 
     public func loadIssue() async {
-        do { issue = try await api.getIssue(id: issueId, workspaceId: workspaceId) }
-        catch { self.error = error.localizedDescription }
+        isLoadingIssue = true
+        error = nil
+        defer { isLoadingIssue = false }
+        do {
+            issue = try await api.getIssue(id: issueId, workspaceId: workspaceId)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    public func loadMetadata() async {
+        guard let issue, let workspaceId else { return }
+        metadataError = nil
+        assigneeDisplayName = nil
+        projectDisplayName = nil
+
+        do {
+            async let members = api.listMembers(workspaceId: workspaceId)
+            async let agents = api.listAgents(workspaceId: workspaceId)
+            async let projectsPage = api.listProjects(workspaceId: workspaceId, limit: 50, offset: 0)
+
+            let loadedMembers = try await members
+            let loadedAgents = try await agents
+            let loadedProjects = try await projectsPage
+
+            if let assigneeId = issue.assigneeId, let assigneeType = issue.assigneeType {
+                switch assigneeType {
+                case "member":
+                    assigneeDisplayName = loadedMembers.first { $0.userId == assigneeId || $0.id == assigneeId }?.name
+                case "agent":
+                    assigneeDisplayName = loadedAgents.first { $0.id == assigneeId }?.name
+                default:
+                    assigneeDisplayName = nil
+                }
+            }
+
+            if let projectId = issue.projectId {
+                projectDisplayName = loadedProjects.items.first { $0.id == projectId }?.name
+            }
+        } catch {
+            metadataError = error.localizedDescription
+        }
     }
 
     public func loadComments() async {
@@ -33,17 +80,28 @@ public final class IssueDetailViewModel {
     }
 
     public func loadMoreComments() async {
+        isLoadingComments = true
+        commentsError = nil
+        defer { isLoadingComments = false }
         do {
             try await commentLoader.loadNext { [api, issueId, workspaceId] offset in
                 try await api.listComments(issueId: issueId, workspaceId: workspaceId, limit: 50, offset: offset)
             }
         } catch {
-            self.error = error.localizedDescription
+            commentsError = error.localizedDescription
         }
     }
 
     public func loadAgentRuns() async {
-        agentRuns = (try? await api.listAgentRuns(issueId: issueId, workspaceId: workspaceId)) ?? []
+        isLoadingAgentRuns = true
+        agentRunsError = nil
+        defer { isLoadingAgentRuns = false }
+        do {
+            agentRuns = try await api.listAgentRuns(issueId: issueId, workspaceId: workspaceId)
+        } catch {
+            agentRuns = []
+            agentRunsError = error.localizedDescription
+        }
     }
 
     public func submitComment() async {
@@ -57,4 +115,3 @@ public final class IssueDetailViewModel {
         } catch { self.error = error.localizedDescription }
     }
 }
-#endif

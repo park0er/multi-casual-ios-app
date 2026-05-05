@@ -27,6 +27,7 @@ public struct IssueDetailView: View {
                 )
                 Task {
                     await viewModel?.loadIssue()
+                    await viewModel?.loadMetadata()
                     await viewModel?.loadComments()
                     await viewModel?.loadAgentRuns()
                 }
@@ -43,15 +44,18 @@ public struct IssueDetailView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     if let error = vm.error {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .padding(.horizontal)
+                        ErrorMessageRow(message: error)
                     }
-                    if let issue = vm.issue { issueHeader(issue: issue) }
+                    if let issue = vm.issue { issueHeader(issue: issue, vm: vm) }
                     Divider()
-                    if !vm.agentRuns.isEmpty { agentRunsSection(vm: vm); Divider() }
+                    if !vm.agentRuns.isEmpty || vm.agentRunsError != nil || vm.isLoadingAgentRuns {
+                        agentRunsSection(vm: vm)
+                        Divider()
+                    }
                     Text("Comments").font(.headline).padding(.horizontal)
+                    if let commentsError = vm.commentsError {
+                        ErrorMessageRow(message: commentsError)
+                    }
                     ForEach(vm.commentLoader.items) { comment in CommentRowView(comment: comment) }
                     if vm.commentLoader.hasMore { ProgressView().onAppear {
                         Task { await vm.loadMoreComments() }
@@ -62,7 +66,7 @@ public struct IssueDetailView: View {
         }
     }
 
-    private func issueHeader(issue: Issue) -> some View {
+    private func issueHeader(issue: Issue, vm: IssueDetailViewModel) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(issue.title).font(.title2.bold())
             HStack(spacing: 12) {
@@ -75,12 +79,61 @@ public struct IssueDetailView: View {
             if let desc = issue.description, !desc.isEmpty {
                 Text(desc).font(.body)
             }
+            VStack(alignment: .leading, spacing: 6) {
+                detailLine(
+                    icon: "person.crop.circle",
+                    title: "Assignee",
+                    value: assigneeText(issue: issue, vm: vm)
+                )
+                detailLine(
+                    icon: "folder",
+                    title: "Project",
+                    value: projectText(issue: issue, vm: vm)
+                )
+            }
+            if let metadataError = vm.metadataError {
+                ErrorMessageRow(message: metadataError)
+            }
         }.padding(.horizontal)
+    }
+
+    private func detailLine(icon: String, title: String, value: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            Text(title)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .multilineTextAlignment(.trailing)
+        }
+        .font(.caption)
+    }
+
+    private func assigneeText(issue: Issue, vm: IssueDetailViewModel) -> String {
+        guard let assigneeId = issue.assigneeId, let assigneeType = issue.assigneeType else {
+            return "Unassigned"
+        }
+        return vm.assigneeDisplayName ?? "\(assigneeType.capitalized) \(assigneeId.prefix(8))"
+    }
+
+    private func projectText(issue: Issue, vm: IssueDetailViewModel) -> String {
+        guard let projectId = issue.projectId else {
+            return "No Project"
+        }
+        return vm.projectDisplayName ?? String(projectId.prefix(8))
     }
 
     private func agentRunsSection(vm: IssueDetailViewModel) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Agent Activity").font(.headline).padding(.horizontal)
+            if vm.isLoadingAgentRuns {
+                ProgressView().padding(.horizontal)
+            }
+            if let agentRunsError = vm.agentRunsError {
+                ErrorMessageRow(message: agentRunsError)
+            }
             if let running = vm.agentRuns.first(where: { $0.status == "running" }) {
                 AgentLiveView(taskId: running.id)
             }
@@ -112,6 +165,17 @@ public struct IssueDetailView: View {
         }
         .padding(.horizontal).padding(.vertical, 8).background(.background)
         .overlay(alignment: .top) { Divider() }
+    }
+}
+
+private struct ErrorMessageRow: View {
+    let message: String
+
+    var body: some View {
+        Text(message)
+            .font(.caption)
+            .foregroundStyle(.red)
+            .padding(.horizontal)
     }
 }
 
