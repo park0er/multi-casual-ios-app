@@ -163,15 +163,18 @@ final class APIClientTests: XCTestCase {
             "details":{"identifier":"PAR-73"}
         }]
         """.data(using: .utf8)!
+        var capturedURL: URL?
         MockURLProtocol.handler = { req in
+            capturedURL = req.url
             XCTAssertEqual(req.url?.path, "/api/inbox")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let page = try await client.listInbox()
+        let page = try await client.listInbox(workspaceId: "w1")
 
         XCTAssertEqual(page.items.count, 1)
         XCTAssertEqual(page.items.first?.issueTitle, "PAR-73 updated")
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
     func test_markInboxRead_usesDesktopReadEndpoint() async throws {
@@ -182,15 +185,18 @@ final class APIClientTests: XCTestCase {
          "read":true,"archived":false,"created_at":"2026-01-01T00:00:00Z",
          "details":{"identifier":"PAR-73"}}
         """.data(using: .utf8)!
+        var capturedURL: URL?
         MockURLProtocol.handler = { req in
+            capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/inbox/n1/read")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let item = try await client.markInboxRead(id: "n1")
+        let item = try await client.markInboxRead(id: "n1", workspaceId: "w1")
 
         XCTAssertTrue(item.read)
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
     func test_archiveInbox_usesDesktopArchiveEndpoint() async throws {
@@ -201,15 +207,18 @@ final class APIClientTests: XCTestCase {
          "read":true,"archived":true,"created_at":"2026-01-01T00:00:00Z",
          "details":{"identifier":"PAR-73"}}
         """.data(using: .utf8)!
+        var capturedURL: URL?
         MockURLProtocol.handler = { req in
+            capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/inbox/n1/archive")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let item = try await client.archiveInbox(id: "n1")
+        let item = try await client.archiveInbox(id: "n1", workspaceId: "w1")
 
         XCTAssertTrue(item.archived)
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
     func test_listComments_decodesBareArrayResponse() async throws {

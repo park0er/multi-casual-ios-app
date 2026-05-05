@@ -3,7 +3,9 @@ import SwiftUI
 
 public struct InboxView: View {
     @Environment(APIClient.self) private var api
+    @Environment(AuthSession.self) private var authSession
     @State private var viewModel: InboxViewModel?
+    @State private var observedWorkspaceId: String?
 
     public init() {}
 
@@ -53,9 +55,15 @@ public struct InboxView: View {
         .navigationTitle("Inbox")
         .onAppear {
             if viewModel == nil {
-                viewModel = InboxViewModel(api: api)
+                observedWorkspaceId = authSession.currentWorkspace?.id
+                viewModel = InboxViewModel(api: api, authSession: authSession)
                 Task { await viewModel?.loadNext() }
             }
+        }
+        .onChange(of: authSession.currentWorkspace?.id) { _, newValue in
+            guard observedWorkspaceId != newValue else { return }
+            observedWorkspaceId = newValue
+            Task { await viewModel?.refresh() }
         }
     }
 }

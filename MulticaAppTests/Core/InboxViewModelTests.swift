@@ -7,15 +7,17 @@ final class InboxViewModelTests: XCTestCase {
         let client = makeClient { req in
             switch req.url?.path {
             case "/api/inbox":
+                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
                 return Self.response(for: req, body: Self.inboxItemJSON(read: false, archived: false))
             case "/api/inbox/n1/read":
+                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
                 return Self.response(for: req, body: Self.singleInboxItemJSON(read: true, archived: false))
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
             }
         }
-        let vm = InboxViewModel(api: client)
+        let vm = InboxViewModel(api: client, authSession: makeAuthSession())
 
         await vm.loadNext()
         await vm.markRead(id: "n1")
@@ -29,15 +31,17 @@ final class InboxViewModelTests: XCTestCase {
         let client = makeClient { req in
             switch req.url?.path {
             case "/api/inbox":
+                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
                 return Self.response(for: req, body: Self.inboxItemJSON(read: false, archived: false))
             case "/api/inbox/n1/archive":
+                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
                 return Self.response(for: req, body: Self.singleInboxItemJSON(read: false, archived: true))
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
             }
         }
-        let vm = InboxViewModel(api: client)
+        let vm = InboxViewModel(api: client, authSession: makeAuthSession())
 
         await vm.loadNext()
         await vm.archive(id: "n1")
@@ -52,6 +56,18 @@ final class InboxViewModelTests: XCTestCase {
         config.protocolClasses = [MockURLProtocol.self]
         MockURLProtocol.handler = handler
         return APIClient(session: URLSession(configuration: config), token: "test-token")
+    }
+
+    private func makeAuthSession() -> AuthSession {
+        let suiteName = "InboxViewModelTests.\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        let session = AuthSession(userDefaults: userDefaults)
+        try! session.login(
+            user: User(id: "u1", email: "test@example.com", name: "Test", avatarUrl: nil),
+            workspaces: [Workspace(id: "w1", name: "Test Workspace", slug: "test", issuePrefix: "TST")],
+            token: "test-token"
+        )
+        return session
     }
 
     private static func inboxItemJSON(read: Bool, archived: Bool) -> Data {

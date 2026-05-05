@@ -8,12 +8,22 @@ public final class InboxViewModel {
     public var lastError: Error?
     public var unreadCount: Int = 0
     private let api: APIClient
+    private let authSession: AuthSession
 
-    public init(api: APIClient) { self.api = api }
+    public init(api: APIClient, authSession: AuthSession) {
+        self.api = api
+        self.authSession = authSession
+    }
 
     public func loadNext() async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            lastError = APIClient.APIError.serverError(-1, body: "Pick a workspace before opening Inbox.")
+            return
+        }
         do {
-            try await loader.loadNext { [api] offset in try await api.listInbox(limit: 50, offset: offset) }
+            try await loader.loadNext { [api, workspaceId] offset in
+                try await api.listInbox(workspaceId: workspaceId, limit: 50, offset: offset)
+            }
             lastError = nil
             updateUnreadCount()
         } catch {
@@ -24,8 +34,12 @@ public final class InboxViewModel {
     public func refresh() async { loader.reset(); await loadNext() }
 
     public func markRead(id: String) async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            lastError = APIClient.APIError.serverError(-1, body: "Pick a workspace before updating Inbox.")
+            return
+        }
         do {
-            let updated = try await api.markInboxRead(id: id)
+            let updated = try await api.markInboxRead(id: id, workspaceId: workspaceId)
             if let index = loader.items.firstIndex(where: { $0.id == id }) {
                 loader.items[index] = updated
             }
@@ -37,8 +51,12 @@ public final class InboxViewModel {
     }
 
     public func archive(id: String) async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            lastError = APIClient.APIError.serverError(-1, body: "Pick a workspace before updating Inbox.")
+            return
+        }
         do {
-            _ = try await api.archiveInbox(id: id)
+            _ = try await api.archiveInbox(id: id, workspaceId: workspaceId)
             loader.items.removeAll { $0.id == id }
             updateUnreadCount()
             lastError = nil

@@ -252,19 +252,20 @@ public final class APIClient: @unchecked Sendable {
 
     // MARK: - Inbox
 
-    public func listInbox(limit: Int = 50, offset: Int = 0) async throws -> PageResponse<InboxItem> {
+    public func listInbox(workspaceId: String, limit: Int = 50, offset: Int = 0) async throws -> PageResponse<InboxItem> {
         try await request("GET", path: "api/inbox", queryItems: [
+            .init(name: "workspace_id", value: workspaceId),
             .init(name: "limit", value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
         ])
     }
 
-    public func markInboxRead(id: String) async throws -> InboxItem {
-        try await request("POST", path: "api/inbox/\(id)/read")
+    public func markInboxRead(id: String, workspaceId: String) async throws -> InboxItem {
+        try await request("POST", path: "api/inbox/\(id)/read", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func archiveInbox(id: String) async throws -> InboxItem {
-        try await request("POST", path: "api/inbox/\(id)/archive")
+    public func archiveInbox(id: String, workspaceId: String) async throws -> InboxItem {
+        try await request("POST", path: "api/inbox/\(id)/archive", queryItems: workspaceQuery(workspaceId))
     }
 
     // MARK: - Projects
