@@ -123,6 +123,16 @@ public struct IssueDetailView: View {
                     title: "Project",
                     value: projectText(issue: issue, vm: vm)
                 )
+                detailLine(
+                    icon: "calendar",
+                    title: "Created",
+                    value: iso8601DateOnlyFormatter.string(from: issue.createdAt)
+                )
+                detailLine(
+                    icon: "clock",
+                    title: "Updated",
+                    value: iso8601DateOnlyFormatter.string(from: issue.updatedAt)
+                )
             }
             if let metadataError = vm.metadataError {
                 ErrorMessageRow(message: metadataError) {
