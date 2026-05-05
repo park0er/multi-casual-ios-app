@@ -372,6 +372,10 @@ public struct InboxItem: Codable, Identifiable, Sendable {
     public let issueId: String
     public let issueIdentifier: String
     public let issueTitle: String
+    public let type: String
+    public let body: String?
+    public let severity: String?
+    public let issueStatus: IssueStatus
     public let read: Bool
     public let archived: Bool
     public let createdAt: Date
@@ -381,22 +385,31 @@ public struct InboxItem: Codable, Identifiable, Sendable {
         case issueId = "issue_id"
         case issueIdentifier = "issue_identifier"
         case issueTitle = "issue_title"
+        case type, body, severity
+        case issueStatus = "issue_status"
         case read, archived
         case createdAt = "created_at"
     }
 
     private enum DesktopCodingKeys: String, CodingKey {
-        case id, title, read, archived, details
+        case id, title, type, body, severity, read, archived, details
         case issueId = "issue_id"
+        case issueStatus = "issue_status"
         case createdAt = "created_at"
     }
 
     public init(id: String, issueId: String, issueIdentifier: String, issueTitle: String,
-                read: Bool, archived: Bool = false, createdAt: Date) {
+                type: String = "notification", body: String? = nil, severity: String? = nil,
+                issueStatus: IssueStatus = .unknown, read: Bool, archived: Bool = false,
+                createdAt: Date) {
         self.id = id
         self.issueId = issueId
         self.issueIdentifier = issueIdentifier
         self.issueTitle = issueTitle
+        self.type = type
+        self.body = body
+        self.severity = severity
+        self.issueStatus = issueStatus
         self.read = read
         self.archived = archived
         self.createdAt = createdAt
@@ -414,6 +427,16 @@ public struct InboxItem: Codable, Identifiable, Sendable {
             ?? issueId
         issueTitle = try legacy.decodeIfPresent(String.self, forKey: .issueTitle)
             ?? desktop.decode(String.self, forKey: .title)
+        type = try legacy.decodeIfPresent(String.self, forKey: .type)
+            ?? desktop.decodeIfPresent(String.self, forKey: .type)
+            ?? "notification"
+        body = try legacy.decodeIfPresent(String.self, forKey: .body)
+            ?? desktop.decodeIfPresent(String.self, forKey: .body)
+        severity = try legacy.decodeIfPresent(String.self, forKey: .severity)
+            ?? desktop.decodeIfPresent(String.self, forKey: .severity)
+        issueStatus = try legacy.decodeIfPresent(IssueStatus.self, forKey: .issueStatus)
+            ?? desktop.decodeIfPresent(IssueStatus.self, forKey: .issueStatus)
+            ?? .unknown
         read = try legacy.decode(Bool.self, forKey: .read)
         archived = try legacy.decodeIfPresent(Bool.self, forKey: .archived) ?? false
         createdAt = try legacy.decode(Date.self, forKey: .createdAt)

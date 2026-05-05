@@ -211,7 +211,33 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(item.issueId, "i1")
         XCTAssertEqual(item.issueIdentifier, "PAR-73")
         XCTAssertEqual(item.issueTitle, "PAR-73 updated")
+        XCTAssertEqual(item.type, "new_comment")
+        XCTAssertEqual(item.body, "A comment was added")
+        XCTAssertEqual(item.severity, "attention")
+        XCTAssertEqual(item.issueStatus, .inProgress)
         XCTAssertFalse(item.read)
+    }
+
+    func test_inboxItem_decodesLegacyShapeWithDisplayDefaults() throws {
+        let json = """
+        {
+            "id": "n1",
+            "issue_id": "i1",
+            "issue_identifier": "PAR-73",
+            "issue_title": "Legacy notification",
+            "read": true,
+            "archived": false,
+            "created_at": "2026-01-01T00:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let item = try decoder.decode(InboxItem.self, from: json)
+
+        XCTAssertEqual(item.type, "notification")
+        XCTAssertNil(item.body)
+        XCTAssertNil(item.severity)
+        XCTAssertEqual(item.issueStatus, .unknown)
+        XCTAssertTrue(item.read)
     }
 
     func test_project_decodesDesktopShape() throws {
