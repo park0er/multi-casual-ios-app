@@ -1,4 +1,3 @@
-#if canImport(SwiftUI) && canImport(UIKit)
 import Foundation
 import Observation
 
@@ -20,7 +19,10 @@ public final class IssueListViewModel {
     }
 
     public func loadNext() async {
-        guard let wsId = authSession.currentWorkspace?.id else { return }
+        guard let wsId = authSession.currentWorkspace?.id else {
+            lastError = UserVisibleError("Pick a workspace before opening Issues.")
+            return
+        }
         do {
             try await loader.loadNext { [api, wsId] offset in
                 try await api.listIssues(workspaceId: wsId, limit: 50, offset: offset)
@@ -34,4 +36,3 @@ public final class IssueListViewModel {
 
     public func refresh() async { loader.reset(); await loadNext() }
 }
-#endif

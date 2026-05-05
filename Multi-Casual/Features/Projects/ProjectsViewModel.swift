@@ -1,4 +1,3 @@
-#if canImport(SwiftUI) && canImport(UIKit)
 import Foundation
 import Observation
 
@@ -15,7 +14,10 @@ public final class ProjectsViewModel {
     }
 
     public func loadNext() async {
-        guard let wsId = authSession.currentWorkspace?.id else { return }
+        guard let wsId = authSession.currentWorkspace?.id else {
+            lastError = UserVisibleError("Pick a workspace before opening Projects.")
+            return
+        }
         do {
             try await loader.loadNext { [api, wsId] offset in
                 try await api.listProjects(workspaceId: wsId, limit: 50, offset: offset)
@@ -28,4 +30,3 @@ public final class ProjectsViewModel {
 
     public func refresh() async { loader.reset(); await loadNext() }
 }
-#endif

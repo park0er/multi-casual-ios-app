@@ -59,6 +59,11 @@ public struct IssueListView: View {
                 }
             }
             if vm.loader.hasMore { ProgressView().onAppear { Task { await vm.loadNext() } } }
+            if let error = vm.lastError {
+                Text(error.localizedDescription)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
         }
         .listStyle(.plain)
     }
@@ -85,6 +90,14 @@ public struct IssueListView: View {
                     .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
                 }
             }.padding()
+        }
+        .overlay(alignment: .topLeading) {
+            if let error = vm.lastError {
+                Text(error.localizedDescription)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding()
+            }
         }
     }
 }

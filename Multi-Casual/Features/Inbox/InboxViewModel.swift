@@ -17,7 +17,7 @@ public final class InboxViewModel {
 
     public func loadNext() async {
         guard let workspaceId = authSession.currentWorkspace?.id else {
-            lastError = APIClient.APIError.serverError(-1, body: "Pick a workspace before opening Inbox.")
+            lastError = UserVisibleError("Pick a workspace before opening Inbox.")
             return
         }
         do {
@@ -36,7 +36,7 @@ public final class InboxViewModel {
 
     public func markRead(id: String) async {
         guard let workspaceId = authSession.currentWorkspace?.id else {
-            lastError = APIClient.APIError.serverError(-1, body: "Pick a workspace before updating Inbox.")
+            lastError = UserVisibleError("Pick a workspace before updating Inbox.")
             return
         }
         do {
@@ -53,7 +53,7 @@ public final class InboxViewModel {
 
     public func archive(id: String) async {
         guard let workspaceId = authSession.currentWorkspace?.id else {
-            lastError = APIClient.APIError.serverError(-1, body: "Pick a workspace before updating Inbox.")
+            lastError = UserVisibleError("Pick a workspace before updating Inbox.")
             return
         }
         do {
