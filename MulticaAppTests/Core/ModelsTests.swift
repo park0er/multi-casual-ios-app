@@ -35,6 +35,46 @@ final class ModelsTests: XCTestCase {
         XCTAssertNil(issue.assigneeId)
     }
 
+    func test_issue_decodesAttachmentsFromDesktopDetailResponse() throws {
+        let json = """
+        {
+            "id": "abc123",
+            "identifier": "PAR-71",
+            "number": 71,
+            "title": "Tech Stack Selection",
+            "description": "Determine iOS tech stack",
+            "status": "in_progress",
+            "priority": "high",
+            "assignee_id": null,
+            "assignee_type": null,
+            "project_id": null,
+            "workspace_id": "ws1",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-02T00:00:00Z",
+            "attachments": [{
+                "id": "att1",
+                "workspace_id": "ws1",
+                "issue_id": "abc123",
+                "comment_id": null,
+                "uploader_type": "member",
+                "uploader_id": "u1",
+                "filename": "spec.pdf",
+                "url": "https://cdn.example/spec.pdf",
+                "download_url": "https://cdn.example/spec.pdf?sig=1",
+                "content_type": "application/pdf",
+                "size_bytes": 2048,
+                "created_at": "2026-01-01T00:00:00Z"
+            }]
+        }
+        """.data(using: .utf8)!
+
+        let issue = try decoder.decode(Issue.self, from: json)
+
+        XCTAssertEqual(issue.attachments.count, 1)
+        XCTAssertEqual(issue.attachments.first?.filename, "spec.pdf")
+        XCTAssertEqual(issue.attachments.first?.sizeBytes, 2048)
+    }
+
     func test_issueStatus_decodesDesktopStatuses() throws {
         let backlog = try decoder.decode(IssueStatus.self, from: #""backlog""#.data(using: .utf8)!)
         let cancelled = try decoder.decode(IssueStatus.self, from: #""cancelled""#.data(using: .utf8)!)
@@ -78,6 +118,42 @@ final class ModelsTests: XCTestCase {
         let comment = try decoder.decode(Comment.self, from: json)
         XCTAssertEqual(comment.content, "Hello world")
         XCTAssertEqual(comment.authorType, "member")
+    }
+
+    func test_comment_decodesAttachmentsFromDesktopShape() throws {
+        let json = """
+        {
+            "id": "c1",
+            "content": "See screenshot",
+            "author_id": "u1",
+            "author_type": "member",
+            "parent_id": null,
+            "issue_id": "i1",
+            "reactions": [],
+            "attachments": [{
+                "id": "att1",
+                "workspace_id": "ws1",
+                "issue_id": "i1",
+                "comment_id": "c1",
+                "uploader_type": "member",
+                "uploader_id": "u1",
+                "filename": "screen.png",
+                "url": "https://cdn.example/screen.png",
+                "download_url": "https://cdn.example/screen.png?sig=1",
+                "content_type": "image/png",
+                "size_bytes": 4096,
+                "created_at": "2026-01-01T00:00:00Z"
+            }],
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let comment = try decoder.decode(Comment.self, from: json)
+
+        XCTAssertEqual(comment.attachments.count, 1)
+        XCTAssertEqual(comment.attachments.first?.filename, "screen.png")
+        XCTAssertEqual(comment.attachments.first?.contentType, "image/png")
     }
 
     func test_pageResponse_decodesIssuesKey() throws {

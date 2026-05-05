@@ -109,6 +109,9 @@ public struct IssueDetailView: View {
             if let desc = issue.description, !desc.isEmpty {
                 Text(desc).font(.body)
             }
+            if !issue.attachments.isEmpty {
+                AttachmentListView(attachments: issue.attachments)
+            }
             VStack(alignment: .leading, spacing: 6) {
                 detailLine(
                     icon: "person.crop.circle",
@@ -232,7 +235,75 @@ public struct CommentRowView: View {
                 Text(iso8601DateOnlyFormatter.string(from: comment.createdAt)).font(.caption2).foregroundStyle(.secondary)
             }
             Text(comment.content).font(.body)
+            if !comment.attachments.isEmpty {
+                AttachmentListView(attachments: comment.attachments)
+            }
         }.padding(.horizontal).padding(.vertical, 6)
+    }
+}
+
+private struct AttachmentListView: View {
+    let attachments: [Attachment]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(attachments) { attachment in
+                AttachmentRowView(attachment: attachment)
+            }
+        }
+    }
+}
+
+private struct AttachmentRowView: View {
+    let attachment: Attachment
+
+    var body: some View {
+        Group {
+            if let url = URL(string: attachment.downloadUrl.isEmpty ? attachment.url : attachment.downloadUrl) {
+                Link(destination: url) {
+                    rowContent
+                }
+            } else {
+                rowContent
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var rowContent: some View {
+        HStack(spacing: 8) {
+            Image(systemName: iconName)
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(attachment.filename)
+                    .font(.caption.bold())
+                    .lineLimit(1)
+                Text(fileDetails)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "arrow.down.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var iconName: String {
+        if attachment.contentType.hasPrefix("image/") { return "photo" }
+        if attachment.contentType == "application/pdf" { return "doc.richtext" }
+        return "paperclip"
+    }
+
+    private var fileDetails: String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(attachment.sizeBytes))
     }
 }
 

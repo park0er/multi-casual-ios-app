@@ -197,6 +197,63 @@ public enum IssuePriority: String, Codable, CaseIterable, Sendable {
     }
 }
 
+public struct Attachment: Codable, Identifiable, Sendable {
+    public let id: String
+    public let workspaceId: String
+    public let issueId: String?
+    public let commentId: String?
+    public let uploaderType: String
+    public let uploaderId: String
+    public let filename: String
+    public let url: String
+    public let downloadUrl: String
+    public let contentType: String
+    public let sizeBytes: Int
+    public let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case workspaceId = "workspace_id"
+        case issueId = "issue_id"
+        case commentId = "comment_id"
+        case uploaderType = "uploader_type"
+        case uploaderId = "uploader_id"
+        case filename, url
+        case downloadUrl = "download_url"
+        case contentType = "content_type"
+        case sizeBytes = "size_bytes"
+        case createdAt = "created_at"
+    }
+
+    public init(
+        id: String,
+        workspaceId: String,
+        issueId: String?,
+        commentId: String?,
+        uploaderType: String,
+        uploaderId: String,
+        filename: String,
+        url: String,
+        downloadUrl: String,
+        contentType: String,
+        sizeBytes: Int,
+        createdAt: Date
+    ) {
+        self.id = id
+        self.workspaceId = workspaceId
+        self.issueId = issueId
+        self.commentId = commentId
+        self.uploaderType = uploaderType
+        self.uploaderId = uploaderId
+        self.filename = filename
+        self.url = url
+        self.downloadUrl = downloadUrl
+        self.contentType = contentType
+        self.sizeBytes = sizeBytes
+        self.createdAt = createdAt
+    }
+}
+
 public struct Issue: Codable, Identifiable, Sendable {
     public let id: String
     public let identifier: String
@@ -209,6 +266,7 @@ public struct Issue: Codable, Identifiable, Sendable {
     public let assigneeType: String?
     public let projectId: String?
     public let workspaceId: String
+    public let attachments: [Attachment]
     public let createdAt: Date
     public let updatedAt: Date
 
@@ -218,6 +276,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         case assigneeType = "assignee_type"
         case projectId = "project_id"
         case workspaceId = "workspace_id"
+        case attachments
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -225,7 +284,7 @@ public struct Issue: Codable, Identifiable, Sendable {
     public init(id: String, identifier: String, number: Int, title: String, description: String?,
                 status: IssueStatus, priority: IssuePriority, assigneeId: String?,
                 assigneeType: String?, projectId: String?, workspaceId: String,
-                createdAt: Date, updatedAt: Date) {
+                attachments: [Attachment] = [], createdAt: Date, updatedAt: Date) {
         self.id = id
         self.identifier = identifier
         self.number = number
@@ -237,8 +296,27 @@ public struct Issue: Codable, Identifiable, Sendable {
         self.assigneeType = assigneeType
         self.projectId = projectId
         self.workspaceId = workspaceId
+        self.attachments = attachments
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        identifier = try c.decode(String.self, forKey: .identifier)
+        number = try c.decode(Int.self, forKey: .number)
+        title = try c.decode(String.self, forKey: .title)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        status = try c.decode(IssueStatus.self, forKey: .status)
+        priority = try c.decode(IssuePriority.self, forKey: .priority)
+        assigneeId = try c.decodeIfPresent(String.self, forKey: .assigneeId)
+        assigneeType = try c.decodeIfPresent(String.self, forKey: .assigneeType)
+        projectId = try c.decodeIfPresent(String.self, forKey: .projectId)
+        workspaceId = try c.decode(String.self, forKey: .workspaceId)
+        attachments = try c.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        updatedAt = try c.decode(Date.self, forKey: .updatedAt)
     }
 }
 
@@ -249,6 +327,7 @@ public struct Comment: Codable, Identifiable, Sendable {
     public let authorType: String
     public let parentId: String?
     public let issueId: String
+    public let attachments: [Attachment]
     public let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
@@ -257,18 +336,32 @@ public struct Comment: Codable, Identifiable, Sendable {
         case authorType = "author_type"
         case parentId = "parent_id"
         case issueId = "issue_id"
+        case attachments
         case createdAt = "created_at"
     }
 
     public init(id: String, content: String, authorId: String, authorType: String,
-                parentId: String?, issueId: String, createdAt: Date) {
+                parentId: String?, issueId: String, attachments: [Attachment] = [], createdAt: Date) {
         self.id = id
         self.content = content
         self.authorId = authorId
         self.authorType = authorType
         self.parentId = parentId
         self.issueId = issueId
+        self.attachments = attachments
         self.createdAt = createdAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        content = try c.decode(String.self, forKey: .content)
+        authorId = try c.decode(String.self, forKey: .authorId)
+        authorType = try c.decode(String.self, forKey: .authorType)
+        parentId = try c.decodeIfPresent(String.self, forKey: .parentId)
+        issueId = try c.decode(String.self, forKey: .issueId)
+        attachments = try c.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
     }
 }
 
