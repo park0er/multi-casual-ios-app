@@ -42,9 +42,9 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Inbox"].waitForExistence(timeout: 20))
         let firstNotification = app.cells.element(boundBy: 0)
         XCTAssertTrue(firstNotification.waitForExistence(timeout: 20))
-        let rowTrailingEdge = firstNotification.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5))
-        let partialRevealPoint = firstNotification.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5))
-        rowTrailingEdge.press(forDuration: 0.1, thenDragTo: partialRevealPoint)
+        let rowButton = firstNotification.buttons.element(boundBy: 0)
+        XCTAssertTrue(rowButton.waitForExistence(timeout: 5))
+        rowButton.swipeLeft()
         XCTAssertTrue(app.buttons["Archive"].waitForExistence(timeout: 5))
     }
 
@@ -90,4 +90,5 @@ final class Multi-CasualUITests: XCTestCase {
         app.launch()
         return app
     }
+
 }

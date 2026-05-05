@@ -20,7 +20,7 @@ public struct InboxView: View {
                         NavigationLink(destination: IssueDetailView(issueId: item.issueId)) {
                             InboxRow(item: item)
                         }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 Task { await vm.archive(id: item.id) }
                             } label: {
