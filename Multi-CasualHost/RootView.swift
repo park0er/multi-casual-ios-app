@@ -52,7 +52,7 @@ struct RootView: View {
                 .tabItem { Label("Issues", systemImage: "checklist") }
                 .tag(AppTab.issues)
 
-            NavigationStack { ProjectsView() }
+            NavigationStack { debugInitialProjectView }
                 .tabItem { Label("Projects", systemImage: "folder") }
                 .tag(AppTab.projects)
 
@@ -78,6 +78,19 @@ struct RootView: View {
         #endif
     }
 
+    @ViewBuilder
+    private var debugInitialProjectView: some View {
+        #if DEBUG
+        if let projectId = ProcessInfo.processInfo.environment["MULTICA_DEBUG_INITIAL_PROJECT_ID"], !projectId.isEmpty {
+            DebugProjectDetailRoute(projectId: projectId)
+        } else {
+            ProjectsView()
+        }
+        #else
+        ProjectsView()
+        #endif
+    }
+
     private func requestPushPermission() {
         #if DEBUG
         if ProcessInfo.processInfo.environment["MULTICA_DEBUG_SKIP_PUSH_PROMPT"] == "1" {
@@ -99,3 +112,39 @@ struct RootView: View {
         }
     }
 }
+
+#if DEBUG
+private struct DebugProjectDetailRoute: View {
+    let projectId: String
+    @Environment(AuthSession.self) private var authSession
+    @Environment(APIClient.self) private var api
+    @State private var project: Project?
+    @State private var errorMessage: String?
+
+    var body: some View {
+        Group {
+            if let project {
+                ProjectDetailView(project: project)
+            } else if let errorMessage {
+                ErrorRetryView(message: errorMessage) {
+                    Task { await loadProject() }
+                }
+            } else {
+                ProgressView()
+            }
+        }
+        .navigationTitle("Projects")
+        .task { await loadProject() }
+    }
+
+    private func loadProject() async {
+        do {
+            errorMessage = nil
+            let workspaceId = authSession.currentWorkspace?.id
+            project = try await api.getProject(id: projectId, workspaceId: workspaceId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+#endif

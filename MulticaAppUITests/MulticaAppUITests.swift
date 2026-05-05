@@ -3,6 +3,7 @@ import XCTest
 final class Multi-CasualUITests: XCTestCase {
     private let workspaceId = "7f97e6b9-2db3-489c-a270-4e4c6d354469"
     private let par73IssueId = "9a808431-341f-4ead-8d8c-055e2e00686e"
+    private let projectId = "f96f29f2-abbd-4aae-8962-f44a2c68c3aa"
     private let transcriptTaskId = "9eab0d97-de00-4f90-82a6-d70cbb5161a2"
     private let mutationFlagDirectory = URL(fileURLWithPath: "/tmp/multica-ui-mutation-tests", isDirectory: true)
 
@@ -163,6 +164,14 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Tool Use"].waitForExistence(timeout: 20))
     }
 
+    func testProjectDetailRendersResourcesAndIssues() {
+        let app = launchApp(initialTab: "projects", projectId: projectId)
+
+        XCTAssertTrue(app.staticTexts["Multica iOS App"].waitForExistence(timeout: 20))
+        XCTAssertTrue(staticText(in: app, beginsWith: "Resources").waitForExistence(timeout: 20))
+        XCTAssertTrue(staticText(in: app, beginsWith: "Issues").waitForExistence(timeout: 20))
+    }
+
     func testInboxMarksReadAndArchivesWhenMutationTestsEnabled() throws {
         try requireMutationTestsEnabled(reason: "mark a real inbox item read and archive it")
         guard mutationFlagEnabled(
@@ -199,6 +208,7 @@ final class Multi-CasualUITests: XCTestCase {
     private func launchApp(
         initialTab: String,
         issueId: String? = nil,
+        projectId: String? = nil,
         taskId: String? = nil,
         openCreateSheet: Bool = false
     ) -> XCUIApplication {
@@ -208,6 +218,9 @@ final class Multi-CasualUITests: XCTestCase {
         app.launchEnvironment["MULTICA_DEBUG_INITIAL_TAB"] = initialTab
         if let issueId {
             app.launchEnvironment["MULTICA_DEBUG_INITIAL_ISSUE_ID"] = issueId
+        }
+        if let projectId {
+            app.launchEnvironment["MULTICA_DEBUG_INITIAL_PROJECT_ID"] = projectId
         }
         if let taskId {
             app.launchEnvironment["MULTICA_DEBUG_INITIAL_TASK_ID"] = taskId
@@ -222,6 +235,10 @@ final class Multi-CasualUITests: XCTestCase {
         }
         app.launch()
         return app
+    }
+
+    private func staticText(in app: XCUIApplication, beginsWith prefix: String) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", prefix)).firstMatch
     }
 
     private func requireMutationTestsEnabled(reason: String) throws {
