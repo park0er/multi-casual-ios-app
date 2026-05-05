@@ -15,9 +15,14 @@ final class ProjectDetailViewModelTests: XCTestCase {
     )
 
     func test_load_fetchesProjectIssuesAndResources() async throws {
+        var issueRequests: [(status: String?, projectId: String?)] = []
         let client = makeClient { req in
             switch req.url?.path {
             case "/api/issues":
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let status = components?.queryItems?.first(where: { $0.name == "status" })?.value
+                let projectId = components?.queryItems?.first(where: { $0.name == "project_id" })?.value
+                issueRequests.append((status, projectId))
                 let json = """
                 {"issues": [
                     {"id":"i1","identifier":"PAR-1","number":1,"title":"In project","description":null,
@@ -48,6 +53,8 @@ final class ProjectDetailViewModelTests: XCTestCase {
         await vm.load()
 
         XCTAssertEqual(vm.issues.map(\.id), ["i1"])
+        XCTAssertEqual(issueRequests.map(\.status), ["backlog", "todo", "in_progress", "in_review", "done", "blocked"])
+        XCTAssertEqual(issueRequests.map(\.projectId), Array(repeating: "p1", count: 6))
         XCTAssertEqual(vm.resources.map(\.displayTitle), ["Multica repo"])
         XCTAssertNil(vm.errorMessage)
     }

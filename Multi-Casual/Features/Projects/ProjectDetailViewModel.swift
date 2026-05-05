@@ -23,6 +23,8 @@ public final class ProjectDetailViewModel {
         "\(project.doneCount)/\(project.issueCount) done"
     }
 
+    private static let pageSize = 50
+
     public func load() async {
         guard let workspaceId = authSession.currentWorkspace?.id else {
             errorMessage = "Pick a workspace before opening project details."
@@ -36,8 +38,7 @@ public final class ProjectDetailViewModel {
         var messages: [String] = []
 
         do {
-            let page = try await api.listIssues(workspaceId: workspaceId, limit: 200, offset: 0)
-            issues = page.items.filter { $0.projectId == project.id }
+            issues = try await loadProjectIssues(workspaceId: workspaceId)
         } catch {
             messages.append(error.localizedDescription)
         }
@@ -50,5 +51,20 @@ public final class ProjectDetailViewModel {
         }
 
         errorMessage = messages.isEmpty ? nil : messages.joined(separator: "\n")
+    }
+
+    private func loadProjectIssues(workspaceId: String) async throws -> [Issue] {
+        var loaded: [Issue] = []
+        for status in IssueStatus.boardCases {
+            let page = try await api.listIssues(
+                workspaceId: workspaceId,
+                status: status,
+                projectId: project.id,
+                limit: Self.pageSize,
+                offset: 0
+            )
+            loaded.append(contentsOf: page.items.filter { $0.projectId == project.id && $0.status == status })
+        }
+        return loaded
     }
 }

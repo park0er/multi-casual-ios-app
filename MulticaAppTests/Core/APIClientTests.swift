@@ -114,6 +114,21 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedURL?.absoluteString.contains("status=in_progress") ?? false)
     }
 
+    func test_listIssues_sendsProjectIdParamWhenProvided() async throws {
+        let json = """
+        {"issues":[],"has_more":false,"total":0}
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await client.listIssues(workspaceId: "ws1", projectId: "p1", limit: 50, offset: 0)
+
+        XCTAssertTrue(capturedURL?.absoluteString.contains("project_id=p1") ?? false)
+    }
+
     func test_getIssue_sendsWorkspaceIdParamWhenProvided() async throws {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
