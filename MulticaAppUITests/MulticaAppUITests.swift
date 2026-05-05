@@ -2,6 +2,7 @@ import XCTest
 
 final class Multi-CasualUITests: XCTestCase {
     private let workspaceId = "7f97e6b9-2db3-489c-a270-4e4c6d354469"
+    private let workspaceName = "park0er"
     private let par73IssueId = "9a808431-341f-4ead-8d8c-055e2e00686e"
     private let projectId = "f96f29f2-abbd-4aae-8962-f44a2c68c3aa"
     private let memberUserId = "4b05a80a-fa79-45e6-8568-f3bf08e7057b"
@@ -18,6 +19,7 @@ final class Multi-CasualUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
         XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[workspaceName].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Log Out"].exists)
         app.buttons["Log Out"].tap()
         XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
