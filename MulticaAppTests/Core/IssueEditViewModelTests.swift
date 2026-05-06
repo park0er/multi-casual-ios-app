@@ -219,6 +219,41 @@ final class IssueEditViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_submitPreservesExistingAssigneeAndProjectWhenOptionsFailToLoad() async throws {
+        var body: [String: Any] = [:]
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/issues/i1":
+                XCTAssertEqual(req.httpMethod, "PUT")
+                body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                let json = """
+                {"id":"i1","identifier":"PAR-1","number":1,"title":"Renamed","description":"Body",
+                 "status":"todo","priority":"none","assignee_id":"a1","assignee_type":"agent",
+                 "project_id":"p1","due_date":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+                 "updated_at":"2026-01-02T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueEditViewModel(issue: issue(assigneeType: "agent", assigneeId: "a1", projectId: "p1"), api: client, authSession: makeSession())
+        vm.title = "Renamed"
+        vm.assigneeOptions = []
+        vm.projects = []
+
+        let updated = await vm.submit()
+
+        XCTAssertEqual(updated?.assigneeType, "agent")
+        XCTAssertEqual(updated?.assigneeId, "a1")
+        XCTAssertEqual(updated?.projectId, "p1")
+        XCTAssertEqual(body["assignee_type"] as? String, "agent")
+        XCTAssertEqual(body["assignee_id"] as? String, "a1")
+        XCTAssertEqual(body["project_id"] as? String, "p1")
+        XCTAssertNil(vm.errorMessage)
+    }
+
     private func issue(
         assigneeType: String?,
         assigneeId: String?,

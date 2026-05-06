@@ -28,6 +28,9 @@ public final class IssueEditViewModel {
     private let api: APIClient
     private let dateFormatter: ISO8601DateFormatter
     private let originalLabelIds: Set<String>
+    private let originalAssigneeType: String?
+    private let originalAssigneeId: String?
+    private let originalProjectId: String?
 
     public init(issue: Issue, api: APIClient, authSession: AuthSession) {
         issueId = issue.id
@@ -36,6 +39,9 @@ public final class IssueEditViewModel {
         description = issue.description ?? ""
         status = issue.status
         priority = issue.priority
+        originalAssigneeType = issue.assigneeType
+        originalAssigneeId = issue.assigneeId
+        originalProjectId = issue.projectId
         selectedAssigneeOptionId = issue.assigneeType.flatMap { type in
             issue.assigneeId.map { "\(type):\($0)" }
         } ?? Self.noAssigneeId
@@ -175,7 +181,7 @@ public final class IssueEditViewModel {
         defer { isSubmitting = false }
 
         let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
-        let assignee = selectedAssignee
+        let assignee = resolvedAssignee()
 
         do {
             let updated = try await api.updateIssueDetails(
@@ -187,7 +193,7 @@ public final class IssueEditViewModel {
                 priority: priority,
                 assigneeType: assignee?.type,
                 assigneeId: assignee?.assigneeId,
-                projectId: selectedProject?.id,
+                projectId: resolvedProjectId(),
                 dueDate: includesDueDate ? dateFormatter.string(from: dueDate) : nil
             )
             let syncedLabels = try await syncLabels()
@@ -204,6 +210,30 @@ public final class IssueEditViewModel {
         } else {
             selectedLabelIds.remove(label.id)
         }
+    }
+
+    private func resolvedAssignee() -> (type: String, assigneeId: String)? {
+        guard selectedAssigneeOptionId != Self.noAssigneeId else { return nil }
+        if let selectedAssignee {
+            return (selectedAssignee.type, selectedAssignee.assigneeId)
+        }
+        if let originalAssigneeType,
+           let originalAssigneeId,
+           selectedAssigneeOptionId == "\(originalAssigneeType):\(originalAssigneeId)" {
+            return (originalAssigneeType, originalAssigneeId)
+        }
+        return nil
+    }
+
+    private func resolvedProjectId() -> String? {
+        guard selectedProjectId != Self.noProjectId else { return nil }
+        if selectedProject != nil {
+            return selectedProjectId
+        }
+        if selectedProjectId == originalProjectId {
+            return originalProjectId
+        }
+        return nil
     }
 
     private func loadAllProjects(workspaceId: String) async throws -> [Project] {
