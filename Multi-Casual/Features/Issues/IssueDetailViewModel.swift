@@ -7,6 +7,9 @@ public final class IssueDetailViewModel {
     public let issueId: String
     public let workspaceId: String?
     public var issue: Issue?
+    public var parentIssue: Issue?
+    public var childIssues: [Issue] = []
+    public var parentSiblingIssues: [Issue] = []
     public var agentRuns: [AgentTask] = []
     public var subscribers: [IssueSubscriber] = []
     public var subscriberMembers: [WorkspaceMember] = []
@@ -18,13 +21,16 @@ public final class IssueDetailViewModel {
     public var isLoadingComments = false
     public var isLoadingAgentRuns = false
     public var isLoadingSubscribers = false
+    public var isLoadingIssueRelations = false
     public var didLoadComments = false
     public var didLoadAgentRuns = false
     public var didLoadSubscribers = false
+    public var didLoadIssueRelations = false
     public var error: String?
     public var commentsError: String?
     public var agentRunsError: String?
     public var subscribersError: String?
+    public var issueRelationsError: String?
     public var metadataError: String?
     public var assigneeDisplayName: String?
     public var projectDisplayName: String?
@@ -40,6 +46,14 @@ public final class IssueDetailViewModel {
 
     public var canSubmitComment: Bool {
         !commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSubmittingComment
+    }
+
+    public var childProgressText: String {
+        "\(doneCount(in: childIssues))/\(childIssues.count)"
+    }
+
+    public var parentChildProgressText: String {
+        "\(doneCount(in: parentSiblingIssues))/\(parentSiblingIssues.count)"
     }
 
     public func loadInitialData() async {
@@ -64,7 +78,34 @@ public final class IssueDetailViewModel {
     public func loadIssueAndMetadata() async {
         await loadIssue()
         guard issue != nil, error == nil else { return }
-        await loadMetadata()
+        async let metadata: Void = loadMetadata()
+        async let relations: Void = loadIssueRelations()
+        _ = await (metadata, relations)
+    }
+
+    public func loadIssueRelations() async {
+        guard let issue else { return }
+        isLoadingIssueRelations = true
+        issueRelationsError = nil
+        defer { isLoadingIssueRelations = false }
+
+        do {
+            childIssues = try await api.listChildIssues(issueId: issue.id)
+            if let parentIssueId = issue.parentIssueId {
+                parentIssue = try await api.getIssue(id: parentIssueId, workspaceId: workspaceId)
+                parentSiblingIssues = try await api.listChildIssues(issueId: parentIssueId)
+            } else {
+                parentIssue = nil
+                parentSiblingIssues = []
+            }
+            didLoadIssueRelations = true
+        } catch {
+            childIssues = []
+            parentIssue = nil
+            parentSiblingIssues = []
+            didLoadIssueRelations = true
+            issueRelationsError = error.localizedDescription
+        }
     }
 
     public func loadMetadata() async {
@@ -329,6 +370,7 @@ public final class IssueDetailViewModel {
         issue = updated
         await DataStore.shared.invalidateIssue(updated.id)
         await loadMetadata()
+        await loadIssueRelations()
     }
 
     private func updateIssue(status: IssueStatus?, priority: IssuePriority?) async {
@@ -348,5 +390,9 @@ public final class IssueDetailViewModel {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    private func doneCount(in issues: [Issue]) -> Int {
+        issues.filter { $0.status == .done }.count
     }
 }

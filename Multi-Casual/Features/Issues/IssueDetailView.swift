@@ -8,6 +8,7 @@ public struct IssueDetailView: View {
     @State private var viewModel: IssueDetailViewModel?
     @State private var showTranscript = false
     @State private var showEditIssue = false
+    @State private var showCreateSubIssue = false
     @State private var showSubscribers = false
     @State private var selectedTaskId: String?
 
@@ -52,6 +53,17 @@ public struct IssueDetailView: View {
                     .presentationDragIndicator(.visible)
             }
         }
+        .sheet(isPresented: $showCreateSubIssue) {
+            if let vm = viewModel, let issue = vm.issue {
+                IssueCreateSheet(parentIssue: issue) {
+                    Task {
+                        await vm.loadIssueRelations()
+                        await vm.loadIssue()
+                    }
+                }
+                .presentationDragIndicator(.visible)
+            }
+        }
         .toolbar {
             if viewModel?.issue != nil {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -79,6 +91,8 @@ public struct IssueDetailView: View {
                     if let issue = vm.issue {
                         issueHeader(issue: issue, vm: vm, currentUserId: authSession.currentUser?.id)
                     }
+                    Divider()
+                    subIssuesSection(vm: vm)
                     Divider()
                     subscribersSection(vm: vm, currentUserId: authSession.currentUser?.id)
                     Divider()
@@ -133,6 +147,31 @@ public struct IssueDetailView: View {
     private func issueHeader(issue: Issue, vm: IssueDetailViewModel, currentUserId: String?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             MarkdownText(issue.title).font(.title2.bold())
+            if let parentIssue = vm.parentIssue {
+                NavigationLink {
+                    IssueDetailView(issueId: parentIssue.id)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Sub-issue of")
+                            .font(.caption.weight(.medium))
+                        Image(systemName: parentIssue.status.icon)
+                        Text(parentIssue.identifier)
+                            .font(.caption.monospacedDigit())
+                        MarkdownText(parentIssue.title)
+                            .font(.caption)
+                            .lineLimit(1)
+                        if !vm.parentSiblingIssues.isEmpty {
+                            Text(vm.parentChildProgressText)
+                                .font(.caption2.monospacedDigit())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.secondary.opacity(0.12), in: Capsule())
+                        }
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
             HStack(spacing: 12) {
                 Menu {
                     ForEach(IssueStatus.displayCases, id: \.self) { status in
@@ -220,6 +259,72 @@ public struct IssueDetailView: View {
                 .multilineTextAlignment(.trailing)
         }
         .font(.caption)
+    }
+
+    private func subIssuesSection(vm: IssueDetailViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Sub-issues").font(.headline)
+                if !vm.childIssues.isEmpty {
+                    Text(vm.childProgressText)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(.secondary.opacity(0.1), in: Capsule())
+                }
+                Spacer()
+                Button {
+                    showCreateSubIssue = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .disabled(vm.issue == nil)
+                .accessibilityLabel("Add Sub-issue")
+                .accessibilityIdentifier("IssueDetailAddSubIssueButton")
+            }
+
+            if vm.isLoadingIssueRelations && !vm.didLoadIssueRelations {
+                ProgressView()
+            }
+            if let issueRelationsError = vm.issueRelationsError {
+                ErrorMessageRow(message: issueRelationsError) {
+                    Task { await vm.loadIssueRelations() }
+                }
+                .padding(.horizontal, -16)
+            }
+            if vm.didLoadIssueRelations && vm.childIssues.isEmpty && vm.issueRelationsError == nil && !vm.isLoadingIssueRelations {
+                Text("No sub-issues")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(vm.childIssues) { child in
+                NavigationLink {
+                    IssueDetailView(issueId: child.id)
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: child.status.icon)
+                            .foregroundStyle(child.status == .done ? Color.green : Color.secondary)
+                            .frame(width: 18)
+                        Text(child.identifier)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        MarkdownText(child.title)
+                            .font(.subheadline)
+                            .lineLimit(1)
+                        Spacer()
+                        if child.assigneeType != nil {
+                            Image(systemName: child.assigneeType == "agent" ? "bolt.circle" : "person.circle")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal)
     }
 
     private func assigneeText(issue: Issue, vm: IssueDetailViewModel) -> String {

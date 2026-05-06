@@ -98,7 +98,7 @@ public struct IssueListView: View {
             }
             ForEach(vm.loader.items) { issue in
                 NavigationLink(destination: IssueDetailView(issueId: issue.id)) {
-                    IssueRowView(issue: issue)
+                    IssueRowView(issue: issue, childProgressText: vm.childProgressText(for: issue))
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     if issue.status != .done {
@@ -135,7 +135,7 @@ public struct IssueListView: View {
                         .padding(.horizontal, 8)
                         ForEach(issues) { issue in
                             NavigationLink(destination: IssueDetailView(issueId: issue.id)) {
-                                BoardCardView(issue: issue)
+                                BoardCardView(issue: issue, childProgressText: vm.childProgressText(for: issue))
                             }.buttonStyle(.plain)
                         }
                     }
@@ -157,7 +157,11 @@ public struct IssueListView: View {
 
 public struct IssueRowView: View {
     public let issue: Issue
-    public init(issue: Issue) { self.issue = issue }
+    public let childProgressText: String?
+    public init(issue: Issue, childProgressText: String? = nil) {
+        self.issue = issue
+        self.childProgressText = childProgressText
+    }
     public var body: some View {
         HStack(spacing: 10) {
             Image(systemName: issue.status.icon).foregroundStyle(.secondary).frame(width: 20)
@@ -165,15 +169,36 @@ public struct IssueRowView: View {
                 Text(issue.identifier).font(.caption).foregroundStyle(.secondary)
                 MarkdownText(issue.title).font(.body)
             }
+            Spacer(minLength: 8)
+            if let childProgressText {
+                Label(childProgressText, systemImage: "checklist")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(.secondary.opacity(0.1), in: Capsule())
+                    .accessibilityLabel("Sub-issues \(childProgressText)")
+            }
         }.padding(.vertical, 4)
     }
 }
 
 struct BoardCardView: View {
     let issue: Issue
+    let childProgressText: String?
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(issue.identifier).font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Text(issue.identifier).font(.caption).foregroundStyle(.secondary)
+                Spacer(minLength: 6)
+                if let childProgressText {
+                    Label(childProgressText, systemImage: "checklist")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .labelStyle(.titleAndIcon)
+                        .accessibilityLabel("Sub-issues \(childProgressText)")
+                }
+            }
             MarkdownText(issue.title).font(.subheadline).lineLimit(2)
         }
         .padding(10).frame(maxWidth: .infinity, alignment: .leading)

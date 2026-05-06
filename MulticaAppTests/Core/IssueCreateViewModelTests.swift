@@ -167,6 +167,29 @@ final class IssueCreateViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_submitIncludesParentIssueIdForSubIssueCreation() async throws {
+        var body: [String: Any] = [:]
+        let client = makeClient { req in
+            XCTAssertEqual(req.url?.path, "/api/issues")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            let json = """
+            {"id":"c1","identifier":"PAR-2","number":2,"title":"Child","description":null,
+             "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+             "parent_issue_id":"p0","project_id":null,"workspace_id":"w1",
+             "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
+            """.data(using: .utf8)!
+            return Self.response(for: req, body: json)
+        }
+        let vm = IssueCreateViewModel(api: client, authSession: makeSession(), parentIssueId: "p0")
+        vm.title = "Child"
+
+        let created = await vm.submit()
+
+        XCTAssertTrue(created)
+        XCTAssertEqual(body["parent_issue_id"] as? String, "p0")
+        XCTAssertNil(vm.errorMessage)
+    }
+
     private func makeSession() -> AuthSession {
         let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.issue-create.test"))
         session.currentWorkspace = workspace

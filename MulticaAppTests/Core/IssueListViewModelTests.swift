@@ -14,6 +14,9 @@ final class IssueListViewModelTests: XCTestCase {
     func test_loadNext_fetchesFirstPageForEachDesktopBoardStatus() async throws {
         var requestedStatuses: [String] = []
         let client = makeClient { req in
+            if req.url?.path == "/api/issues/child-progress" {
+                return Self.childProgressResponse(for: req, progress: [])
+            }
             let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
             guard let status = components?.queryItems?.first(where: { $0.name == "status" })?.value else {
                 XCTFail("Expected status query in \(req.url?.absoluteString ?? "")")
@@ -35,6 +38,9 @@ final class IssueListViewModelTests: XCTestCase {
     func test_loadNext_paginatesNextStatusBucketWithRemainingItems() async throws {
         var requested: [(status: String, offset: String?)] = []
         let client = makeClient { req in
+            if req.url?.path == "/api/issues/child-progress" {
+                return Self.childProgressResponse(for: req, progress: [])
+            }
             let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
             guard let status = components?.queryItems?.first(where: { $0.name == "status" })?.value else {
                 XCTFail("Expected status query in \(req.url?.absoluteString ?? "")")
@@ -63,6 +69,9 @@ final class IssueListViewModelTests: XCTestCase {
     func test_loadNext_appliesPriorityFilterToStatusBuckets() async throws {
         var requestedPriorities: [String?] = []
         let client = makeClient { req in
+            if req.url?.path == "/api/issues/child-progress" {
+                return Self.childProgressResponse(for: req, progress: [])
+            }
             let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
             let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
             requestedPriorities.append(components?.queryItems?.first(where: { $0.name == "priority" })?.value)
@@ -77,8 +86,38 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertEqual(Set(vm.loader.items.map(\.priority)), [.urgent])
     }
 
+    func test_loadNextLoadsChildProgressForIssueRows() async throws {
+        var requestedPaths: [String] = []
+        let client = makeClient { req in
+            requestedPaths.append(req.url?.path ?? "")
+            if req.url?.path == "/api/issues/child-progress" {
+                return Self.childProgressResponse(
+                    for: req,
+                    progress: [
+                        #"{"parent_issue_id":"todo-1","total":3,"done":1}"#
+                    ]
+                )
+            }
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+            if status == "todo" {
+                return Self.issuesResponse(for: req, status: status, total: 1)
+            }
+            return Self.emptyIssuesResponse(for: req)
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+
+        XCTAssertTrue(requestedPaths.contains("/api/issues/child-progress"))
+        XCTAssertEqual(vm.childProgressText(for: vm.loader.items[0]), "1/3")
+    }
+
     func test_setSortOption_sortsLoadedIssuesByPriority() async throws {
         let client = makeClient { req in
+            if req.url?.path == "/api/issues/child-progress" {
+                return Self.childProgressResponse(for: req, progress: [])
+            }
             let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
             let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
             switch status {
@@ -103,6 +142,8 @@ final class IssueListViewModelTests: XCTestCase {
         var updateRequestBody: [String: Any] = [:]
         let client = makeClient { req in
             switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/child-progress"):
+                return Self.childProgressResponse(for: req, progress: [])
             case ("GET", "/api/issues"):
                 let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
                 let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
@@ -208,5 +249,15 @@ final class IssueListViewModelTests: XCTestCase {
          "assignee_id":null,"assignee_type":null,"project_id":null,"workspace_id":"w1",
          "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-02T00:00:00Z"}
         """.data(using: .utf8)!
+    }
+
+    private static func childProgressResponse(for request: URLRequest, progress: [String]) -> (HTTPURLResponse, Data) {
+        let json = """
+        {"progress":[\(progress.joined(separator: ","))]}
+        """.data(using: .utf8)!
+        return (
+            HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+            json
+        )
     }
 }

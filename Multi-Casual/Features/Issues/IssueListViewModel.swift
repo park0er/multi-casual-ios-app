@@ -31,6 +31,7 @@ public final class IssueListViewModel {
     public var priorityFilter: IssuePriority?
     public private(set) var sortOption: SortOption = .position
     public private(set) var issuesByStatus: [IssueStatus: [Issue]] = [:]
+    public private(set) var childProgressByParentIssueId: [String: ChildIssueProgressEntry] = [:]
 
     private let api: APIClient
     private let authSession: AuthSession
@@ -109,6 +110,13 @@ public final class IssueListViewModel {
         sorted(issuesByStatus[status] ?? [])
     }
 
+    public func childProgressText(for issue: Issue) -> String? {
+        guard let progress = childProgressByParentIssueId[issue.id], progress.total > 0 else {
+            return nil
+        }
+        return "\(progress.done)/\(progress.total)"
+    }
+
     private func loadFirstPages(workspaceId: String) async throws {
         resetBuckets()
         for status in IssueStatus.boardCases {
@@ -121,8 +129,16 @@ public final class IssueListViewModel {
             )
             append(page, for: status)
         }
+        try await loadChildProgress()
         hasLoadedFirstPages = true
         syncFlatIssues()
+    }
+
+    private func loadChildProgress() async throws {
+        let response = try await api.getChildIssueProgress()
+        childProgressByParentIssueId = Dictionary(
+            uniqueKeysWithValues: response.progress.map { ($0.parentIssueId, $0) }
+        )
     }
 
     private func append(_ page: PageResponse<Issue>, for status: IssueStatus) {
@@ -219,6 +235,7 @@ public final class IssueListViewModel {
 
     private func resetBuckets() {
         issuesByStatus = [:]
+        childProgressByParentIssueId = [:]
         offsetsByStatus = [:]
         totalsByStatus = [:]
         pageHasMoreByStatus = [:]

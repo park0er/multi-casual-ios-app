@@ -313,6 +313,7 @@ public final class APIClient: @unchecked Sendable {
         let assigneeType: String?
         let assigneeId: String?
         let projectId: String?
+        let parentIssueId: String?
         let dueDate: String?
         enum CodingKeys: String, CodingKey {
             case title, description, status, priority
@@ -320,6 +321,7 @@ public final class APIClient: @unchecked Sendable {
             case assigneeType = "assignee_type"
             case assigneeId = "assignee_id"
             case projectId = "project_id"
+            case parentIssueId = "parent_issue_id"
             case dueDate = "due_date"
         }
     }
@@ -410,6 +412,7 @@ public final class APIClient: @unchecked Sendable {
         assigneeType: String? = nil,
         assigneeId: String? = nil,
         projectId: String? = nil,
+        parentIssueId: String? = nil,
         dueDate: String? = nil
     ) async throws -> Issue {
         try await request("POST", path: "api/issues",
@@ -423,6 +426,7 @@ public final class APIClient: @unchecked Sendable {
                             assigneeType: assigneeType,
                             assigneeId: assigneeId,
                             projectId: projectId,
+                            parentIssueId: parentIssueId,
                             dueDate: dueDate
                           ))
     }
@@ -613,6 +617,15 @@ public final class APIClient: @unchecked Sendable {
             path: "api/issues/\(issueId)/reactions",
             body: ReactionRequest(emoji: emoji)
         )
+    }
+
+    public func listChildIssues(issueId: String) async throws -> [Issue] {
+        let response: ChildIssuesResponse = try await request("GET", path: "api/issues/\(issueId)/children")
+        return response.issues
+    }
+
+    public func getChildIssueProgress() async throws -> ChildIssueProgressResponse {
+        try await request("GET", path: "api/issues/child-progress")
     }
 
     public func listAgentRuns(issueId: String, workspaceId: String? = nil) async throws -> [AgentTask] {

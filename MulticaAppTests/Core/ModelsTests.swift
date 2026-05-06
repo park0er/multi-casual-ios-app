@@ -21,6 +21,7 @@ final class ModelsTests: XCTestCase {
             "priority": "high",
             "assignee_id": null,
             "assignee_type": null,
+            "parent_issue_id": "parent1",
             "project_id": null,
             "workspace_id": "ws1",
             "created_at": "2026-01-01T00:00:00Z",
@@ -33,6 +34,7 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(issue.status, .inProgress)
         XCTAssertEqual(issue.priority, .high)
         XCTAssertNil(issue.assigneeId)
+        XCTAssertEqual(issue.parentIssueId, "parent1")
     }
 
     func test_issue_decodesAttachmentsFromDesktopDetailResponse() throws {

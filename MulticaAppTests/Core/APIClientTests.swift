@@ -205,7 +205,7 @@ final class APIClientTests: XCTestCase {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":"D",
          "status":"backlog","priority":"high","assignee_id":"a1","assignee_type":"agent",
-         "project_id":"p1","workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+         "parent_issue_id":"p0","project_id":"p1","workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
          "updated_at":"2026-01-01T00:00:00Z"}
         """.data(using: .utf8)!
         var capturedURL: URL?
@@ -227,6 +227,7 @@ final class APIClientTests: XCTestCase {
             assigneeType: "agent",
             assigneeId: "a1",
             projectId: "p1",
+            parentIssueId: "p0",
             dueDate: "2026-05-07T00:00:00Z"
         )
 
@@ -237,7 +238,43 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(body["assignee_type"] as? String, "agent")
         XCTAssertEqual(body["assignee_id"] as? String, "a1")
         XCTAssertEqual(body["project_id"] as? String, "p1")
+        XCTAssertEqual(body["parent_issue_id"] as? String, "p0")
         XCTAssertEqual(body["due_date"] as? String, "2026-05-07T00:00:00Z")
+    }
+
+    func test_childIssueEndpoints_matchDesktopPaths() async throws {
+        var requests: [String] = []
+        MockURLProtocol.handler = { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch req.url?.path {
+            case "/api/issues/i1/children":
+                let json = """
+                {"issues":[{"id":"c1","identifier":"PAR-2","number":2,"title":"Child","description":null,
+                 "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+                 "parent_issue_id":"i1","project_id":null,"workspace_id":"w1",
+                 "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}]}
+                """.data(using: .utf8)!
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+            case "/api/issues/child-progress":
+                let json = #"{"progress":[{"parent_issue_id":"i1","total":3,"done":1}]}"#.data(using: .utf8)!
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data())
+            }
+        }
+
+        let children = try await client.listChildIssues(issueId: "i1")
+        let progress = try await client.getChildIssueProgress()
+
+        XCTAssertEqual(children.map(\.id), ["c1"])
+        XCTAssertEqual(children.first?.parentIssueId, "i1")
+        XCTAssertEqual(progress.progress.map(\.parentIssueId), ["i1"])
+        XCTAssertEqual(progress.progress.first?.done, 1)
+        XCTAssertEqual(requests, [
+            "GET /api/issues/i1/children",
+            "GET /api/issues/child-progress",
+        ])
     }
 
     func test_listInbox_decodesBareArrayResponse() async throws {

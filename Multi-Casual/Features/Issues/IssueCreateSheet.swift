@@ -6,10 +6,14 @@ public struct IssueCreateSheet: View {
     @Environment(APIClient.self) private var api
     @Environment(\.dismiss) private var dismiss
     let onCreated: () -> Void
+    let parentIssue: Issue?
 
     @State private var viewModel: IssueCreateViewModel?
 
-    public init(onCreated: @escaping () -> Void) { self.onCreated = onCreated }
+    public init(parentIssue: Issue? = nil, onCreated: @escaping () -> Void) {
+        self.parentIssue = parentIssue
+        self.onCreated = onCreated
+    }
 
     public var body: some View {
         Group {
@@ -31,7 +35,12 @@ public struct IssueCreateSheet: View {
             }
         }
         .task(id: authSession.currentWorkspace?.id) {
-            let vm = IssueCreateViewModel(api: api, authSession: authSession)
+            let vm = IssueCreateViewModel(
+                api: api,
+                authSession: authSession,
+                parentIssueId: parentIssue?.id,
+                parentIssueIdentifier: parentIssue?.identifier
+            )
             viewModel = vm
             await vm.loadOptions()
         }
@@ -48,6 +57,12 @@ private struct IssueCreateForm: View {
             Form {
                 Section("Title") {
                     TextField("Issue title", text: $viewModel.title)
+                }
+
+                if let parentIssueIdentifier = viewModel.parentIssueIdentifier {
+                    Section("Parent Issue") {
+                        Label(parentIssueIdentifier, systemImage: "arrow.triangle.branch")
+                    }
                 }
 
                 Section("Description") {

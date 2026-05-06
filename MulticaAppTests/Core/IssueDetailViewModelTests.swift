@@ -37,6 +37,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                 }],"total":1}
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
+            case "/api/issues/i1/children":
+                return Self.response(for: req, body: #"{"issues":[]}"#.data(using: .utf8)!)
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -133,6 +135,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                 }],"total":1}
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
+            case "/api/issues/i1/children":
+                return Self.response(for: req, body: #"{"issues":[]}"#.data(using: .utf8)!)
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -153,6 +157,76 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertEqual(vm.assigneeDisplayName, "Codex")
         XCTAssertEqual(vm.projectDisplayName, "iOS MVP")
         XCTAssertNil(vm.metadataError)
+    }
+
+    func test_loadIssueAndMetadataLoadsParentAndChildIssues() async throws {
+        var requests: [String] = []
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch req.url?.path {
+            case "/api/issues/i1":
+                let json = Self.issueJSON(
+                    id: "i1",
+                    identifier: "PAR-2",
+                    title: "Child issue",
+                    parentIssueId: "p0",
+                    updatedAt: "2026-01-01T00:00:00Z"
+                )
+                return Self.response(for: req, body: json)
+            case "/api/workspaces/w1/members":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/agents":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/projects":
+                return Self.response(for: req, body: #"{"projects":[],"total":0}"#.data(using: .utf8)!)
+            case "/api/issues/i1/children":
+                let json = """
+                {"issues":[{"id":"c1","identifier":"PAR-3","number":3,"title":"Nested child","description":null,
+                 "status":"done","priority":"none","assignee_id":null,"assignee_type":null,
+                 "parent_issue_id":"i1","project_id":null,"workspace_id":"w1",
+                 "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}]}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/issues/p0":
+                let json = Self.issueJSON(
+                    id: "p0",
+                    identifier: "PAR-1",
+                    title: "Parent issue",
+                    parentIssueId: nil,
+                    updatedAt: "2026-01-01T00:00:00Z"
+                )
+                return Self.response(for: req, body: json)
+            case "/api/issues/p0/children":
+                let json = """
+                {"issues":[{"id":"i1","identifier":"PAR-2","number":2,"title":"Child issue","description":null,
+                 "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+                 "parent_issue_id":"p0","project_id":null,"workspace_id":"w1",
+                 "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"},
+                {"id":"s1","identifier":"PAR-4","number":4,"title":"Sibling done","description":null,
+                 "status":"done","priority":"none","assignee_id":null,"assignee_type":null,
+                 "parent_issue_id":"p0","project_id":null,"workspace_id":"w1",
+                 "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}]}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadIssueAndMetadata()
+
+        XCTAssertEqual(vm.parentIssue?.id, "p0")
+        XCTAssertEqual(vm.childIssues.map(\.id), ["c1"])
+        XCTAssertEqual(vm.parentSiblingIssues.map(\.id), ["i1", "s1"])
+        XCTAssertEqual(vm.parentChildProgressText, "1/2")
+        XCTAssertEqual(vm.childProgressText, "1/1")
+        XCTAssertTrue(vm.didLoadIssueRelations)
+        XCTAssertNil(vm.issueRelationsError)
+        XCTAssertTrue(requests.contains("GET /api/issues/i1/children"))
+        XCTAssertTrue(requests.contains("GET /api/issues/p0"))
+        XCTAssertTrue(requests.contains("GET /api/issues/p0/children"))
     }
 
     func test_loadAgentRuns_surfacesEndpointError() async throws {
@@ -503,6 +577,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                 return Self.response(for: req, body: Data("[]".utf8))
             case "/api/issues/i1/task-runs":
                 return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/issues/i1/children":
+                return Self.response(for: req, body: #"{"issues":[]}"#.data(using: .utf8)!)
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -682,11 +758,18 @@ final class IssueDetailViewModelTests: XCTestCase {
         )
     }
 
-    private static func issueJSON(updatedAt: String) -> Data {
-        """
-        {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
+    private static func issueJSON(
+        id: String = "i1",
+        identifier: String = "PAR-1",
+        title: String = "T",
+        parentIssueId: String? = nil,
+        updatedAt: String
+    ) -> Data {
+        let parent = parentIssueId.map { #""\#($0)""# } ?? "null"
+        return """
+        {"id":"\(id)","identifier":"\(identifier)","number":1,"title":"\(title)","description":null,
          "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
-         "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+         "parent_issue_id":\(parent),"project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
          "updated_at":"\(updatedAt)"}
         """.data(using: .utf8)!
     }

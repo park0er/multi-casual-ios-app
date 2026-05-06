@@ -40,11 +40,21 @@ public final class IssueCreateViewModel {
     private let api: APIClient
     private let authSession: AuthSession
     private let dateFormatter: ISO8601DateFormatter
+    public let parentIssueId: String?
+    public let parentIssueIdentifier: String?
 
-    public init(api: APIClient, authSession: AuthSession, now: Date = Date()) {
+    public init(
+        api: APIClient,
+        authSession: AuthSession,
+        now: Date = Date(),
+        parentIssueId: String? = nil,
+        parentIssueIdentifier: String? = nil
+    ) {
         self.api = api
         self.authSession = authSession
         self.dueDate = now
+        self.parentIssueId = parentIssueId
+        self.parentIssueIdentifier = parentIssueIdentifier
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         self.dateFormatter = formatter
@@ -168,6 +178,7 @@ public final class IssueCreateViewModel {
                 assigneeType: assignee?.type,
                 assigneeId: assignee?.assigneeId,
                 projectId: projectId,
+                parentIssueId: parentIssueId,
                 dueDate: includesDueDate ? dateFormatter.string(from: dueDate) : nil
             )
             return true

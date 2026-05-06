@@ -630,6 +630,7 @@ public struct Issue: Codable, Identifiable, Sendable {
     public let priority: IssuePriority
     public let assigneeId: String?
     public let assigneeType: String?
+    public let parentIssueId: String?
     public let projectId: String?
     public let dueDate: String?
     public let workspaceId: String
@@ -643,6 +644,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         case id, identifier, number, title, description, status, priority
         case assigneeId = "assignee_id"
         case assigneeType = "assignee_type"
+        case parentIssueId = "parent_issue_id"
         case projectId = "project_id"
         case dueDate = "due_date"
         case workspaceId = "workspace_id"
@@ -653,7 +655,7 @@ public struct Issue: Codable, Identifiable, Sendable {
 
     public init(id: String, identifier: String, number: Int, title: String, description: String?,
                 status: IssueStatus, priority: IssuePriority, assigneeId: String?,
-                assigneeType: String?, projectId: String?, workspaceId: String,
+                assigneeType: String?, parentIssueId: String? = nil, projectId: String?, workspaceId: String,
                 dueDate: String? = nil, attachments: [Attachment] = [], labels: [IssueLabel] = [],
                 reactions: [IssueReaction] = [],
                 createdAt: Date, updatedAt: Date) {
@@ -666,6 +668,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         self.priority = priority
         self.assigneeId = assigneeId
         self.assigneeType = assigneeType
+        self.parentIssueId = parentIssueId
         self.projectId = projectId
         self.dueDate = dueDate
         self.workspaceId = workspaceId
@@ -687,6 +690,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         priority = try c.decode(IssuePriority.self, forKey: .priority)
         assigneeId = try c.decodeIfPresent(String.self, forKey: .assigneeId)
         assigneeType = try c.decodeIfPresent(String.self, forKey: .assigneeType)
+        parentIssueId = try c.decodeIfPresent(String.self, forKey: .parentIssueId)
         projectId = try c.decodeIfPresent(String.self, forKey: .projectId)
         dueDate = try c.decodeIfPresent(String.self, forKey: .dueDate)
         workspaceId = try c.decode(String.self, forKey: .workspaceId)
@@ -708,6 +712,7 @@ public struct Issue: Codable, Identifiable, Sendable {
             priority: priority,
             assigneeId: assigneeId,
             assigneeType: assigneeType,
+            parentIssueId: parentIssueId,
             projectId: projectId,
             workspaceId: workspaceId,
             dueDate: dueDate,
@@ -730,6 +735,7 @@ public struct Issue: Codable, Identifiable, Sendable {
             priority: priority,
             assigneeId: assigneeId,
             assigneeType: assigneeType,
+            parentIssueId: parentIssueId,
             projectId: projectId,
             workspaceId: workspaceId,
             dueDate: dueDate,
@@ -740,6 +746,27 @@ public struct Issue: Codable, Identifiable, Sendable {
             updatedAt: updatedAt
         )
     }
+}
+
+public struct ChildIssuesResponse: Codable, Sendable {
+    public let issues: [Issue]
+}
+
+public struct ChildIssueProgressEntry: Codable, Identifiable, Sendable {
+    public let parentIssueId: String
+    public let total: Int
+    public let done: Int
+
+    public var id: String { parentIssueId }
+
+    enum CodingKeys: String, CodingKey {
+        case parentIssueId = "parent_issue_id"
+        case total, done
+    }
+}
+
+public struct ChildIssueProgressResponse: Codable, Sendable {
+    public let progress: [ChildIssueProgressEntry]
 }
 
 public struct Comment: Codable, Identifiable, Sendable {
