@@ -32,28 +32,32 @@ public struct AgentsView: View {
                                 )
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                if agent.archivedAt == nil {
-                                    Button(role: .destructive) {
-                                        pendingArchiveAgent = agent
-                                    } label: {
-                                        Label("Archive", systemImage: "archivebox")
+                                if vm.canManageAgent(agent) {
+                                    if agent.archivedAt == nil {
+                                        Button(role: .destructive) {
+                                            pendingArchiveAgent = agent
+                                        } label: {
+                                            Label("Archive", systemImage: "archivebox")
+                                        }
+                                    } else {
+                                        Button {
+                                            Task { await vm.restoreAgent(id: agent.id) }
+                                        } label: {
+                                            Label("Restore", systemImage: "arrow.uturn.backward")
+                                        }
+                                        .tint(.blue)
                                     }
-                                } else {
-                                    Button {
-                                        Task { await vm.restoreAgent(id: agent.id) }
-                                    } label: {
-                                        Label("Restore", systemImage: "arrow.uturn.backward")
-                                    }
-                                    .tint(.blue)
                                 }
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                Button {
-                                    pendingCancelTasksAgent = agent
-                                } label: {
-                                    Label("Cancel Tasks", systemImage: "xmark.circle")
+                                if vm.canManageAgent(agent) {
+                                    Button {
+                                        pendingCancelTasksAgent = agent
+                                    } label: {
+                                        Label("Cancel Tasks", systemImage: "xmark.circle")
+                                    }
+                                    .tint(.orange)
                                 }
-                                .tint(.orange)
                             }
                         }
                     }
@@ -362,13 +366,15 @@ private struct AgentDetailView: View {
         }
         .markdownNavigationTitle(currentAgent.name)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    editingAgent = currentAgent
-                } label: {
-                    Label("Edit Agent", systemImage: "pencil")
+            if listViewModel.canManageAgent(currentAgent) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        editingAgent = currentAgent
+                    } label: {
+                        Label("Edit Agent", systemImage: "pencil")
+                    }
+                    .accessibilityIdentifier("AgentDetailEditButton")
                 }
-                .accessibilityIdentifier("AgentDetailEditButton")
             }
         }
         .sheet(item: $editingAgent) { agent in

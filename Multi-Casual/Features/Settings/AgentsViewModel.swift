@@ -6,6 +6,7 @@ import Observation
 public final class AgentsViewModel {
     public var agents: [Agent] = []
     public var runtimes: [AgentRuntime] = []
+    public var members: [WorkspaceMember] = []
     public var skills: [Skill] = []
     public var assignedSkillIdsByAgentId: [String: Set<String>] = [:]
     public var presenceByAgentId: [String: AgentPresenceSummary] = [:]
@@ -36,10 +37,16 @@ public final class AgentsViewModel {
         do {
             async let loadedAgents = api.listAgents(workspaceId: workspaceId, includeArchived: true)
             async let loadedRuntimes = api.listRuntimes(workspaceId: workspaceId)
+            async let loadedMembers = api.listMembers(workspaceId: workspaceId)
             async let loadedSnapshot = api.getAgentTaskSnapshot(workspaceId: workspaceId)
             async let loadedRunCounts = api.getWorkspaceAgentRunCounts(workspaceId: workspaceId)
             agents = try await loadedAgents.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             runtimes = try await loadedRuntimes
+            do {
+                members = try await loadedMembers
+            } catch {
+                members = []
+            }
             do {
                 let snapshot = try await loadedSnapshot
                 presenceByAgentId = AgentPresenceSummary.buildMap(
@@ -59,6 +66,13 @@ public final class AgentsViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    public func canManageAgent(_ agent: Agent) -> Bool {
+        guard let currentUserId = authSession.currentUser?.id else { return false }
+        if agent.ownerId == currentUserId { return true }
+        guard let membership = members.first(where: { $0.userId == currentUserId }) else { return false }
+        return ["owner", "admin"].contains(membership.role.lowercased())
     }
 
     public func createAgent(

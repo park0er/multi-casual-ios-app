@@ -15,6 +15,8 @@ final class AgentsViewModelTests: XCTestCase {
                 return Self.response(for: req, body: Self.agentListJSON())
             case "/api/runtimes":
                 return Self.response(for: req, body: Self.runtimeListJSON())
+            case "/api/workspaces/w1/members":
+                return Self.response(for: req, body: Self.membersJSON())
             case "/api/agent-task-snapshot":
                 return Self.response(for: req, body: Self.agentTasksJSON())
             case "/api/agent-run-counts":
@@ -86,6 +88,52 @@ final class AgentsViewModelTests: XCTestCase {
         XCTAssertEqual((bodies[1]["custom_env"] as? [String: String])?["OPENAI_API_KEY"], "sk-test")
         XCTAssertEqual(bodies[1]["custom_args"] as? [String], ["--debug"])
         XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_agentPermissionsMatchDesktopOwnerOrWorkspaceAdmin() async throws {
+        let adminClient = makeClient { req in
+            switch req.url?.path {
+            case "/api/agents":
+                return Self.response(for: req, body: Self.twoAgentsJSON())
+            case "/api/runtimes":
+                return Self.response(for: req, body: Self.runtimeListJSON())
+            case "/api/workspaces/w1/members":
+                return Self.response(for: req, body: Self.membersJSON(userId: "u2", role: "admin"))
+            case "/api/agent-task-snapshot", "/api/agent-run-counts":
+                return Self.response(for: req, body: Data("[]".utf8))
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let adminVM = AgentsViewModel(api: adminClient, authSession: makeSession(userId: "u2"))
+
+        await adminVM.load()
+
+        XCTAssertTrue(adminVM.canManageAgent(adminVM.agents[0]))
+        XCTAssertTrue(adminVM.canManageAgent(adminVM.agents[1]))
+
+        let memberClient = makeClient { req in
+            switch req.url?.path {
+            case "/api/agents":
+                return Self.response(for: req, body: Self.twoAgentsJSON())
+            case "/api/runtimes":
+                return Self.response(for: req, body: Self.runtimeListJSON())
+            case "/api/workspaces/w1/members":
+                return Self.response(for: req, body: Self.membersJSON(userId: "u3", role: "member"))
+            case "/api/agent-task-snapshot", "/api/agent-run-counts":
+                return Self.response(for: req, body: Data("[]".utf8))
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let memberVM = AgentsViewModel(api: memberClient, authSession: makeSession(userId: "u3"))
+
+        await memberVM.load()
+
+        XCTAssertFalse(memberVM.canManageAgent(memberVM.agents[0]))
+        XCTAssertTrue(memberVM.canManageAgent(memberVM.agents[1]))
     }
 
     func testArchiveRestoreAndCancelTasksSurfaceResults() async throws {
@@ -320,8 +368,9 @@ final class AgentsViewModelTests: XCTestCase {
         XCTAssertEqual(argsText, "--model\ngpt-5")
     }
 
-    private func makeSession() -> AuthSession {
+    private func makeSession(userId: String = "u1") -> AuthSession {
         let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.agents.test"))
+        session.currentUser = User(id: userId, email: "\(userId)@example.com", name: userId, avatarUrl: nil)
         session.currentWorkspace = workspace
         session.workspaces = [workspace]
         return session
@@ -349,6 +398,15 @@ final class AgentsViewModelTests: XCTestCase {
         "[\(String(data: agentJSON(id: "a1", name: "Codex"), encoding: .utf8)!)]".data(using: .utf8)!
     }
 
+    private static func twoAgentsJSON() -> Data {
+        """
+        [
+          \(String(data: agentJSON(id: "a1", name: "Codex", ownerId: "u1"), encoding: .utf8)!),
+          \(String(data: agentJSON(id: "a2", name: "Reviewer", ownerId: "u3"), encoding: .utf8)!)
+        ]
+        """.data(using: .utf8)!
+    }
+
     private static func agentJSON(id: String, name: String, ownerId: String? = nil, runtimeId: String = "r1") -> Data {
         let ownerJSON = ownerId.map { "\"\($0)\"" } ?? "null"
         return """
@@ -371,9 +429,13 @@ final class AgentsViewModelTests: XCTestCase {
     }
 
     private static func membersJSON() -> Data {
+        membersJSON(userId: "u1", role: "owner")
+    }
+
+    private static func membersJSON(userId: String, role: String) -> Data {
         """
-        [{"id":"m1","workspace_id":"w1","user_id":"u1","role":"owner",
-          "name":"Parker","email":"p@example.com","avatar_url":null}]
+        [{"id":"m1","workspace_id":"w1","user_id":"\(userId)","role":"\(role)",
+          "name":"Parker","email":"\(userId)@example.com","avatar_url":null}]
         """.data(using: .utf8)!
     }
 
