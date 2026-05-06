@@ -1296,11 +1296,15 @@ public final class APIClient: @unchecked Sendable {
         let visibility: String
         let maxConcurrentTasks: Int
         let model: String
+        let customEnv: [String: String]?
+        let customArgs: [String]?
 
         enum CodingKeys: String, CodingKey {
             case name, description, instructions, visibility, model
             case runtimeId = "runtime_id"
             case maxConcurrentTasks = "max_concurrent_tasks"
+            case customEnv = "custom_env"
+            case customArgs = "custom_args"
         }
     }
 
@@ -1320,6 +1324,8 @@ public final class APIClient: @unchecked Sendable {
         visibility: String,
         maxConcurrentTasks: Int,
         model: String,
+        customEnv: [String: String]? = nil,
+        customArgs: [String]? = nil,
         workspaceId: String? = nil
     ) async throws -> Agent {
         try await request(
@@ -1333,7 +1339,9 @@ public final class APIClient: @unchecked Sendable {
                 runtimeId: runtimeId,
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
-                model: model
+                model: model,
+                customEnv: customEnv,
+                customArgs: customArgs
             )
         )
     }
@@ -1346,6 +1354,8 @@ public final class APIClient: @unchecked Sendable {
         visibility: String,
         maxConcurrentTasks: Int,
         model: String,
+        customEnv: [String: String]? = nil,
+        customArgs: [String]? = nil,
         workspaceId: String? = nil
     ) async throws -> Agent {
         try await request(
@@ -1359,7 +1369,9 @@ public final class APIClient: @unchecked Sendable {
                 runtimeId: nil,
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
-                model: model
+                model: model,
+                customEnv: customEnv,
+                customArgs: customArgs
             )
         )
     }

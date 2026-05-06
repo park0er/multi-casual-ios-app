@@ -399,8 +399,11 @@ private struct AgentFormSheet: View {
     @State private var visibility: String
     @State private var maxConcurrentTasks: Int
     @State private var model: String
+    @State private var customEnvText: String
+    @State private var customArgsText: String
     @State private var selectedSkillIds: Set<String>
     @State private var isLoadingSkills = false
+    @State private var validationError: String?
 
     init(agent: Agent?, viewModel: AgentsViewModel, onSave: ((Agent) -> Void)? = nil) {
         self.agent = agent
@@ -413,6 +416,8 @@ private struct AgentFormSheet: View {
         _visibility = State(initialValue: agent?.visibility ?? "workspace")
         _maxConcurrentTasks = State(initialValue: agent?.maxConcurrentTasks ?? 1)
         _model = State(initialValue: agent?.model ?? "gpt")
+        _customEnvText = State(initialValue: AgentFormDraft.environmentText(from: agent?.customEnv ?? [:]))
+        _customArgsText = State(initialValue: AgentFormDraft.argsText(from: agent?.customArgs ?? []))
         _selectedSkillIds = State(initialValue: agent.flatMap { viewModel.assignedSkillIdsByAgentId[$0.id] } ?? [])
     }
 
@@ -450,6 +455,25 @@ private struct AgentFormSheet: View {
                     Stepper("Max Tasks: \(maxConcurrentTasks)", value: $maxConcurrentTasks, in: 1...20)
                 }
 
+                Section("Environment") {
+                    if agent?.customEnvRedacted == true {
+                        MarkdownText("Existing values are redacted. Leave this empty to keep them.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    TextEditor(text: $customEnvText)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minHeight: 100)
+                        .accessibilityIdentifier("AgentCustomEnvEditor")
+                }
+
+                Section("Custom Args") {
+                    TextEditor(text: $customArgsText)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minHeight: 80)
+                        .accessibilityIdentifier("AgentCustomArgsEditor")
+                }
+
                 Section("Skills") {
                     if isLoadingSkills {
                         ProgressView()
@@ -469,6 +493,12 @@ private struct AgentFormSheet: View {
                                 }
                             }
                         }
+                    }
+                }
+
+                if let validationError {
+                    Section {
+                        MarkdownText(validationError).font(.caption).foregroundStyle(.red)
                     }
                 }
 
@@ -514,6 +544,21 @@ private struct AgentFormSheet: View {
         let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedInstructions = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCustomEnvText = customEnvText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let customEnv: [String: String]?
+        let customArgs = AgentFormDraft.parseCustomArgs(customArgsText)
+
+        do {
+            if agent?.customEnvRedacted == true && trimmedCustomEnvText.isEmpty {
+                customEnv = nil
+            } else {
+                customEnv = try AgentFormDraft.parseCustomEnvironment(customEnvText)
+            }
+            validationError = nil
+        } catch {
+            validationError = error.localizedDescription
+            return
+        }
 
         let saved: Agent?
         if let agent {
@@ -525,6 +570,8 @@ private struct AgentFormSheet: View {
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
                 model: trimmedModel,
+                customEnv: customEnv,
+                customArgs: customArgs,
                 skillIds: selectedSkillIds
             )
         } else {
@@ -536,6 +583,8 @@ private struct AgentFormSheet: View {
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
                 model: trimmedModel,
+                customEnv: customEnv,
+                customArgs: customArgs,
                 skillIds: selectedSkillIds
             )
         }

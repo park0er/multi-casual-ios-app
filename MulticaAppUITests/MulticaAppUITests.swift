@@ -206,6 +206,24 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons["AgentsNewButton"].waitForExistence(timeout: 10))
     }
 
+    func testSettingsAgentCreateSheetShowsEnvironmentAndArgsEditors() {
+        let app = launchApp(initialTab: "settings")
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Agents"].waitForExistence(timeout: 10))
+        app.buttons["Agents"].tap()
+
+        XCTAssertTrue(app.staticTexts["Agents"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["AgentsNewButton"].waitForExistence(timeout: 10))
+        app.buttons["AgentsNewButton"].tap()
+
+        XCTAssertTrue(app.textFields["AgentNameField"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textViews["AgentCustomEnvEditor"].waitForExistence(timeout: 10))
+        app.swipeUp()
+        XCTAssertTrue(app.textViews["AgentCustomArgsEditor"].waitForExistence(timeout: 10))
+        app.buttons["Cancel"].tap()
+    }
+
     func testSettingsAgentDetailRendersWhenAgentExists() throws {
         let app = launchApp(initialTab: "settings")
 

@@ -33,22 +33,48 @@ final class AgentsViewModelTests: XCTestCase {
     func test_createAndUpdateReplaceAgentInList() async throws {
         var requests: [(String, String)] = []
         var requestURLs: [URL] = []
+        var bodies: [[String: Any]] = []
         let client = makeClient { req in
             requests.append((req.httpMethod ?? "", req.url?.path ?? ""))
             requestURLs.append(req.url!)
+            bodies.append((try? JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any]) ?? [:])
             let name = req.httpMethod == "POST" ? "Created" : "Updated"
             return Self.response(for: req, body: Self.agentJSON(id: "a1", name: name))
         }
         let vm = AgentsViewModel(api: client, authSession: makeSession())
 
-        let created = await vm.createAgent(name: "Created", description: "", instructions: "", runtimeId: "r1", visibility: "workspace", maxConcurrentTasks: 1, model: "gpt")
-        let updated = await vm.updateAgent(id: "a1", name: "Updated", description: "D", instructions: "I", visibility: "private", maxConcurrentTasks: 2, model: "gpt-5")
+        let created = await vm.createAgent(
+            name: "Created",
+            description: "",
+            instructions: "",
+            runtimeId: "r1",
+            visibility: "workspace",
+            maxConcurrentTasks: 1,
+            model: "gpt",
+            customEnv: ["ANTHROPIC_BASE_URL": "https://example.com"],
+            customArgs: ["--verbose"]
+        )
+        let updated = await vm.updateAgent(
+            id: "a1",
+            name: "Updated",
+            description: "D",
+            instructions: "I",
+            visibility: "private",
+            maxConcurrentTasks: 2,
+            model: "gpt-5",
+            customEnv: ["OPENAI_API_KEY": "sk-test"],
+            customArgs: ["--debug"]
+        )
 
         XCTAssertEqual(created?.name, "Created")
         XCTAssertEqual(updated?.name, "Updated")
         XCTAssertEqual(vm.agents.map(\.name), ["Updated"])
         XCTAssertEqual(requests.map { "\($0.0) \($0.1)" }, ["POST /api/agents", "PUT /api/agents/a1"])
         XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
+        XCTAssertEqual((bodies[0]["custom_env"] as? [String: String])?["ANTHROPIC_BASE_URL"], "https://example.com")
+        XCTAssertEqual(bodies[0]["custom_args"] as? [String], ["--verbose"])
+        XCTAssertEqual((bodies[1]["custom_env"] as? [String: String])?["OPENAI_API_KEY"], "sk-test")
+        XCTAssertEqual(bodies[1]["custom_args"] as? [String], ["--debug"])
         XCTAssertNil(vm.errorMessage)
     }
 
@@ -172,6 +198,48 @@ final class AgentsViewModelTests: XCTestCase {
         XCTAssertEqual(skillBody["skill_ids"] as? [String], ["s1", "s2"])
         XCTAssertEqual(requests, ["PUT /api/agents/a1", "PUT /api/agents/a1/skills"])
         XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_agentFormDraftParsesCustomEnvironmentAndArgs() throws {
+        let env = try AgentFormDraft.parseCustomEnvironment(
+            """
+            ANTHROPIC_BASE_URL=https://example.com
+            OPENAI_API_KEY = sk-test
+
+            EMPTY=
+            """
+        )
+        let args = AgentFormDraft.parseCustomArgs("--verbose\n--model gpt-5  --debug")
+
+        XCTAssertEqual(env["ANTHROPIC_BASE_URL"], "https://example.com")
+        XCTAssertEqual(env["OPENAI_API_KEY"], "sk-test")
+        XCTAssertEqual(env["EMPTY"], "")
+        XCTAssertEqual(args, ["--verbose", "--model", "gpt-5", "--debug"])
+    }
+
+    func test_agentFormDraftRejectsDuplicateEnvironmentKeys() throws {
+        XCTAssertThrowsError(
+            try AgentFormDraft.parseCustomEnvironment(
+                """
+                OPENAI_API_KEY=one
+                OPENAI_API_KEY=two
+                """
+            )
+        ) { error in
+            XCTAssertEqual(error as? AgentFormDraft.ValidationError, .duplicateEnvironmentKey("OPENAI_API_KEY"))
+        }
+    }
+
+    func test_agentFormDraftFormatsExistingEnvironmentAndArgs() {
+        let envText = AgentFormDraft.environmentText(from: [
+            "B": .string("two"),
+            "A": .string("one"),
+            "OBJECT": .object(["x": .string("ignored")]),
+        ])
+        let argsText = AgentFormDraft.argsText(from: ["--model", "gpt-5"])
+
+        XCTAssertEqual(envText, "A=one\nB=two")
+        XCTAssertEqual(argsText, "--model\ngpt-5")
     }
 
     private func makeSession() -> AuthSession {

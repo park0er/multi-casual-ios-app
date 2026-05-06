@@ -49,6 +49,8 @@ public final class AgentsViewModel {
         visibility: String,
         maxConcurrentTasks: Int,
         model: String,
+        customEnv: [String: String]? = nil,
+        customArgs: [String]? = nil,
         skillIds: Set<String>? = nil
     ) async -> Agent? {
         guard let workspaceId = authSession.currentWorkspace?.id else {
@@ -64,6 +66,8 @@ public final class AgentsViewModel {
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
                 model: model,
+                customEnv: customEnv,
+                customArgs: customArgs,
                 workspaceId: workspaceId
             )
         }
@@ -77,6 +81,8 @@ public final class AgentsViewModel {
         visibility: String,
         maxConcurrentTasks: Int,
         model: String,
+        customEnv: [String: String]? = nil,
+        customArgs: [String]? = nil,
         skillIds: Set<String>? = nil
     ) async -> Agent? {
         guard let workspaceId = authSession.currentWorkspace?.id else {
@@ -92,6 +98,8 @@ public final class AgentsViewModel {
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
                 model: model,
+                customEnv: customEnv,
+                customArgs: customArgs,
                 workspaceId: workspaceId
             )
         }
@@ -193,5 +201,63 @@ public final class AgentsViewModel {
 
     private func skillSort(_ lhs: Skill, _ rhs: Skill) -> Bool {
         lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+    }
+}
+
+enum AgentFormDraft {
+    enum ValidationError: LocalizedError, Equatable {
+        case duplicateEnvironmentKey(String)
+        case invalidEnvironmentLine(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .duplicateEnvironmentKey(let key):
+                return "Duplicate environment key: \(key)"
+            case .invalidEnvironmentLine(let line):
+                return "Environment line must use KEY=value: \(line)"
+            }
+        }
+    }
+
+    static func environmentText(from environment: [String: JSONValue]) -> String {
+        environment.keys.sorted().compactMap { key in
+            guard case .string(let value) = environment[key] else { return nil }
+            return "\(key)=\(value)"
+        }
+        .joined(separator: "\n")
+    }
+
+    static func argsText(from args: [String]) -> String {
+        args.joined(separator: "\n")
+    }
+
+    static func parseCustomEnvironment(_ text: String) throws -> [String: String] {
+        var environment: [String: String] = [:]
+        let lines = text.components(separatedBy: .newlines)
+
+        for rawLine in lines {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { continue }
+            guard let separator = line.firstIndex(of: "=") else {
+                throw ValidationError.invalidEnvironmentLine(line)
+            }
+
+            let key = line[..<separator].trimmingCharacters(in: .whitespaces)
+            guard !key.isEmpty else { continue }
+            guard environment[key] == nil else {
+                throw ValidationError.duplicateEnvironmentKey(String(key))
+            }
+
+            let value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
+            environment[String(key)] = String(value)
+        }
+
+        return environment
+    }
+
+    static func parseCustomArgs(_ text: String) -> [String] {
+        text
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
     }
 }

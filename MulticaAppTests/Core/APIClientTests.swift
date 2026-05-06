@@ -1627,6 +1627,8 @@ final class APIClientTests: XCTestCase {
             visibility: "workspace",
             maxConcurrentTasks: 2,
             model: "gpt-5",
+            customEnv: ["ANTHROPIC_BASE_URL": "https://example.com"],
+            customArgs: ["--verbose", "--model", "gpt-5"],
             workspaceId: "w1"
         )
 
@@ -1639,11 +1641,14 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(body["visibility"] as? String, "workspace")
         XCTAssertEqual(body["max_concurrent_tasks"] as? Int, 2)
         XCTAssertEqual(body["model"] as? String, "gpt-5")
+        XCTAssertEqual((body["custom_env"] as? [String: String])?["ANTHROPIC_BASE_URL"], "https://example.com")
+        XCTAssertEqual(body["custom_args"] as? [String], ["--verbose", "--model", "gpt-5"])
     }
 
     func test_updateArchiveRestoreAndCancelAgentUseDesktopEndpoints() async throws {
         var requests: [(String, String)] = []
         var requestURLs: [URL] = []
+        var updateBody: [String: Any] = [:]
         MockURLProtocol.handler = { req in
             requests.append((req.httpMethod ?? "", req.url?.path ?? ""))
             requestURLs.append(req.url!)
@@ -1651,12 +1656,26 @@ final class APIClientTests: XCTestCase {
             if req.url?.path == "/api/agents/a1/cancel-tasks" {
                 body = #"{"cancelled":2}"#.data(using: .utf8)!
             } else {
+                if req.url?.path == "/api/agents/a1", req.httpMethod == "PUT" {
+                    updateBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                }
                 body = Self.agentJSON(id: "a1", name: "Updated")
             }
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
         }
 
-        _ = try await client.updateAgent(id: "a1", name: "Updated", description: "", instructions: "", visibility: "private", maxConcurrentTasks: 1, model: "gpt-5", workspaceId: "w1")
+        _ = try await client.updateAgent(
+            id: "a1",
+            name: "Updated",
+            description: "",
+            instructions: "",
+            visibility: "private",
+            maxConcurrentTasks: 1,
+            model: "gpt-5",
+            customEnv: ["OPENAI_API_KEY": "sk-test"],
+            customArgs: ["--debug"],
+            workspaceId: "w1"
+        )
         _ = try await client.archiveAgent(id: "a1", workspaceId: "w1")
         _ = try await client.restoreAgent(id: "a1", workspaceId: "w1")
         let cancelled = try await client.cancelAgentTasks(id: "a1", workspaceId: "w1")
@@ -1669,6 +1688,8 @@ final class APIClientTests: XCTestCase {
         ])
         XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertEqual(cancelled.count, 2)
+        XCTAssertEqual((updateBody["custom_env"] as? [String: String])?["OPENAI_API_KEY"], "sk-test")
+        XCTAssertEqual(updateBody["custom_args"] as? [String], ["--debug"])
     }
 
     func test_listRuntimes_decodesWorkspaceRuntimes() async throws {
