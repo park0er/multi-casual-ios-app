@@ -1016,7 +1016,7 @@ private struct ReactionBarView: View {
                 Button {
                     onToggle(badge.emoji)
                 } label: {
-                    Text("\(badge.emoji) \(badge.count)")
+                    MarkdownText("\(badge.emoji) \(badge.count)")
                         .font(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)

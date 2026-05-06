@@ -27,7 +27,7 @@ public struct OTPView: View {
                 Task { await viewModel.resendCode() }
             } label: {
                 if viewModel.cooldownSeconds > 0 {
-                    Text("Resend in \(viewModel.cooldownSeconds)s").foregroundStyle(.secondary)
+                    MarkdownText("Resend in \(viewModel.cooldownSeconds)s").foregroundStyle(.secondary)
                 } else {
                     Text("Resend code").foregroundStyle(.blue)
                 }
@@ -55,7 +55,7 @@ struct OTPInputField: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(isFocused ? Color.primary : Color.secondary.opacity(0.4), lineWidth: 2)
                         .frame(width: 48, height: 56)
-                    Text(char).font(.title2.bold())
+                    MarkdownText(char).font(.title2.bold())
                 }
             }
         }

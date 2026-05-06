@@ -211,7 +211,7 @@ private struct ChatMessageRow: View {
                     .font(.caption)
                     .foregroundStyle(.red)
             } else if let elapsedMs = message.elapsedMs {
-                Text("Replied in \(max(1, elapsedMs / 1000))s")
+                MarkdownText("Replied in \(max(1, elapsedMs / 1000))s")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

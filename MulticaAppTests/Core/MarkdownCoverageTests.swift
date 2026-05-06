@@ -207,6 +207,30 @@ final class MarkdownCoverageTests: XCTestCase {
             (
                 "Multi-Casual/Features/Settings/AutopilotsView.swift",
                 "                Text(run.triggeredAt.formatted(date: .abbreviated, time: .shortened))"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueListView.swift",
+                #"                            Text("(\(issues.count))").font(.caption).foregroundStyle(.secondary)"#
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                #"                    Text("\(badge.emoji) \(badge.count)")"#
+            ),
+            (
+                "Multi-Casual/Features/Issues/AgentLiveView.swift",
+                #"                        Text("\(timeline.count) events").font(.caption).foregroundStyle(.secondary)"#
+            ),
+            (
+                "Multi-Casual/Features/Chat/ChatView.swift",
+                #"                Text("Replied in \(max(1, elapsedMs / 1000))s")"#
+            ),
+            (
+                "Multi-Casual/Features/Auth/OTPView.swift",
+                #"                    Text("Resend in \(viewModel.cooldownSeconds)s").foregroundStyle(.secondary)"#
+            ),
+            (
+                "Multi-Casual/Features/Auth/OTPView.swift",
+                "                    Text(char).font(.title2.bold())"
             )
         ]
 

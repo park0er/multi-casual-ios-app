@@ -27,7 +27,7 @@ public struct AgentLiveView: View {
                     Text("Agent").font(.subheadline.bold())
                     Spacer()
                     if !timeline.isEmpty {
-                        Text("\(timeline.count) events").font(.caption).foregroundStyle(.secondary)
+                        MarkdownText("\(timeline.count) events").font(.caption).foregroundStyle(.secondary)
                     }
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                         .font(.caption).foregroundStyle(.secondary)

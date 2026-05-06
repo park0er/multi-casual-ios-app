@@ -213,7 +213,7 @@ public struct IssueListView: View {
                         HStack {
                             Image(systemName: status.icon)
                             MarkdownText(status.displayName).font(.caption.bold())
-                            Text("(\(issues.count))").font(.caption).foregroundStyle(.secondary)
+                            MarkdownText("(\(issues.count))").font(.caption).foregroundStyle(.secondary)
                         }
                         .padding(.horizontal, 8)
                         ForEach(issues) { issue in
