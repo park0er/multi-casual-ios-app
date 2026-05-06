@@ -239,6 +239,34 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(requests[1].queryItems.first(where: { $0.name == "limit" })?.value, "10")
     }
 
+    func test_quickCreateIssueUsesDesktopEndpointAndBody() async throws {
+        var capturedURL: URL?
+        var capturedBody: [String: Any]?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            capturedBody = try? JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any]
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/issues/quick-create")
+            XCTAssertEqual(req.url?.query, "workspace_id=w1")
+            let json = #"{"task_id":"task1"}"#.data(using: .utf8)!
+            return (
+                HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                json
+            )
+        }
+
+        let response = try await client.quickCreateIssue(
+            agentId: "agent1",
+            prompt: "Create an issue from this prompt",
+            workspaceId: "w1"
+        )
+
+        XCTAssertEqual(response.taskId, "task1")
+        XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
+        XCTAssertEqual(capturedBody?["agent_id"] as? String, "agent1")
+        XCTAssertEqual(capturedBody?["prompt"] as? String, "Create an issue from this prompt")
+    }
+
     func test_getIssue_sendsWorkspaceIdParamWhenProvided() async throws {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,

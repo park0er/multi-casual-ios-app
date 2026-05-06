@@ -72,6 +72,49 @@ private struct IssueCreateForm: View {
                         .frame(minHeight: 120)
                 }
 
+                Section {
+                    Picker("Agent", selection: $viewModel.selectedQuickCreateAgentId) {
+                        if viewModel.quickCreateAgentOptions.isEmpty {
+                            Text("No agents available").tag(String?.none)
+                        } else {
+                            ForEach(viewModel.quickCreateAgentOptions) { option in
+                                MarkdownText(option.displayName).tag(Optional(option.assigneeId))
+                            }
+                        }
+                    }
+                    .pickerStyle(.navigationLink)
+                    .disabled(viewModel.quickCreateAgentOptions.isEmpty || viewModel.isQuickCreating)
+                    .accessibilityIdentifier("IssueQuickCreateAgentPicker")
+
+                    TextEditor(text: $viewModel.quickCreatePrompt)
+                        .frame(minHeight: 100)
+                        .accessibilityIdentifier("IssueQuickCreatePromptEditor")
+
+                    Button {
+                        Task {
+                            _ = await viewModel.submitQuickCreate()
+                        }
+                    } label: {
+                        if viewModel.isQuickCreating {
+                            ProgressView()
+                        } else {
+                            Label("Send to Agent", systemImage: "paperplane")
+                        }
+                    }
+                    .disabled(!viewModel.canQuickCreate)
+                    .accessibilityIdentifier("IssueQuickCreateSendButton")
+
+                    if let message = viewModel.quickCreateSuccessMessage {
+                        MarkdownText(message)
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                } header: {
+                    Text("Create with Agent")
+                } footer: {
+                    MarkdownText("Describe the issue and let the selected agent create it in the background.")
+                }
+
                 Section("Details") {
                     Picker("Status", selection: $viewModel.status) {
                         ForEach(viewModel.statusOptions, id: \.self) { status in

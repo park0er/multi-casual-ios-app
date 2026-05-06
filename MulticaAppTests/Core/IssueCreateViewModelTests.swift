@@ -47,8 +47,61 @@ final class IssueCreateViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.assigneeOptions.map(\.id), ["member:u1", "agent:a1"])
         XCTAssertEqual(vm.assigneeOptions.map(\.displayName), ["Parker", "Codex"])
+        XCTAssertEqual(vm.quickCreateAgentOptions.map(\.assigneeId), ["a1"])
+        XCTAssertEqual(vm.selectedQuickCreateAgentId, "a1")
         XCTAssertEqual(vm.projects.map(\.id), ["p1"])
         XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_quickCreateRequiresWorkspacePromptAndAgentBeforeCallingBackend() async throws {
+        var didRequest = false
+        let client = makeClient { req in
+            didRequest = true
+            return Self.response(for: req, body: Data(#"{"task_id":"task1"}"#.utf8))
+        }
+        let vmWithoutWorkspace = IssueCreateViewModel(api: client, authSession: makeSession(includeWorkspace: false))
+
+        let missingWorkspace = await vmWithoutWorkspace.submitQuickCreate()
+        XCTAssertFalse(missingWorkspace)
+        XCTAssertEqual(vmWithoutWorkspace.errorMessage, "Pick a workspace before creating with an agent.")
+
+        let vm = IssueCreateViewModel(api: client, authSession: makeSession())
+        vm.quickCreatePrompt = "   "
+        let missingPrompt = await vm.submitQuickCreate()
+        XCTAssertFalse(missingPrompt)
+        XCTAssertEqual(vm.errorMessage, "Describe what the agent should create.")
+
+        vm.quickCreatePrompt = "Create this"
+        vm.selectedQuickCreateAgentId = nil
+        let missingAgent = await vm.submitQuickCreate()
+        XCTAssertFalse(missingAgent)
+        XCTAssertEqual(vm.errorMessage, "Pick an agent before creating with agent.")
+        XCTAssertFalse(didRequest)
+    }
+
+    func test_quickCreateTrimsPromptAndStoresTaskResult() async throws {
+        var capturedBody: [String: Any]?
+        let client = makeClient { req in
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/issues/quick-create")
+            XCTAssertEqual(req.url?.query, "workspace_id=w1")
+            capturedBody = try? JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any]
+            return Self.response(for: req, body: Data(#"{"task_id":"task1"}"#.utf8))
+        }
+        let vm = IssueCreateViewModel(api: client, authSession: makeSession())
+        vm.quickCreatePrompt = "  **Create** issue from prompt  "
+        vm.selectedQuickCreateAgentId = "a1"
+
+        let submitted = await vm.submitQuickCreate()
+
+        XCTAssertTrue(submitted)
+        XCTAssertEqual(capturedBody?["agent_id"] as? String, "a1")
+        XCTAssertEqual(capturedBody?["prompt"] as? String, "**Create** issue from prompt")
+        XCTAssertEqual(vm.quickCreateTaskId, "task1")
+        XCTAssertEqual(vm.quickCreateSuccessMessage, "Sent to agent. You'll get an inbox notification when it's done.")
+        XCTAssertEqual(vm.quickCreatePrompt, "")
+        XCTAssertNil(vm.errorMessage)
+        XCTAssertFalse(vm.isQuickCreating)
     }
 
     func test_loadOptions_paginatesProjectChoices() async throws {
@@ -239,10 +292,16 @@ final class IssueCreateViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
-    private func makeSession() -> AuthSession {
+    private func makeSession(workspace override: Workspace? = nil, includeWorkspace: Bool = true) -> AuthSession {
         let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.issue-create.test"))
-        session.currentWorkspace = workspace
-        session.workspaces = [workspace]
+        guard includeWorkspace else {
+            session.currentWorkspace = nil
+            session.workspaces = []
+            return session
+        }
+        let currentWorkspace = override ?? workspace
+        session.currentWorkspace = currentWorkspace
+        session.workspaces = [currentWorkspace]
         return session
     }
 

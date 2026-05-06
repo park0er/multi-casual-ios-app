@@ -19,6 +19,14 @@ public final class APIClient: @unchecked Sendable {
         }
     }
 
+    public struct QuickCreateIssueResponse: Codable, Equatable, Sendable {
+        public let taskId: String
+
+        enum CodingKeys: String, CodingKey {
+            case taskId = "task_id"
+        }
+    }
+
     public struct BatchUpdateIssuesResponse: Codable, Sendable {
         public let updated: Int
     }
@@ -785,6 +793,16 @@ public final class APIClient: @unchecked Sendable {
         }
     }
 
+    private struct QuickCreateIssueRequest: Encodable {
+        let agentId: String
+        let prompt: String
+
+        enum CodingKeys: String, CodingKey {
+            case agentId = "agent_id"
+            case prompt
+        }
+    }
+
     private struct UpdateIssueRequest: Encodable {
         let status: IssueStatus?
         let priority: IssuePriority?
@@ -952,6 +970,15 @@ public final class APIClient: @unchecked Sendable {
                             dueDate: dueDate,
                             attachmentIds: attachmentIds?.isEmpty == false ? attachmentIds : nil
                           ))
+    }
+
+    public func quickCreateIssue(agentId: String, prompt: String, workspaceId: String) async throws -> QuickCreateIssueResponse {
+        try await request(
+            "POST",
+            path: "api/issues/quick-create",
+            queryItems: workspaceQuery(workspaceId),
+            body: QuickCreateIssueRequest(agentId: agentId, prompt: prompt)
+        )
     }
 
     public func listComments(issueId: String, workspaceId: String? = nil, limit: Int = 50, offset: Int = 0) async throws -> PageResponse<Comment> {

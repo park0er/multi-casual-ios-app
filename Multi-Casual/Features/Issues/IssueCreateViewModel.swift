@@ -36,7 +36,12 @@ public final class IssueCreateViewModel {
     public var attachments: [Attachment] = []
     public var isLoadingOptions = false
     public var isSubmitting = false
+    public var isQuickCreating = false
     public var isUploadingAttachment = false
+    public var quickCreatePrompt = ""
+    public var selectedQuickCreateAgentId: String?
+    public var quickCreateTaskId: String?
+    public var quickCreateSuccessMessage: String?
     public var errorMessage: String?
 
     private let api: APIClient
@@ -66,6 +71,13 @@ public final class IssueCreateViewModel {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSubmitting
     }
 
+    public var canQuickCreate: Bool {
+        !quickCreatePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        selectedQuickCreateAgentId != nil &&
+        !isQuickCreating &&
+        !isUploadingAttachment
+    }
+
     public var statusOptions: [IssueStatus] {
         IssueStatus.allCases.filter { $0 != .unknown }
     }
@@ -80,6 +92,10 @@ public final class IssueCreateViewModel {
 
     public var selectedProject: Project? {
         projects.first { $0.id == selectedProjectId }
+    }
+
+    public var quickCreateAgentOptions: [IssueAssigneeOption] {
+        assigneeOptions.filter { $0.type == "agent" }
     }
 
     public func loadOptions() async {
@@ -124,6 +140,10 @@ public final class IssueCreateViewModel {
             }
             if selectedProjectId != Self.noProjectId && selectedProject == nil {
                 selectedProjectId = Self.noProjectId
+            }
+            if selectedQuickCreateAgentId == nil ||
+                !quickCreateAgentOptions.contains(where: { $0.assigneeId == selectedQuickCreateAgentId }) {
+                selectedQuickCreateAgentId = quickCreateAgentOptions.first?.assigneeId
             }
             applyDebugCreateDefaults()
         } catch {
@@ -184,6 +204,48 @@ public final class IssueCreateViewModel {
                 dueDate: includesDueDate ? dateFormatter.string(from: dueDate) : nil,
                 attachmentIds: attachments.map(\.id)
             )
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    public func submitQuickCreate() async -> Bool {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before creating with an agent."
+            quickCreateSuccessMessage = nil
+            return false
+        }
+
+        let trimmedPrompt = quickCreatePrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPrompt.isEmpty else {
+            errorMessage = "Describe what the agent should create."
+            quickCreateSuccessMessage = nil
+            return false
+        }
+
+        guard let agentId = selectedQuickCreateAgentId, !agentId.isEmpty else {
+            errorMessage = "Pick an agent before creating with agent."
+            quickCreateSuccessMessage = nil
+            return false
+        }
+        guard !isQuickCreating else { return false }
+
+        isQuickCreating = true
+        errorMessage = nil
+        quickCreateSuccessMessage = nil
+        defer { isQuickCreating = false }
+
+        do {
+            let response = try await api.quickCreateIssue(
+                agentId: agentId,
+                prompt: trimmedPrompt,
+                workspaceId: workspaceId
+            )
+            quickCreateTaskId = response.taskId
+            quickCreateSuccessMessage = "Sent to agent. You'll get an inbox notification when it's done."
+            quickCreatePrompt = ""
             return true
         } catch {
             errorMessage = error.localizedDescription
