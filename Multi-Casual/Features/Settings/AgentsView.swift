@@ -1,5 +1,6 @@
 #if canImport(SwiftUI) && canImport(UIKit)
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct AgentsView: View {
     @Environment(APIClient.self) private var api
@@ -502,6 +503,7 @@ private struct AgentFormSheet: View {
     @State private var customArgsText: String
     @State private var selectedSkillIds: Set<String>
     @State private var isLoadingSkills = false
+    @State private var isShowingAvatarImporter = false
     @State private var validationError: String?
 
     init(agent: Agent?, viewModel: AgentsViewModel, onSave: ((Agent) -> Void)? = nil) {
@@ -532,6 +534,17 @@ private struct AgentFormSheet: View {
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
                         .accessibilityIdentifier("AgentAvatarURLField")
+                    Button {
+                        isShowingAvatarImporter = true
+                    } label: {
+                        if viewModel.isMutating {
+                            ProgressView()
+                        } else {
+                            Label("Upload Avatar", systemImage: "photo")
+                        }
+                    }
+                    .disabled(viewModel.isMutating)
+                    .accessibilityIdentifier("AgentAvatarUploadButton")
                     TextEditor(text: $description)
                         .frame(minHeight: 80)
                         .accessibilityIdentifier("AgentDescriptionEditor")
@@ -634,6 +647,13 @@ private struct AgentFormSheet: View {
             }
         }
         .task { await loadSkills() }
+        .fileImporter(
+            isPresented: $isShowingAvatarImporter,
+            allowedContentTypes: [.image],
+            allowsMultipleSelection: false
+        ) { result in
+            handleAvatarImport(result)
+        }
     }
 
     private var canSubmit: Bool {
@@ -712,6 +732,33 @@ private struct AgentFormSheet: View {
         await viewModel.loadSkillOptions(for: agent?.id)
         if let agent {
             selectedSkillIds = viewModel.assignedSkillIdsByAgentId[agent.id] ?? []
+        }
+    }
+
+    private func handleAvatarImport(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            let payload = try AttachmentImport.payload(from: url)
+            Task {
+                if let agent {
+                    if let updated = await viewModel.uploadAvatar(
+                        for: agent,
+                        filename: payload.filename,
+                        data: payload.data,
+                        contentType: payload.contentType
+                    ) {
+                        avatarUrl = updated.avatarUrl ?? ""
+                    }
+                } else if let uploadedUrl = await viewModel.uploadAvatarFile(
+                    filename: payload.filename,
+                    data: payload.data,
+                    contentType: payload.contentType
+                ) {
+                    avatarUrl = uploadedUrl
+                }
+            }
+        } catch {
+            validationError = error.localizedDescription
         }
     }
 

@@ -94,6 +94,42 @@ final class AgentsViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_uploadAvatarUploadsFileAndUpdatesAgentAvatarURL() async throws {
+        var requests: [(String, String)] = []
+        var updateBody: [String: Any] = [:]
+        let client = makeClient { req in
+            requests.append((req.httpMethod ?? "", req.url?.path ?? ""))
+            XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/upload-file"):
+                XCTAssertTrue(req.value(forHTTPHeaderField: "Content-Type")?.hasPrefix("multipart/form-data; boundary=") ?? false)
+                return Self.response(for: req, body: Self.attachmentJSON(url: "https://cdn.example/avatar.png"))
+            case ("PUT", "/api/agents/a1"):
+                updateBody = (try? JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any]) ?? [:]
+                return Self.response(for: req, body: Self.agentJSON(id: "a1", name: "Codex", avatarUrl: "https://cdn.example/avatar.png"))
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = AgentsViewModel(api: client, authSession: makeSession())
+        let agent = Self.makeAgent(id: "a1", name: "Codex", avatarUrl: nil)
+        vm.agents = [agent]
+
+        let updated = await vm.uploadAvatar(
+            for: agent,
+            filename: "avatar.png",
+            data: Data([0x89, 0x50, 0x4E, 0x47]),
+            contentType: "image/png"
+        )
+
+        XCTAssertEqual(requests.map { "\($0.0) \($0.1)" }, ["POST /api/upload-file", "PUT /api/agents/a1"])
+        XCTAssertEqual(updated?.avatarUrl, "https://cdn.example/avatar.png")
+        XCTAssertEqual(vm.agents.first?.avatarUrl, "https://cdn.example/avatar.png")
+        XCTAssertEqual(updateBody["avatar_url"] as? String, "https://cdn.example/avatar.png")
+        XCTAssertNil(vm.errorMessage)
+    }
+
     func test_agentPermissionsMatchDesktopOwnerOrWorkspaceAdmin() async throws {
         let adminClient = makeClient { req in
             switch req.url?.path {
@@ -411,15 +447,37 @@ final class AgentsViewModelTests: XCTestCase {
         """.data(using: .utf8)!
     }
 
-    private static func agentJSON(id: String, name: String, ownerId: String? = nil, runtimeId: String = "r1") -> Data {
+    private static func makeAgent(id: String, name: String, avatarUrl: String?) -> Agent {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try! decoder.decode(Agent.self, from: agentJSON(id: id, name: name, avatarUrl: avatarUrl))
+    }
+
+    private static func agentJSON(
+        id: String,
+        name: String,
+        ownerId: String? = nil,
+        runtimeId: String = "r1",
+        avatarUrl: String? = nil
+    ) -> Data {
         let ownerJSON = ownerId.map { "\"\($0)\"" } ?? "null"
+        let avatarJSON = avatarUrl.map { "\"\($0)\"" } ?? "null"
         return """
         {"id":"\(id)","workspace_id":"w1","runtime_id":"\(runtimeId)","name":"\(name)",
-          "description":"**Markdown** description","instructions":"Be useful","avatar_url":null,"runtime_mode":"cloud",
+          "description":"**Markdown** description","instructions":"Be useful","avatar_url":\(avatarJSON),"runtime_mode":"cloud",
           "runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,
           "visibility":"workspace","status":"idle","max_concurrent_tasks":1,
           "model":"gpt","owner_id":\(ownerJSON),"skills":[],"created_at":"2026-01-01T00:00:00Z",
           "updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}
+        """.data(using: .utf8)!
+    }
+
+    private static func attachmentJSON(url: String) -> Data {
+        """
+        {"id":"att1","workspace_id":"w1","issue_id":null,"comment_id":null,
+         "uploader_type":"member","uploader_id":"u1","filename":"avatar.png",
+         "url":"\(url)","download_url":"\(url)",
+         "content_type":"image/png","size_bytes":4,"created_at":"2026-01-01T00:00:00Z"}
         """.data(using: .utf8)!
     }
 

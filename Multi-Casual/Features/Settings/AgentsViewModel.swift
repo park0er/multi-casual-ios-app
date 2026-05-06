@@ -145,6 +145,67 @@ public final class AgentsViewModel {
         }
     }
 
+    public func uploadAvatarFile(filename: String, data: Data, contentType: String) async -> String? {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before uploading an agent avatar."
+            return nil
+        }
+        guard !isMutating else { return nil }
+        isMutating = true
+        errorMessage = nil
+        lastActionMessage = nil
+        defer { isMutating = false }
+
+        do {
+            let attachment = try await api.uploadFile(
+                filename: filename,
+                data: data,
+                contentType: contentType,
+                workspaceId: workspaceId
+            )
+            return attachment.url
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    public func uploadAvatar(
+        for agent: Agent,
+        filename: String,
+        data: Data,
+        contentType: String
+    ) async -> Agent? {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before uploading an agent avatar."
+            return nil
+        }
+        guard !isMutating else { return nil }
+        isMutating = true
+        errorMessage = nil
+        lastActionMessage = nil
+        defer { isMutating = false }
+
+        do {
+            let attachment = try await api.uploadFile(
+                filename: filename,
+                data: data,
+                contentType: contentType,
+                workspaceId: workspaceId
+            )
+            let updated = try await api.updateAgentAvatar(
+                id: agent.id,
+                avatarUrl: attachment.url,
+                workspaceId: workspaceId
+            )
+            upsert(updated)
+            return updated
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
     public func archiveAgent(id: String) async {
         guard let workspaceId = authSession.currentWorkspace?.id else {
             errorMessage = "Pick a workspace before managing agents."

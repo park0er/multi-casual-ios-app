@@ -1413,6 +1413,14 @@ public final class APIClient: @unchecked Sendable {
         }
     }
 
+    private struct AgentAvatarUpdateRequest: Encodable {
+        let avatarUrl: String
+
+        enum CodingKeys: String, CodingKey {
+            case avatarUrl = "avatar_url"
+        }
+    }
+
     public func listAgents(workspaceId: String, includeArchived: Bool = false) async throws -> [Agent] {
         var queryItems = workspaceQuery(workspaceId)
         if includeArchived {
@@ -1483,6 +1491,15 @@ public final class APIClient: @unchecked Sendable {
                 customEnv: customEnv,
                 customArgs: customArgs
             )
+        )
+    }
+
+    public func updateAgentAvatar(id: String, avatarUrl: String, workspaceId: String? = nil) async throws -> Agent {
+        try await request(
+            "PUT",
+            path: "api/agents/\(id)",
+            queryItems: workspaceQuery(workspaceId),
+            body: AgentAvatarUpdateRequest(avatarUrl: avatarUrl)
         )
     }
 
