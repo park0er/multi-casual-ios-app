@@ -679,6 +679,82 @@ public struct RuntimeUsageByHour: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+public struct AgentActivityBucket: Codable, Sendable, Hashable, Identifiable {
+    public var id: String { "\(agentId):\(bucketAt)" }
+    public let agentId: String
+    public let bucketAt: String
+    public let taskCount: Int
+    public let failedCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case agentId = "agent_id"
+        case bucketAt = "bucket_at"
+        case taskCount = "task_count"
+        case failedCount = "failed_count"
+    }
+
+    public init(agentId: String, bucketAt: String, taskCount: Int, failedCount: Int) {
+        self.agentId = agentId
+        self.bucketAt = bucketAt
+        self.taskCount = taskCount
+        self.failedCount = failedCount
+    }
+}
+
+public struct AgentActivitySummary: Sendable, Hashable {
+    public let totalRuns: Int
+    public let failedRuns: Int
+    public let successPercent: Int
+    public let averageDurationSeconds: Int?
+
+    public static let empty = AgentActivitySummary(
+        totalRuns: 0,
+        failedRuns: 0,
+        successPercent: 100,
+        averageDurationSeconds: nil
+    )
+
+    public static func summarize(
+        _ buckets: [AgentActivityBucket],
+        agentId: String,
+        tasks: [AgentTask],
+        now: Date = Date()
+    ) -> AgentActivitySummary {
+        let agentBuckets = buckets.filter { $0.agentId == agentId }
+        let totalRuns = agentBuckets.reduce(0) { $0 + $1.taskCount }
+        let failedRuns = agentBuckets.reduce(0) { $0 + $1.failedCount }
+        let successPercent = totalRuns > 0
+            ? Int((Double(totalRuns - failedRuns) / Double(totalRuns) * 100).rounded())
+            : 100
+
+        let cutoff = now.addingTimeInterval(-30 * 24 * 60 * 60)
+        var durationSum: TimeInterval = 0
+        var durationCount = 0
+        for task in tasks where task.agentId == nil || task.agentId == agentId {
+            guard let startedAt = task.startedAt,
+                  let completedAt = task.completedAt,
+                  completedAt >= cutoff
+            else { continue }
+
+            let duration = completedAt.timeIntervalSince(startedAt)
+            guard duration > 0 else { continue }
+            durationSum += duration
+            durationCount += 1
+        }
+
+        let averageDurationSeconds = durationCount > 0
+            ? Int((durationSum / Double(durationCount)).rounded())
+            : nil
+
+        return AgentActivitySummary(
+            totalRuns: totalRuns,
+            failedRuns: failedRuns,
+            successPercent: successPercent,
+            averageDurationSeconds: averageDurationSeconds
+        )
+    }
+}
+
 public struct RuntimeModelInfo: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let name: String

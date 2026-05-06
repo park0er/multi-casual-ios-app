@@ -243,6 +243,29 @@ private struct AgentDetailView: View {
                         }
                     }
 
+                    Section("Last 30 Days") {
+                        if let activityErrorMessage = vm.activityErrorMessage {
+                            MarkdownText(activityErrorMessage)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else if vm.activitySummary.totalRuns == 0 {
+                            MarkdownText("No runs in the last 30 days.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            MarkdownLabeledContent("Runs", value: vm.activitySummary.totalRuns.formatted())
+                            MarkdownLabeledContent("Success", value: "\(vm.activitySummary.successPercent)%")
+                            if vm.activitySummary.failedRuns > 0 {
+                                MarkdownLabeledContent("Failed", value: vm.activitySummary.failedRuns.formatted())
+                            }
+                            if let averageDurationSeconds = vm.activitySummary.averageDurationSeconds {
+                                MarkdownLabeledContent(
+                                    "Average Duration",
+                                    value: formatAgentDuration(seconds: averageDurationSeconds)
+                                )
+                            }
+                        }
+                    }
+
                     Section("Recent Work") {
                         if vm.isLoading && vm.recentTasks.isEmpty {
                             ProgressView()
@@ -383,6 +406,20 @@ private struct AgentTaskRow: View {
         }
         .padding(.vertical, 2)
     }
+}
+
+private func formatAgentDuration(seconds: Int) -> String {
+    if seconds < 60 {
+        return "\(max(1, seconds))s"
+    }
+    if seconds < 3600 {
+        let minutes = seconds / 60
+        let remainder = seconds % 60
+        return "\(minutes)m \(String(format: "%02d", remainder))s"
+    }
+    let hours = seconds / 3600
+    let minutes = (seconds % 3600) / 60
+    return "\(hours)h \(minutes)m"
 }
 
 private struct AgentFormSheet: View {

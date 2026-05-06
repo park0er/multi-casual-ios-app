@@ -8,6 +8,8 @@ public final class AgentDetailViewModel {
     public var ownerName: String?
     public var runtimeName: String?
     public var tasks: [AgentTask] = []
+    public var activitySummary: AgentActivitySummary = .empty
+    public var activityErrorMessage: String?
     public var isLoading = false
     public var errorMessage: String?
 
@@ -47,6 +49,7 @@ public final class AgentDetailViewModel {
             async let members = api.listMembers(workspaceId: workspaceId)
             async let runtimes = api.listRuntimes(workspaceId: workspaceId)
             async let agentTasks = api.listAgentTasks(agentId: agent.id, workspaceId: workspaceId)
+            async let activityBuckets = api.getWorkspaceAgentActivity30d(workspaceId: workspaceId)
 
             let loadedMembers = try await members
             let loadedRuntimes = try await runtimes
@@ -57,6 +60,18 @@ public final class AgentDetailViewModel {
             }
             runtimeName = loadedRuntimes.first { $0.id == agent.runtimeId }?.name
             tasks = loadedTasks
+            do {
+                let loadedActivityBuckets = try await activityBuckets
+                activitySummary = AgentActivitySummary.summarize(
+                    loadedActivityBuckets,
+                    agentId: agent.id,
+                    tasks: loadedTasks
+                )
+                activityErrorMessage = nil
+            } catch {
+                activitySummary = .empty
+                activityErrorMessage = error.localizedDescription
+            }
         } catch {
             errorMessage = error.localizedDescription
         }

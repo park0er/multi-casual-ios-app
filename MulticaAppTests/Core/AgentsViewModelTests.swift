@@ -140,6 +140,9 @@ final class AgentsViewModelTests: XCTestCase {
             case "/api/agents/a1/tasks":
                 XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
                 return Self.response(for: req, body: Self.agentTasksJSON())
+            case "/api/agent-activity-30d":
+                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+                return Self.response(for: req, body: Self.agentActivityJSON())
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -156,12 +159,53 @@ final class AgentsViewModelTests: XCTestCase {
             "GET /api/workspaces/w1/members",
             "GET /api/runtimes",
             "GET /api/agents/a1/tasks",
+            "GET /api/agent-activity-30d",
         ]))
         XCTAssertEqual(vm.ownerName, "Parker")
         XCTAssertEqual(vm.runtimeName, "MacBook")
         XCTAssertEqual(vm.activeTasks.map(\.id), ["t2"])
         XCTAssertEqual(vm.recentTasks.map(\.id), ["t1"])
+        XCTAssertEqual(vm.activitySummary.totalRuns, 4)
+        XCTAssertEqual(vm.activitySummary.failedRuns, 1)
+        XCTAssertEqual(vm.activitySummary.successPercent, 75)
+        XCTAssertEqual(vm.activitySummary.averageDurationSeconds, 300)
         XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_agentActivitySummaryFiltersToAgentAndLast30Days() {
+        let formatter = ISO8601DateFormatter()
+        let now = formatter.date(from: "2026-01-31T00:00:00Z")!
+        let tasks = [
+            AgentTask(
+                id: "recent",
+                issueId: "i1",
+                status: "completed",
+                startedAt: formatter.date(from: "2026-01-30T00:00:00Z"),
+                completedAt: formatter.date(from: "2026-01-30T00:10:00Z"),
+                error: nil,
+                agentId: "a1"
+            ),
+            AgentTask(
+                id: "old",
+                issueId: "i2",
+                status: "completed",
+                startedAt: formatter.date(from: "2025-12-01T00:00:00Z"),
+                completedAt: formatter.date(from: "2025-12-01T00:30:00Z"),
+                error: nil,
+                agentId: "a1"
+            ),
+        ]
+        let buckets = [
+            AgentActivityBucket(agentId: "a1", bucketAt: "2026-01-30T00:00:00Z", taskCount: 3, failedCount: 1),
+            AgentActivityBucket(agentId: "a2", bucketAt: "2026-01-30T00:00:00Z", taskCount: 9, failedCount: 9),
+        ]
+
+        let summary = AgentActivitySummary.summarize(buckets, agentId: "a1", tasks: tasks, now: now)
+
+        XCTAssertEqual(summary.totalRuns, 3)
+        XCTAssertEqual(summary.failedRuns, 1)
+        XCTAssertEqual(summary.successPercent, 67)
+        XCTAssertEqual(summary.averageDurationSeconds, 600)
     }
 
     func test_updateAgentSavesSkillAssignments() async throws {
@@ -303,9 +347,18 @@ final class AgentsViewModelTests: XCTestCase {
         """
         [
           {"id":"t1","agent_id":"a1","issue_id":"i1","status":"completed",
-           "started_at":"2026-01-01T00:00:00Z","completed_at":"2026-01-01T00:05:00Z","error":null},
+           "started_at":"2026-05-06T00:00:00Z","completed_at":"2026-05-06T00:05:00Z","error":null},
           {"id":"t2","agent_id":"a1","issue_id":"i2","status":"running",
-           "started_at":"2026-01-02T00:00:00Z","completed_at":null,"error":null}
+           "started_at":"2026-05-06T01:00:00Z","completed_at":null,"error":null}
+        ]
+        """.data(using: .utf8)!
+    }
+
+    private static func agentActivityJSON() -> Data {
+        """
+        [
+          {"agent_id":"a1","bucket_at":"2026-01-01T00:00:00Z","task_count":4,"failed_count":1},
+          {"agent_id":"a2","bucket_at":"2026-01-01T00:00:00Z","task_count":8,"failed_count":8}
         ]
         """.data(using: .utf8)!
     }

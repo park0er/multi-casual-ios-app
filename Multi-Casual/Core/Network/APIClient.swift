@@ -1495,6 +1495,10 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/agents/\(agentId)/tasks", queryItems: workspaceQuery(workspaceId))
     }
 
+    public func getWorkspaceAgentActivity30d(workspaceId: String? = nil) async throws -> [AgentActivityBucket] {
+        try await request("GET", path: "api/agent-activity-30d", queryItems: workspaceQuery(workspaceId))
+    }
+
     public func listRuntimes(workspaceId: String) async throws -> [AgentRuntime] {
         try await request("GET", path: "api/runtimes", queryItems: workspaceQuery(workspaceId))
     }

@@ -1905,6 +1905,26 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(byHour.first?.totalTokens, 37)
     }
 
+    func test_getWorkspaceAgentActivity30d_usesDesktopEndpoint() async throws {
+        var capturedRequest: URLRequest?
+        MockURLProtocol.handler = { req in
+            capturedRequest = req
+            let body = """
+            [{"agent_id":"a1","bucket_at":"2026-01-01T00:00:00Z","task_count":4,"failed_count":1}]
+            """.data(using: .utf8)!
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+        }
+
+        let buckets = try await client.getWorkspaceAgentActivity30d(workspaceId: "w1")
+
+        XCTAssertEqual(capturedRequest?.httpMethod, "GET")
+        XCTAssertEqual(capturedRequest?.url?.path, "/api/agent-activity-30d")
+        XCTAssertTrue(capturedRequest?.url?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertEqual(buckets.first?.agentId, "a1")
+        XCTAssertEqual(buckets.first?.taskCount, 4)
+        XCTAssertEqual(buckets.first?.failedCount, 1)
+    }
+
     func test_runtimeModelAndLocalSkillRequestEndpointsUseDesktopPaths() async throws {
         var requests: [String] = []
         var queries: [String] = []
