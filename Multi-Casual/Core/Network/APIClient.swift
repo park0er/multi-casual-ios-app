@@ -484,6 +484,10 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/issues/\(issueId)/timeline")
     }
 
+    public func getIssueUsage(issueId: String) async throws -> IssueUsageSummary {
+        try await request("GET", path: "api/issues/\(issueId)/usage")
+    }
+
     public func updateComment(commentId: String, content: String) async throws -> Comment {
         try await request(
             "PUT",

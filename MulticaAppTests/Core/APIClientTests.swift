@@ -452,6 +452,26 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(entries.last?.content, "**Done**")
     }
 
+    func test_getIssueUsage_decodesDesktopSummary() async throws {
+        let json = """
+        {"total_input_tokens":1200,"total_output_tokens":340,
+         "total_cache_read_tokens":50,"total_cache_write_tokens":10,
+         "task_count":3}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/usage")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let usage = try await client.getIssueUsage(issueId: "i1")
+
+        XCTAssertEqual(usage.taskCount, 3)
+        XCTAssertEqual(usage.totalInputTokens, 1_200)
+        XCTAssertEqual(usage.totalOutputTokens, 340)
+        XCTAssertEqual(usage.totalCacheReadTokens, 50)
+        XCTAssertEqual(usage.totalCacheWriteTokens, 10)
+    }
+
     func test_updateIssue_sendsWorkspaceIdAndMutableFields() async throws {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,

@@ -279,6 +279,26 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.timelineError)
     }
 
+    func test_loadUsage_fetchesDesktopIssueUsageAndFormatsSummary() async throws {
+        let client = makeClient { req in
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/usage")
+            let json = """
+            {"total_input_tokens":1200,"total_output_tokens":340,
+             "total_cache_read_tokens":50,"total_cache_write_tokens":10,
+             "task_count":3}
+            """.data(using: .utf8)!
+            return Self.response(for: req, body: json)
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadUsage()
+
+        XCTAssertTrue(vm.didLoadUsage)
+        XCTAssertEqual(vm.usage?.totalTokens, 1_600)
+        XCTAssertEqual(vm.usageSummaryText, "1.6K tokens across 3 tasks")
+        XCTAssertNil(vm.usageError)
+    }
+
     func test_loadSubscribers_fetchesDesktopSubscribers() async throws {
         let client = makeClient { req in
             XCTAssertEqual(req.url?.path, "/api/issues/i1/subscribers")
@@ -602,6 +622,13 @@ final class IssueDetailViewModelTests: XCTestCase {
                 return Self.response(for: req, body: Data("[]".utf8))
             case "/api/issues/i1/timeline":
                 return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/issues/i1/usage":
+                let json = """
+                {"total_input_tokens":0,"total_output_tokens":0,
+                 "total_cache_read_tokens":0,"total_cache_write_tokens":0,
+                 "task_count":0}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
             case "/api/issues/i1/children":
                 return Self.response(for: req, body: #"{"issues":[]}"#.data(using: .utf8)!)
             default:

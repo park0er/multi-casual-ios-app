@@ -12,6 +12,7 @@ public final class IssueDetailViewModel {
     public var parentSiblingIssues: [Issue] = []
     public var agentRuns: [AgentTask] = []
     public var timelineEntries: [TimelineEntry] = []
+    public var usage: IssueUsageSummary?
     public var subscribers: [IssueSubscriber] = []
     public var subscriberMembers: [WorkspaceMember] = []
     public var subscriberAgents: [Agent] = []
@@ -22,17 +23,20 @@ public final class IssueDetailViewModel {
     public var isLoadingComments = false
     public var isLoadingAgentRuns = false
     public var isLoadingTimeline = false
+    public var isLoadingUsage = false
     public var isLoadingSubscribers = false
     public var isLoadingIssueRelations = false
     public var didLoadComments = false
     public var didLoadAgentRuns = false
     public var didLoadTimeline = false
+    public var didLoadUsage = false
     public var didLoadSubscribers = false
     public var didLoadIssueRelations = false
     public var error: String?
     public var commentsError: String?
     public var agentRunsError: String?
     public var timelineError: String?
+    public var usageError: String?
     public var subscribersError: String?
     public var issueRelationsError: String?
     public var metadataError: String?
@@ -64,13 +68,20 @@ public final class IssueDetailViewModel {
         timelineEntries.filter { $0.type == .activity }
     }
 
+    public var usageSummaryText: String {
+        guard let usage else { return "No usage recorded" }
+        let taskUnit = usage.taskCount == 1 ? "task" : "tasks"
+        return "\(formatTokenCount(usage.totalTokens)) tokens across \(usage.taskCount) \(taskUnit)"
+    }
+
     public func loadInitialData() async {
         async let issueAndMetadata: Void = loadIssueAndMetadata()
         async let comments: Void = loadComments()
         async let agentRuns: Void = loadAgentRuns()
         async let timeline: Void = loadTimeline()
+        async let usage: Void = loadUsage()
         async let subscribers: Void = loadSubscribers()
-        _ = await (issueAndMetadata, comments, agentRuns, timeline, subscribers)
+        _ = await (issueAndMetadata, comments, agentRuns, timeline, usage, subscribers)
     }
 
     public func loadIssue() async {
@@ -306,6 +317,20 @@ public final class IssueDetailViewModel {
         }
     }
 
+    public func loadUsage() async {
+        isLoadingUsage = true
+        usageError = nil
+        defer { isLoadingUsage = false }
+        do {
+            usage = try await api.getIssueUsage(issueId: issueId)
+            didLoadUsage = true
+        } catch {
+            usage = nil
+            didLoadUsage = true
+            usageError = error.localizedDescription
+        }
+    }
+
     public func activityText(for entry: TimelineEntry) -> String {
         switch entry.action {
         case "created":
@@ -484,5 +509,15 @@ public final class IssueDetailViewModel {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "MMM d"
         return formatter.string(from: date)
+    }
+
+    private func formatTokenCount(_ value: Int) -> String {
+        if value >= 1_000_000 {
+            return String(format: "%.1fM", Double(value) / 1_000_000)
+        }
+        if value >= 1_000 {
+            return String(format: "%.1fK", Double(value) / 1_000)
+        }
+        return "\(value)"
     }
 }

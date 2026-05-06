@@ -228,6 +228,27 @@ final class ModelsTests: XCTestCase {
         XCTAssertTrue(entries[1].attachments.isEmpty)
     }
 
+    func test_issueUsageSummary_decodesDesktopShape() throws {
+        let json = """
+        {
+            "total_input_tokens": 1200,
+            "total_output_tokens": 340,
+            "total_cache_read_tokens": 50,
+            "total_cache_write_tokens": 10,
+            "task_count": 3
+        }
+        """.data(using: .utf8)!
+
+        let usage = try decoder.decode(IssueUsageSummary.self, from: json)
+
+        XCTAssertEqual(usage.totalInputTokens, 1_200)
+        XCTAssertEqual(usage.totalOutputTokens, 340)
+        XCTAssertEqual(usage.totalCacheReadTokens, 50)
+        XCTAssertEqual(usage.totalCacheWriteTokens, 10)
+        XCTAssertEqual(usage.taskCount, 3)
+        XCTAssertEqual(usage.totalTokens, 1_600)
+    }
+
     func test_comment_decodesFromJSON() throws {
         let json = """
         {

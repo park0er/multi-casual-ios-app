@@ -100,6 +100,10 @@ public struct IssueDetailView: View {
                         timelineSection(vm: vm)
                         Divider()
                     }
+                    if vm.didLoadUsage || vm.usageError != nil || vm.isLoadingUsage {
+                        usageSection(vm: vm)
+                        Divider()
+                    }
                     if vm.didLoadAgentRuns || vm.agentRunsError != nil || vm.isLoadingAgentRuns {
                         agentRunsSection(vm: vm)
                         Divider()
@@ -456,6 +460,36 @@ public struct IssueDetailView: View {
                     actorName: vm.timelineActorName(for: entry),
                     activityText: vm.activityText(for: entry)
                 )
+            }
+        }
+    }
+
+    private func usageSection(vm: IssueDetailViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Usage").font(.headline).padding(.horizontal)
+            if vm.isLoadingUsage {
+                ProgressView().padding(.horizontal)
+            }
+            if let usageError = vm.usageError {
+                ErrorMessageRow(message: usageError) {
+                    Task { await vm.loadUsage() }
+                }
+            }
+            if let usage = vm.usage {
+                VStack(alignment: .leading, spacing: 8) {
+                    MarkdownText(vm.usageSummaryText)
+                        .font(.subheadline.weight(.semibold))
+                    HStack(spacing: 10) {
+                        UsageMetricView(title: "Input", value: usage.totalInputTokens)
+                        UsageMetricView(title: "Output", value: usage.totalOutputTokens)
+                        UsageMetricView(title: "Cache", value: usage.totalCacheReadTokens + usage.totalCacheWriteTokens)
+                    }
+                }
+                .padding(.horizontal)
+            }
+            if vm.didLoadUsage && vm.usage == nil && vm.usageError == nil && !vm.isLoadingUsage {
+                ContentUnavailableView("No Usage", systemImage: "chart.bar", description: Text("This issue has no recorded task usage."))
+                    .padding(.horizontal)
             }
         }
     }
@@ -1047,6 +1081,22 @@ private struct TimelineActivityRow: View {
         default:
             return "clock"
         }
+    }
+}
+
+private struct UsageMetricView: View {
+    let title: String
+    let value: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value.formatted())
+                .font(.caption.monospacedDigit())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 #endif

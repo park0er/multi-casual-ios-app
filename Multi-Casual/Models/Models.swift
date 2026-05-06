@@ -823,6 +823,26 @@ public struct TimelineEntry: Codable, Identifiable, Sendable {
     }
 }
 
+public struct IssueUsageSummary: Codable, Sendable, Hashable {
+    public let totalInputTokens: Int
+    public let totalOutputTokens: Int
+    public let totalCacheReadTokens: Int
+    public let totalCacheWriteTokens: Int
+    public let taskCount: Int
+
+    public var totalTokens: Int {
+        totalInputTokens + totalOutputTokens + totalCacheReadTokens + totalCacheWriteTokens
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case totalInputTokens = "total_input_tokens"
+        case totalOutputTokens = "total_output_tokens"
+        case totalCacheReadTokens = "total_cache_read_tokens"
+        case totalCacheWriteTokens = "total_cache_write_tokens"
+        case taskCount = "task_count"
+    }
+}
+
 public struct Comment: Codable, Identifiable, Sendable {
     public let id: String
     public let content: String
