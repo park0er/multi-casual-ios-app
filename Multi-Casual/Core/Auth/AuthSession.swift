@@ -161,6 +161,25 @@ public extension AuthSession {
         userDefaults.set(workspace.id, forKey: Self.selectedWorkspaceDefaultsKey)
     }
 
+    func replaceWorkspaces(_ nextWorkspaces: [Workspace], preferredId: String? = nil) {
+        workspaces = nextWorkspaces
+        if let workspace = Self.preferredWorkspace(
+            from: nextWorkspaces,
+            preferredId: preferredId ?? currentWorkspace?.id ?? preferredWorkspaceId
+        ) {
+            setWorkspace(workspace)
+        } else {
+            currentWorkspace = nil
+            userDefaults.removeObject(forKey: Self.selectedWorkspaceDefaultsKey)
+        }
+    }
+
+    func removeWorkspace(id: String) {
+        let nextWorkspaces = workspaces.filter { $0.id != id }
+        let preferredId = currentWorkspace?.id == id ? nil : currentWorkspace?.id
+        replaceWorkspaces(nextWorkspaces, preferredId: preferredId)
+    }
+
     static func preferredWorkspace(from workspaces: [Workspace], preferredId: String?) -> Workspace? {
         if let preferredId, let workspace = workspaces.first(where: { $0.id == preferredId }) {
             return workspace

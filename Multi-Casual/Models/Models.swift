@@ -146,13 +146,62 @@ public struct Invitation: Codable, Identifiable, Sendable {
     public let role: String
     public let status: String
     public let createdAt: String?
+    public let updatedAt: String?
     public let expiresAt: String?
+    public let inviterId: String?
+    public let inviteeUserId: String?
+    public let inviterName: String?
+    public let inviterEmail: String?
+    public let workspaceName: String?
 
     enum CodingKeys: String, CodingKey {
         case id, email, role, status
         case workspaceId = "workspace_id"
+        case inviterId = "inviter_id"
+        case inviteeEmail = "invitee_email"
+        case inviteeUserId = "invitee_user_id"
         case createdAt = "created_at"
+        case updatedAt = "updated_at"
         case expiresAt = "expires_at"
+        case inviterName = "inviter_name"
+        case inviterEmail = "inviter_email"
+        case workspaceName = "workspace_name"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        workspaceId = try container.decode(String.self, forKey: .workspaceId)
+        email = try container.decodeIfPresent(String.self, forKey: .inviteeEmail)
+            ?? container.decodeIfPresent(String.self, forKey: .email)
+            ?? ""
+        role = try container.decode(String.self, forKey: .role)
+        status = try container.decode(String.self, forKey: .status)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        expiresAt = try container.decodeIfPresent(String.self, forKey: .expiresAt)
+        inviterId = try container.decodeIfPresent(String.self, forKey: .inviterId)
+        inviteeUserId = try container.decodeIfPresent(String.self, forKey: .inviteeUserId)
+        inviterName = try container.decodeIfPresent(String.self, forKey: .inviterName)
+        inviterEmail = try container.decodeIfPresent(String.self, forKey: .inviterEmail)
+        workspaceName = try container.decodeIfPresent(String.self, forKey: .workspaceName)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(workspaceId, forKey: .workspaceId)
+        try container.encode(email, forKey: .inviteeEmail)
+        try container.encode(role, forKey: .role)
+        try container.encode(status, forKey: .status)
+        try container.encodeIfPresent(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
+        try container.encodeIfPresent(expiresAt, forKey: .expiresAt)
+        try container.encodeIfPresent(inviterId, forKey: .inviterId)
+        try container.encodeIfPresent(inviteeUserId, forKey: .inviteeUserId)
+        try container.encodeIfPresent(inviterName, forKey: .inviterName)
+        try container.encodeIfPresent(inviterEmail, forKey: .inviterEmail)
+        try container.encodeIfPresent(workspaceName, forKey: .workspaceName)
     }
 }
 

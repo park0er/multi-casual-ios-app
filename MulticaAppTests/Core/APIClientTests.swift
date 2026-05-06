@@ -283,6 +283,78 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(repos?.first?["default_branch_hint"] as? String, "main")
     }
 
+    func test_workspaceLifecycleAndMyInvitationEndpointsUseDesktopPaths() async throws {
+        var requests: [(method: String?, path: String, query: String?, body: [String: Any]?)] = []
+        let workspaceJSON = """
+        {"id":"w2","name":"Beta","slug":"beta","description":"D",
+         "context":"C","issue_prefix":"BET","repos":[]}
+        """.data(using: .utf8)!
+        let invitationJSON = """
+        {"id":"inv1","workspace_id":"w2","inviter_id":"u1","invitee_email":"me@example.com",
+         "invitee_user_id":null,"role":"member","status":"pending",
+         "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z",
+         "expires_at":"2026-02-01T00:00:00Z","workspace_name":"Beta",
+         "inviter_name":"Parker","inviter_email":"p@example.com"}
+        """.data(using: .utf8)!
+        let memberJSON = """
+        {"id":"m1","workspace_id":"w2","user_id":"u2","role":"member",
+         "created_at":"2026-01-01T00:00:00Z","name":"Me",
+         "email":"me@example.com","avatar_url":null}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            let bodyData = MockURLProtocol.bodyData(for: req)
+            let body = bodyData.isEmpty ? nil : try JSONSerialization.jsonObject(with: bodyData) as? [String: Any]
+            requests.append((req.httpMethod, req.url?.path ?? "", req.url?.query, body))
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/workspaces"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, workspaceJSON)
+            case ("POST", "/api/workspaces/w1/leave"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            case ("DELETE", "/api/workspaces/w1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            case ("GET", "/api/invitations"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, "[\(String(data: invitationJSON, encoding: .utf8)!)]".data(using: .utf8)!)
+            case ("GET", "/api/invitations/inv1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, invitationJSON)
+            case ("POST", "/api/invitations/inv1/accept"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, memberJSON)
+            case ("POST", "/api/invitations/inv1/decline"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data())
+            }
+        }
+
+        let created = try await client.createWorkspace(name: "Beta", slug: "beta", description: "D", context: "C")
+        try await client.leaveWorkspace(id: "w1")
+        try await client.deleteWorkspace(id: "w1")
+        let invitations = try await client.listMyInvitations()
+        let invitation = try await client.getInvitation(id: "inv1")
+        let member = try await client.acceptInvitation(id: "inv1")
+        try await client.declineInvitation(id: "inv1")
+
+        XCTAssertEqual(created.slug, "beta")
+        XCTAssertEqual(invitations.first?.email, "me@example.com")
+        XCTAssertEqual(invitation.workspaceName, "Beta")
+        XCTAssertEqual(member.workspaceId, "w2")
+        XCTAssertEqual(requests.map { "\($0.method ?? "") \($0.path)" }, [
+            "POST /api/workspaces",
+            "POST /api/workspaces/w1/leave",
+            "DELETE /api/workspaces/w1",
+            "GET /api/invitations",
+            "GET /api/invitations/inv1",
+            "POST /api/invitations/inv1/accept",
+            "POST /api/invitations/inv1/decline",
+        ])
+        XCTAssertEqual(requests[0].body?["name"] as? String, "Beta")
+        XCTAssertEqual(requests[0].body?["slug"] as? String, "beta")
+        XCTAssertEqual(requests[0].body?["description"] as? String, "D")
+        XCTAssertEqual(requests[0].body?["context"] as? String, "C")
+        XCTAssertEqual(requests[1].query, "workspace_id=w1")
+        XCTAssertEqual(requests[2].query, "workspace_id=w1")
+    }
+
     func test_createIssue_sendsDesktopCreateFields() async throws {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":"D",

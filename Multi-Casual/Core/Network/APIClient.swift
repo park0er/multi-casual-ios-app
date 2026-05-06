@@ -228,6 +228,12 @@ public final class APIClient: @unchecked Sendable {
             case name, description, context, repos
         }
     }
+    private struct CreateWorkspaceRequest: Encodable {
+        let name: String
+        let slug: String
+        let description: String?
+        let context: String?
+    }
     private struct CreateMemberRequest: Encodable {
         let email: String
         let role: String
@@ -435,6 +441,14 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/workspaces")
     }
 
+    public func createWorkspace(name: String, slug: String, description: String? = nil, context: String? = nil) async throws -> Workspace {
+        try await request(
+            "POST",
+            path: "api/workspaces",
+            body: CreateWorkspaceRequest(name: name, slug: slug, description: description, context: context)
+        )
+    }
+
     public func getWorkspace(id: String, workspaceId: String? = nil) async throws -> Workspace {
         try await request("GET", path: "api/workspaces/\(id)", queryItems: workspaceQuery(workspaceId))
     }
@@ -458,6 +472,38 @@ public final class APIClient: @unchecked Sendable {
                 repos: repos
             )
         )
+    }
+
+    public func leaveWorkspace(id: String) async throws {
+        let _: EmptyResponse = try await request(
+            "POST",
+            path: "api/workspaces/\(id)/leave",
+            queryItems: workspaceQuery(id)
+        )
+    }
+
+    public func deleteWorkspace(id: String) async throws {
+        let _: EmptyResponse = try await request(
+            "DELETE",
+            path: "api/workspaces/\(id)",
+            queryItems: workspaceQuery(id)
+        )
+    }
+
+    public func listMyInvitations() async throws -> [Invitation] {
+        try await request("GET", path: "api/invitations")
+    }
+
+    public func getInvitation(id: String) async throws -> Invitation {
+        try await request("GET", path: "api/invitations/\(id)")
+    }
+
+    public func acceptInvitation(id: String) async throws -> WorkspaceMember {
+        try await request("POST", path: "api/invitations/\(id)/accept")
+    }
+
+    public func declineInvitation(id: String) async throws {
+        let _: EmptyResponse = try await request("POST", path: "api/invitations/\(id)/decline")
     }
 
     public func registerPushToken(_ token: String, workspaceId: String? = nil) async throws {
