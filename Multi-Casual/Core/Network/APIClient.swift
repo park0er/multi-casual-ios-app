@@ -480,6 +480,10 @@ public final class APIClient: @unchecked Sendable {
                           body: AddCommentRequest(content: content, type: "comment", parentId: parentId))
     }
 
+    public func listTimeline(issueId: String) async throws -> [TimelineEntry] {
+        try await request("GET", path: "api/issues/\(issueId)/timeline")
+    }
+
     public func updateComment(commentId: String, content: String) async throws -> Comment {
         try await request(
             "PUT",

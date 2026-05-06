@@ -11,6 +11,7 @@ public final class IssueDetailViewModel {
     public var childIssues: [Issue] = []
     public var parentSiblingIssues: [Issue] = []
     public var agentRuns: [AgentTask] = []
+    public var timelineEntries: [TimelineEntry] = []
     public var subscribers: [IssueSubscriber] = []
     public var subscriberMembers: [WorkspaceMember] = []
     public var subscriberAgents: [Agent] = []
@@ -20,15 +21,18 @@ public final class IssueDetailViewModel {
     public var isLoadingIssue = false
     public var isLoadingComments = false
     public var isLoadingAgentRuns = false
+    public var isLoadingTimeline = false
     public var isLoadingSubscribers = false
     public var isLoadingIssueRelations = false
     public var didLoadComments = false
     public var didLoadAgentRuns = false
+    public var didLoadTimeline = false
     public var didLoadSubscribers = false
     public var didLoadIssueRelations = false
     public var error: String?
     public var commentsError: String?
     public var agentRunsError: String?
+    public var timelineError: String?
     public var subscribersError: String?
     public var issueRelationsError: String?
     public var metadataError: String?
@@ -56,12 +60,17 @@ public final class IssueDetailViewModel {
         "\(doneCount(in: parentSiblingIssues))/\(parentSiblingIssues.count)"
     }
 
+    public var timelineActivities: [TimelineEntry] {
+        timelineEntries.filter { $0.type == .activity }
+    }
+
     public func loadInitialData() async {
         async let issueAndMetadata: Void = loadIssueAndMetadata()
         async let comments: Void = loadComments()
         async let agentRuns: Void = loadAgentRuns()
+        async let timeline: Void = loadTimeline()
         async let subscribers: Void = loadSubscribers()
-        _ = await (issueAndMetadata, comments, agentRuns, subscribers)
+        _ = await (issueAndMetadata, comments, agentRuns, timeline, subscribers)
     }
 
     public func loadIssue() async {
@@ -283,6 +292,69 @@ public final class IssueDetailViewModel {
         }
     }
 
+    public func loadTimeline() async {
+        isLoadingTimeline = true
+        timelineError = nil
+        defer { isLoadingTimeline = false }
+        do {
+            timelineEntries = try await api.listTimeline(issueId: issueId)
+            didLoadTimeline = true
+        } catch {
+            timelineEntries = []
+            didLoadTimeline = true
+            timelineError = error.localizedDescription
+        }
+    }
+
+    public func activityText(for entry: TimelineEntry) -> String {
+        switch entry.action {
+        case "created":
+            return "created this issue"
+        case "status_changed":
+            return "changed status from \(statusLabel(entry.detailString("from"))) to \(statusLabel(entry.detailString("to")))"
+        case "priority_changed":
+            return "changed priority from \(priorityLabel(entry.detailString("from"))) to \(priorityLabel(entry.detailString("to")))"
+        case "assignee_changed":
+            if entry.detailString("to_id") == nil, entry.detailString("from_id") != nil {
+                return "removed assignee"
+            }
+            if let toType = entry.detailString("to_type"), let toId = entry.detailString("to_id") {
+                return "assigned to \(toType.capitalized) \(toId.prefix(8))"
+            }
+            return "changed assignee"
+        case "due_date_changed":
+            guard let dueDate = entry.detailString("to"), !dueDate.isEmpty else {
+                return "removed due date"
+            }
+            return "set due date to \(shortDate(dueDate))"
+        case "title_changed":
+            return "renamed this issue from \"\(entry.detailString("from") ?? "?")\" to \"\(entry.detailString("to") ?? "?")\""
+        case "description_updated":
+            return "updated the description"
+        case "task_completed":
+            return "completed the task"
+        case "task_failed":
+            return "task failed"
+        case .some(let action):
+            return action.replacingOccurrences(of: "_", with: " ").capitalized
+        case .none:
+            return "updated this issue"
+        }
+    }
+
+    public func timelineActorName(for entry: TimelineEntry) -> String {
+        switch entry.actorType {
+        case "member":
+            return subscriberMembers.first { $0.userId == entry.actorId || $0.id == entry.actorId }?.name
+                ?? "Member \(entry.actorId.prefix(8))"
+        case "agent":
+            return subscriberAgents.first { $0.id == entry.actorId }?.name
+                ?? "Agent \(entry.actorId.prefix(8))"
+        default:
+            return "\(entry.actorType.capitalized) \(entry.actorId.prefix(8))"
+        }
+    }
+
     public func submitComment() async {
         let content = commentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else { return }
@@ -394,5 +466,23 @@ public final class IssueDetailViewModel {
 
     private func doneCount(in issues: [Issue]) -> Int {
         issues.filter { $0.status == .done }.count
+    }
+
+    private func statusLabel(_ raw: String?) -> String {
+        guard let raw else { return "?" }
+        return IssueStatus(rawValue: raw)?.displayName ?? raw.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    private func priorityLabel(_ raw: String?) -> String {
+        guard let raw else { return "?" }
+        return IssuePriority(rawValue: raw)?.displayName ?? raw.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    private func shortDate(_ raw: String) -> String {
+        guard let date = ISO8601DateFormatter().date(from: raw) else { return raw }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: date)
     }
 }

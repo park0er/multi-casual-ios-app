@@ -96,6 +96,10 @@ public struct IssueDetailView: View {
                     Divider()
                     subscribersSection(vm: vm, currentUserId: authSession.currentUser?.id)
                     Divider()
+                    if vm.didLoadTimeline || vm.timelineError != nil || vm.isLoadingTimeline {
+                        timelineSection(vm: vm)
+                        Divider()
+                    }
                     if vm.didLoadAgentRuns || vm.agentRunsError != nil || vm.isLoadingAgentRuns {
                         agentRunsSection(vm: vm)
                         Divider()
@@ -427,6 +431,31 @@ public struct IssueDetailView: View {
                 Button { selectedTaskId = run.id; showTranscript = true } label: {
                     AgentRunRowView(run: run)
                 }.buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func timelineSection(vm: IssueDetailViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Activity").font(.headline).padding(.horizontal)
+            if vm.isLoadingTimeline {
+                ProgressView().padding(.horizontal)
+            }
+            if let timelineError = vm.timelineError {
+                ErrorMessageRow(message: timelineError) {
+                    Task { await vm.loadTimeline() }
+                }
+            }
+            if vm.didLoadTimeline && vm.timelineActivities.isEmpty && vm.timelineError == nil && !vm.isLoadingTimeline {
+                ContentUnavailableView("No Activity", systemImage: "clock", description: Text("This issue has no activity yet."))
+                    .padding(.horizontal)
+            }
+            ForEach(vm.timelineActivities) { entry in
+                TimelineActivityRow(
+                    entry: entry,
+                    actorName: vm.timelineActorName(for: entry),
+                    activityText: vm.activityText(for: entry)
+                )
             }
         }
     }
@@ -968,6 +997,55 @@ public struct AgentRunRowView: View {
         case "failed": return .red
         case "running": return .blue
         default: return .secondary
+        }
+    }
+}
+
+private struct TimelineActivityRow: View {
+    let entry: TimelineEntry
+    let actorName: String
+    let activityText: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: iconName)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    MarkdownText(actorName)
+                        .font(.caption.weight(.semibold))
+                    Text(iso8601DateOnlyFormatter.string(from: entry.createdAt))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                MarkdownText(activityText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 4)
+    }
+
+    private var iconName: String {
+        switch entry.action {
+        case "status_changed":
+            return "circle.dotted"
+        case "priority_changed":
+            return "flag"
+        case "assignee_changed":
+            return "person.crop.circle"
+        case "due_date_changed":
+            return "calendar"
+        case "task_completed":
+            return "checkmark.circle"
+        case "task_failed":
+            return "exclamationmark.triangle"
+        default:
+            return "clock"
         }
     }
 }

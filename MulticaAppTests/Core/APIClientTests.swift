@@ -427,6 +427,31 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(body["type"] as? String, "comment")
     }
 
+    func test_listTimeline_decodesDesktopActivityEntries() async throws {
+        let json = """
+        [{"type":"activity","id":"a1","actor_type":"member","actor_id":"u1",
+          "created_at":"2026-01-01T00:00:00Z","action":"status_changed",
+          "details":{"from":"todo","to":"done"}},
+         {"type":"comment","id":"c1","actor_type":"agent","actor_id":"agent1",
+          "created_at":"2026-01-02T00:00:00Z","content":"**Done**","parent_id":null,
+          "comment_type":"comment"}]
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/timeline")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let entries = try await client.listTimeline(issueId: "i1")
+
+        XCTAssertEqual(capturedURL?.query, nil)
+        XCTAssertEqual(entries.map(\.id), ["a1", "c1"])
+        XCTAssertEqual(entries.first?.action, "status_changed")
+        XCTAssertEqual(entries.first?.detailString("to"), "done")
+        XCTAssertEqual(entries.last?.content, "**Done**")
+    }
+
     func test_updateIssue_sendsWorkspaceIdAndMutableFields() async throws {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,

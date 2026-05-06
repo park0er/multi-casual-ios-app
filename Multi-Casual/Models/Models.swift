@@ -769,6 +769,60 @@ public struct ChildIssueProgressResponse: Codable, Sendable {
     public let progress: [ChildIssueProgressEntry]
 }
 
+public enum TimelineEntryType: String, Codable, Sendable {
+    case activity
+    case comment
+}
+
+public struct TimelineEntry: Codable, Identifiable, Sendable {
+    public let type: TimelineEntryType
+    public let id: String
+    public let actorType: String
+    public let actorId: String
+    public let createdAt: Date
+    public let action: String?
+    public let details: [String: JSONValue]
+    public let content: String?
+    public let parentId: String?
+    public let updatedAt: Date?
+    public let commentType: String?
+    public let reactions: [Reaction]
+    public let attachments: [Attachment]
+
+    enum CodingKeys: String, CodingKey {
+        case type, id, action, details, content, reactions, attachments
+        case actorType = "actor_type"
+        case actorId = "actor_id"
+        case createdAt = "created_at"
+        case parentId = "parent_id"
+        case updatedAt = "updated_at"
+        case commentType = "comment_type"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(TimelineEntryType.self, forKey: .type)
+        id = try container.decode(String.self, forKey: .id)
+        actorType = try container.decode(String.self, forKey: .actorType)
+        actorId = try container.decode(String.self, forKey: .actorId)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        action = try container.decodeIfPresent(String.self, forKey: .action)
+        details = try container.decodeIfPresent([String: JSONValue].self, forKey: .details) ?? [:]
+        content = try container.decodeIfPresent(String.self, forKey: .content)
+        parentId = try container.decodeIfPresent(String.self, forKey: .parentId)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+        commentType = try container.decodeIfPresent(String.self, forKey: .commentType)
+        reactions = try container.decodeIfPresent([Reaction].self, forKey: .reactions) ?? []
+        attachments = try container.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
+    }
+
+    public func detailString(_ key: String) -> String? {
+        guard let value = details[key] else { return nil }
+        let display = value.displayString
+        return display.isEmpty ? nil : display
+    }
+}
+
 public struct Comment: Codable, Identifiable, Sendable {
     public let id: String
     public let content: String

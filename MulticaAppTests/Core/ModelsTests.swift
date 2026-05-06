@@ -194,6 +194,40 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(priority, .noPriority)
     }
 
+    func test_timelineEntry_decodesDesktopActivityAndCommentShapes() throws {
+        let json = """
+        [{
+            "type": "activity",
+            "id": "activity1",
+            "actor_type": "member",
+            "actor_id": "user1",
+            "created_at": "2026-01-01T00:00:00Z",
+            "action": "priority_changed",
+            "details": {"from": "low", "to": "urgent", "count": 2}
+        }, {
+            "type": "comment",
+            "id": "comment1",
+            "actor_type": "agent",
+            "actor_id": "agent1",
+            "created_at": "2026-01-02T00:00:00Z",
+            "content": "**Markdown** comment",
+            "parent_id": null,
+            "comment_type": "comment",
+            "attachments": []
+        }]
+        """.data(using: .utf8)!
+
+        let entries = try decoder.decode([TimelineEntry].self, from: json)
+
+        XCTAssertEqual(entries[0].type, .activity)
+        XCTAssertEqual(entries[0].action, "priority_changed")
+        XCTAssertEqual(entries[0].detailString("to"), "urgent")
+        XCTAssertEqual(entries[0].detailString("count"), "2")
+        XCTAssertEqual(entries[1].type, .comment)
+        XCTAssertEqual(entries[1].content, "**Markdown** comment")
+        XCTAssertTrue(entries[1].attachments.isEmpty)
+    }
+
     func test_comment_decodesFromJSON() throws {
         let json = """
         {

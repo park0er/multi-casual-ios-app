@@ -256,6 +256,29 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.agentRunsError)
     }
 
+    func test_loadTimeline_fetchesAndFormatsDesktopActivities() async throws {
+        let client = makeClient { req in
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/timeline")
+            let json = """
+            [{"type":"activity","id":"a1","actor_type":"member","actor_id":"u1",
+              "created_at":"2026-01-01T00:00:00Z","action":"status_changed",
+              "details":{"from":"todo","to":"in_review"}},
+             {"type":"comment","id":"c1","actor_type":"member","actor_id":"u1",
+              "created_at":"2026-01-02T00:00:00Z","content":"Comment","parent_id":null,
+              "comment_type":"comment"}]
+            """.data(using: .utf8)!
+            return Self.response(for: req, body: json)
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadTimeline()
+
+        XCTAssertTrue(vm.didLoadTimeline)
+        XCTAssertEqual(vm.timelineActivities.map(\.id), ["a1"])
+        XCTAssertEqual(vm.activityText(for: vm.timelineActivities[0]), "changed status from Todo to In Review")
+        XCTAssertNil(vm.timelineError)
+    }
+
     func test_loadSubscribers_fetchesDesktopSubscribers() async throws {
         let client = makeClient { req in
             XCTAssertEqual(req.url?.path, "/api/issues/i1/subscribers")
@@ -576,6 +599,8 @@ final class IssueDetailViewModelTests: XCTestCase {
             case "/api/issues/i1/subscribers":
                 return Self.response(for: req, body: Data("[]".utf8))
             case "/api/issues/i1/task-runs":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/issues/i1/timeline":
                 return Self.response(for: req, body: Data("[]".utf8))
             case "/api/issues/i1/children":
                 return Self.response(for: req, body: #"{"issues":[]}"#.data(using: .utf8)!)
