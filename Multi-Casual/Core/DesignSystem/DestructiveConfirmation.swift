@@ -52,6 +52,16 @@ public struct DestructiveConfirmation: Equatable, Sendable {
         )
     }
 
+    public static func deleteAttachment(filename: String) -> DestructiveConfirmation {
+        let name = filename.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subject = name.isEmpty ? "this attachment" : "\"\(name)\""
+        return DestructiveConfirmation(
+            title: "Delete \(subject)?",
+            message: "This removes the file from the issue. This action cannot be undone.",
+            confirmTitle: "Delete"
+        )
+    }
+
     public static func deleteIssues(count: Int) -> DestructiveConfirmation {
         let noun = count == 1 ? "issue" : "issues"
         return DestructiveConfirmation(

@@ -681,6 +681,22 @@ public final class APIClient: @unchecked Sendable {
         }
     }
 
+    public func listAttachments(issueId: String, workspaceId: String? = nil) async throws -> [Attachment] {
+        try await request(
+            "GET",
+            path: "api/issues/\(issueId)/attachments",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func deleteAttachment(id: String, workspaceId: String? = nil) async throws {
+        let _: EmptyResponse = try await request(
+            "DELETE",
+            path: "api/attachments/\(id)",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
     private func multipartBody(
         boundary: String,
         file: (filename: String, data: Data, contentType: String),

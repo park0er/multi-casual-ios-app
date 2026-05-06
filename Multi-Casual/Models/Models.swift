@@ -1191,6 +1191,29 @@ public struct Issue: Codable, Identifiable, Sendable {
         )
     }
 
+    public func replacingAttachments(_ attachments: [Attachment]) -> Issue {
+        Issue(
+            id: id,
+            identifier: identifier,
+            number: number,
+            title: title,
+            description: description,
+            status: status,
+            priority: priority,
+            assigneeId: assigneeId,
+            assigneeType: assigneeType,
+            parentIssueId: parentIssueId,
+            projectId: projectId,
+            workspaceId: workspaceId,
+            dueDate: dueDate,
+            attachments: attachments,
+            labels: labels,
+            reactions: reactions,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+
     public func replacingReactions(_ reactions: [IssueReaction]) -> Issue {
         Issue(
             id: id,

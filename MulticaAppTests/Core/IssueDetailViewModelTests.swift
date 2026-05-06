@@ -255,6 +255,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                 return Self.response(for: req, body: #"{"projects":[],"total":0}"#.data(using: .utf8)!)
             case "/api/issues/i1/comments":
                 return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/issues/i1/attachments":
+                return Self.response(for: req, body: Data("[]".utf8))
             case "/api/issues/i1/subscribers":
                 return Self.response(for: req, body: Data("[]".utf8))
             case "/api/issues/i1/task-runs":
@@ -288,6 +290,7 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertEqual(capturedWorkspaces["/api/agents"] ?? nil, "w1")
         XCTAssertEqual(capturedWorkspaces["/api/projects"] ?? nil, "w1")
         XCTAssertEqual(capturedWorkspaces["/api/issues/i1/comments"] ?? nil, "w1")
+        XCTAssertEqual(capturedWorkspaces["/api/issues/i1/attachments"] ?? nil, "w1")
         XCTAssertEqual(capturedWorkspaces["/api/issues/i1/subscribers"] ?? nil, "w1")
         XCTAssertEqual(capturedWorkspaces["/api/issues/i1/task-runs"] ?? nil, "w1")
         XCTAssertEqual(capturedWorkspaces["/api/issues/i1/active-task"] ?? nil, "w1")
@@ -300,6 +303,7 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.timelineError)
         XCTAssertNil(vm.usageError)
         XCTAssertNil(vm.issueRelationsError)
+        XCTAssertNil(vm.attachmentsError)
     }
 
     func test_loadAgentRuns_surfacesEndpointError() async throws {
@@ -802,6 +806,8 @@ final class IssueDetailViewModelTests: XCTestCase {
             case "/api/issues/i1/comments":
                 Thread.sleep(forTimeInterval: 2)
                 return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/issues/i1/attachments":
+                return Self.response(for: req, body: Data("[]".utf8))
             case "/api/issues/i1/subscribers":
                 return Self.response(for: req, body: Data("[]".utf8))
             case "/api/issues/i1/task-runs":
@@ -1049,6 +1055,36 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isUpdatingIssue)
     }
 
+    func test_loadAndDeleteAttachmentsKeepIssueAttachmentsInSync() async throws {
+        var requests: [(method: String?, path: String, query: String?)] = []
+        let client = makeClient { req in
+            requests.append((req.httpMethod, req.url?.path ?? "", req.url?.query))
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/i1"):
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-01T00:00:00Z"))
+            case ("GET", "/api/issues/i1/attachments"):
+                return Self.response(for: req, body: Self.attachmentsJSON())
+            case ("DELETE", "/api/attachments/att1"):
+                return Self.response(for: req, body: Data(), status: 204)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadIssue()
+        await vm.loadAttachments()
+        await vm.deleteAttachment(id: "att1")
+
+        XCTAssertEqual(vm.issue?.attachments.map(\.id), ["att2"])
+        XCTAssertNil(vm.attachmentsError)
+        XCTAssertTrue(vm.deletingAttachmentIds.isEmpty)
+        XCTAssertEqual(requests.map(\.method), ["GET", "GET", "DELETE"])
+        XCTAssertEqual(requests.map(\.path), ["/api/issues/i1", "/api/issues/i1/attachments", "/api/attachments/att1"])
+        XCTAssertEqual(requests.map(\.query), ["workspace_id=w1", "workspace_id=w1", "workspace_id=w1"])
+    }
+
     private func makeClient(handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)) -> APIClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -1080,6 +1116,19 @@ final class IssueDetailViewModelTests: XCTestCase {
          "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
          "parent_issue_id":\(parent),"project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
          "updated_at":"\(updatedAt)"}
+        """.data(using: .utf8)!
+    }
+
+    private static func attachmentsJSON() -> Data {
+        """
+        [{"id":"att1","workspace_id":"w1","issue_id":"i1","comment_id":null,
+          "uploader_type":"member","uploader_id":"u1","filename":"spec.md",
+          "url":"https://cdn.example/spec.md","download_url":"https://cdn.example/spec.md",
+          "content_type":"text/markdown","size_bytes":11,"created_at":"2026-01-01T00:00:00Z"},
+         {"id":"att2","workspace_id":"w1","issue_id":"i1","comment_id":null,
+          "uploader_type":"member","uploader_id":"u1","filename":"screen.png",
+          "url":"https://cdn.example/screen.png","download_url":"https://cdn.example/screen.png",
+          "content_type":"image/png","size_bytes":42,"created_at":"2026-01-01T00:00:00Z"}]
         """.data(using: .utf8)!
     }
 }

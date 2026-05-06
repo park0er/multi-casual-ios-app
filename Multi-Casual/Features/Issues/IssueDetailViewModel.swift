@@ -32,8 +32,10 @@ public final class IssueDetailViewModel {
     public var isLoadingUsage = false
     public var isLoadingSubscribers = false
     public var isLoadingIssueRelations = false
+    public var isLoadingAttachments = false
     public var isDeletingIssue = false
     public var cancellingTaskIds: Set<String> = []
+    public var deletingAttachmentIds: Set<String> = []
     public var didLoadComments = false
     public var didLoadAgentRuns = false
     public var didLoadActiveTasks = false
@@ -49,6 +51,7 @@ public final class IssueDetailViewModel {
     public var usageError: String?
     public var subscribersError: String?
     public var issueRelationsError: String?
+    public var attachmentsError: String?
     public var metadataError: String?
     public var deleteIssueError: String?
     public var didDeleteIssue = false
@@ -101,7 +104,8 @@ public final class IssueDetailViewModel {
         async let timeline: Void = loadTimeline()
         async let usage: Void = loadUsage()
         async let subscribers: Void = loadSubscribers()
-        _ = await (comments, agentRuns, activeTasks, timeline, usage, subscribers)
+        async let attachments: Void = loadAttachments()
+        _ = await (comments, agentRuns, activeTasks, timeline, usage, subscribers, attachments)
     }
 
     public func loadIssue() async {
@@ -146,6 +150,38 @@ public final class IssueDetailViewModel {
             parentSiblingIssues = []
             didLoadIssueRelations = true
             issueRelationsError = error.localizedDescription
+        }
+    }
+
+    public func loadAttachments() async {
+        isLoadingAttachments = true
+        attachmentsError = nil
+        defer { isLoadingAttachments = false }
+
+        do {
+            let attachments = try await api.listAttachments(issueId: issueId, workspaceId: resolvedWorkspaceId)
+            if let issue {
+                self.issue = issue.replacingAttachments(attachments)
+            }
+        } catch {
+            attachmentsError = error.localizedDescription
+        }
+    }
+
+    public func deleteAttachment(id: String) async {
+        guard !deletingAttachmentIds.contains(id) else { return }
+        deletingAttachmentIds.insert(id)
+        attachmentsError = nil
+        defer { deletingAttachmentIds.remove(id) }
+
+        do {
+            try await api.deleteAttachment(id: id, workspaceId: resolvedWorkspaceId)
+            if let issue {
+                self.issue = issue.replacingAttachments(issue.attachments.filter { $0.id != id })
+            }
+            await DataStore.shared.invalidateIssue(issueId)
+        } catch {
+            attachmentsError = error.localizedDescription
         }
     }
 

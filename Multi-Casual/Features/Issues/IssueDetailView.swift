@@ -15,7 +15,9 @@ public struct IssueDetailView: View {
     @State private var showCommentAttachmentImporter = false
     @State private var showDeleteIssueConfirmation = false
     @State private var showCancelTaskConfirmation = false
+    @State private var showDeleteAttachmentConfirmation = false
     @State private var pendingCancelTask: AgentTask?
+    @State private var pendingDeleteAttachment: Attachment?
     @State private var selectedTaskId: String?
     @State private var selectedTaskWorkspaceId: String?
     @State private var pinViewModel: PinToggleViewModel?
@@ -131,6 +133,20 @@ public struct IssueDetailView: View {
                 pendingCancelTask = nil
             }
         )
+        .destructiveConfirmation(
+            deleteAttachmentConfirmation,
+            isPresented: $showDeleteAttachmentConfirmation,
+            onConfirm: {
+                guard let attachment = pendingDeleteAttachment else { return }
+                Task {
+                    await viewModel?.deleteAttachment(id: attachment.id)
+                    pendingDeleteAttachment = nil
+                }
+            },
+            onCancel: {
+                pendingDeleteAttachment = nil
+            }
+        )
     }
 
     @ViewBuilder
@@ -235,6 +251,10 @@ public struct IssueDetailView: View {
         DestructiveConfirmation.cancelTask(id: pendingCancelTask?.id ?? "")
     }
 
+    private var deleteAttachmentConfirmation: DestructiveConfirmation {
+        DestructiveConfirmation.deleteAttachment(filename: pendingDeleteAttachment?.filename ?? "")
+    }
+
     private func issueHeader(issue: Issue, vm: IssueDetailViewModel, currentUserId: String?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             MarkdownText(issue.title).font(.title2.bold())
@@ -306,7 +326,18 @@ public struct IssueDetailView: View {
                 LabelWrapView(labels: issue.labels)
             }
             if !issue.attachments.isEmpty {
-                AttachmentListView(attachments: issue.attachments)
+                AttachmentListView(
+                    attachments: issue.attachments,
+                    deletingAttachmentIds: vm.deletingAttachmentIds
+                ) { attachment in
+                    pendingDeleteAttachment = attachment
+                    showDeleteAttachmentConfirmation = true
+                }
+            }
+            if let attachmentsError = vm.attachmentsError {
+                ErrorMessageRow(message: attachmentsError) {
+                    Task { await vm.loadAttachments() }
+                }
             }
             VStack(alignment: .leading, spacing: 6) {
                 detailLine(
@@ -1149,11 +1180,17 @@ private struct SubscriberToggleRow: View {
 
 private struct AttachmentListView: View {
     let attachments: [Attachment]
+    var deletingAttachmentIds: Set<String> = []
+    var onDelete: ((Attachment) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(attachments) { attachment in
-                AttachmentRowView(attachment: attachment)
+                AttachmentRowView(
+                    attachment: attachment,
+                    isDeleting: deletingAttachmentIds.contains(attachment.id),
+                    onDelete: onDelete
+                )
             }
         }
     }
@@ -1185,18 +1222,41 @@ private struct LabelWrapView: View {
 
 private struct AttachmentRowView: View {
     let attachment: Attachment
+    var isDeleting = false
+    var onDelete: ((Attachment) -> Void)?
 
     var body: some View {
-        Group {
-            if let url = URL(string: attachment.downloadUrl.isEmpty ? attachment.url : attachment.downloadUrl) {
-                Link(destination: url) {
+        HStack(spacing: 8) {
+            Group {
+                if let url = URL(string: attachment.downloadUrl.isEmpty ? attachment.url : attachment.downloadUrl) {
+                    Link(destination: url) {
+                        rowContent
+                    }
+                } else {
                     rowContent
                 }
-            } else {
-                rowContent
+            }
+            .buttonStyle(.plain)
+
+            if let onDelete {
+                Button(role: .destructive) {
+                    onDelete(attachment)
+                } label: {
+                    if isDeleting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "trash")
+                    }
+                }
+                .disabled(isDeleting)
+                .accessibilityLabel("Delete \(attachment.filename)")
+                .accessibilityIdentifier("AttachmentDeleteButton-\(attachment.id)")
             }
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var rowContent: some View {
@@ -1218,9 +1278,6 @@ private struct AttachmentRowView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var iconName: String {

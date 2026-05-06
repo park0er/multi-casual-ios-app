@@ -913,6 +913,36 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedBody.contains("i1"))
     }
 
+    func test_attachmentEndpointsUseDesktopPathsAndWorkspaceScope() async throws {
+        var requests: [(method: String?, path: String, query: String?)] = []
+        MockURLProtocol.handler = { req in
+            requests.append((req.httpMethod, req.url?.path ?? "", req.url?.query))
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/i1/attachments"):
+                let json = """
+                [{"id":"att1","workspace_id":"w1","issue_id":"i1","comment_id":null,
+                  "uploader_type":"member","uploader_id":"u1","filename":"spec.md",
+                  "url":"https://cdn.example/spec.md","download_url":"https://cdn.example/spec.md",
+                  "content_type":"text/markdown","size_bytes":11,"created_at":"2026-01-01T00:00:00Z"}]
+                """.data(using: .utf8)!
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+            case ("DELETE", "/api/attachments/att1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data())
+            }
+        }
+
+        let attachments = try await client.listAttachments(issueId: "i1", workspaceId: "w1")
+        try await client.deleteAttachment(id: "att1", workspaceId: "w1")
+
+        XCTAssertEqual(attachments.map(\.id), ["att1"])
+        XCTAssertEqual(requests.map(\.method), ["GET", "DELETE"])
+        XCTAssertEqual(requests.map(\.path), ["/api/issues/i1/attachments", "/api/attachments/att1"])
+        XCTAssertEqual(requests.map(\.query), ["workspace_id=w1", "workspace_id=w1"])
+    }
+
     func test_createIssue_sendsAttachmentIds() async throws {
         var body: [String: Any] = [:]
         MockURLProtocol.handler = { req in
