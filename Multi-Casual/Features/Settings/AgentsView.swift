@@ -130,8 +130,8 @@ private struct AgentRow: View {
                         .lineLimit(2)
                 }
                 HStack(spacing: 8) {
-                    Text(agent.status.capitalized)
-                    Text(agent.visibility.capitalized)
+                    MarkdownText(agent.status.capitalized)
+                    MarkdownText(agent.visibility.capitalized)
                     if let model = agent.model, !model.isEmpty {
                         MarkdownText(model)
                     }
@@ -192,7 +192,7 @@ private struct AgentFormSheet: View {
                             }
                         }
                     } else {
-                        LabeledContent("Runtime", value: agent?.runtimeId ?? "")
+                        MarkdownLabeledContent("Runtime", value: agent?.runtimeId ?? "")
                     }
 
                     Picker("Visibility", selection: $visibility) {

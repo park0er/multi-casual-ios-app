@@ -27,4 +27,23 @@ public struct MarkdownText: View {
         Text(MarkdownRenderer.attributedString(from: markdown))
     }
 }
+
+public struct MarkdownLabeledContent: View {
+    private let label: String
+    private let value: String
+
+    public init(_ label: String, value: String) {
+        self.label = label
+        self.value = value
+    }
+
+    public var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            MarkdownText(label)
+            Spacer(minLength: 12)
+            MarkdownText(value)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+}
 #endif

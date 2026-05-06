@@ -29,7 +29,7 @@ public struct ProjectsView: View {
                                 HStack(spacing: 8) {
                                     Label(project.status.displayName, systemImage: project.status.icon)
                                     Label(project.priority.displayName, systemImage: "flag")
-                                    Text("\(project.doneCount)/\(project.issueCount) done")
+                                    MarkdownText("\(project.doneCount)/\(project.issueCount) done")
                                 }
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)

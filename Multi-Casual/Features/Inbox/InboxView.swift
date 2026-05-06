@@ -97,11 +97,11 @@ private struct InboxRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let identifier = displayIdentifier {
-                    Text(identifier)
+                    MarkdownText(identifier)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Text(displayType)
+                MarkdownText(displayType)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 8)
@@ -132,9 +132,9 @@ private struct InboxRow: View {
             }
 
             HStack(spacing: 8) {
-                Text(item.read ? "Read" : "Unread")
+                MarkdownText(item.read ? "Read" : "Unread")
                 if item.issueStatus != .unknown {
-                    Text(item.issueStatus.displayName)
+                    MarkdownText(item.issueStatus.displayName)
                 }
             }
             .font(.caption)

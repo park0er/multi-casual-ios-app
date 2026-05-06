@@ -102,7 +102,7 @@ private struct IssueCreateForm: View {
                     .disabled(viewModel.isLoadingOptions)
 
                     if let assignee = viewModel.selectedAssignee {
-                        LabeledContent(assignee.subtitle, value: assignee.type.capitalized)
+                        MarkdownLabeledContent(assignee.subtitle, value: assignee.type.capitalized)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

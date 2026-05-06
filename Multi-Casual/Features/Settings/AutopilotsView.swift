@@ -119,8 +119,8 @@ private struct AutopilotRow: View {
                         .lineLimit(2)
                 }
                 HStack(spacing: 8) {
-                    Text(autopilot.status.capitalized)
-                    Text(autopilot.executionMode.replacingOccurrences(of: "_", with: " ").capitalized)
+                    MarkdownText(autopilot.status.capitalized)
+                    MarkdownText(autopilot.executionMode.replacingOccurrences(of: "_", with: " ").capitalized)
                     MarkdownText(assigneeName)
                 }
                 .font(.caption2)

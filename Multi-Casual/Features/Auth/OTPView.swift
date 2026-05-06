@@ -9,7 +9,7 @@ public struct OTPView: View {
             Spacer()
             Image(systemName: "envelope.open").font(.system(size: 64))
             Text("Check your email").font(.title.bold())
-            Text("We sent a code to **\(viewModel.email)**")
+            MarkdownText("We sent a code to **\(viewModel.email)**")
                 .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
 
             OTPInputField(

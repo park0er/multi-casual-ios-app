@@ -71,9 +71,9 @@ private struct RuntimeRow: View {
                 MarkdownText(runtime.name)
                     .font(.body.weight(.semibold))
                 HStack(spacing: 8) {
-                    Text(runtime.status.capitalized)
-                    Text(runtime.provider.capitalized)
-                    Text(runtime.runtimeMode.capitalized)
+                    MarkdownText(runtime.status.capitalized)
+                    MarkdownText(runtime.provider.capitalized)
+                    MarkdownText(runtime.runtimeMode.capitalized)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

@@ -17,9 +17,9 @@ public struct ProjectDetailView: View {
                         if let desc = vm.project.description {
                             MarkdownText(desc).foregroundStyle(.secondary)
                         }
-                        LabeledContent("Status", value: vm.project.status.displayName)
-                        LabeledContent("Priority", value: vm.project.priority.displayName)
-                        LabeledContent("Progress", value: vm.progressText)
+                        MarkdownLabeledContent("Status", value: vm.project.status.displayName)
+                        MarkdownLabeledContent("Priority", value: vm.project.priority.displayName)
+                        MarkdownLabeledContent("Progress", value: vm.progressText)
                     }
 
                     Section("Resources (\(vm.resources.count))") {
@@ -84,7 +84,7 @@ private struct ProjectResourceRow: View {
                 MarkdownText(resource.displayTitle)
                     .font(.body)
                     .lineLimit(1)
-                Text(resource.resourceType)
+                MarkdownText(resource.resourceType)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
