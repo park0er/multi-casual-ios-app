@@ -46,4 +46,22 @@ public struct MarkdownLabeledContent: View {
         }
     }
 }
+
+public struct MarkdownIconLabel: View {
+    private let title: String
+    private let systemImage: String
+
+    public init(_ title: String, systemImage: String) {
+        self.title = title
+        self.systemImage = systemImage
+    }
+
+    public var body: some View {
+        Label {
+            MarkdownText(title)
+        } icon: {
+            Image(systemName: systemImage)
+        }
+    }
+}
 #endif

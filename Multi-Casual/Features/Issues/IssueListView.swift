@@ -58,7 +58,7 @@ public struct IssueListView: View {
                                 Button {
                                     vm.setSortOption(option)
                                 } label: {
-                                    Label(option.displayName, systemImage: vm.sortOption == option ? "checkmark" : "arrow.up.arrow.down")
+                                    MarkdownIconLabel(option.displayName, systemImage: vm.sortOption == option ? "checkmark" : "arrow.up.arrow.down")
                                 }
                             }
                         } label: {
@@ -261,7 +261,7 @@ private struct IssueBatchActionBar: View {
                     Button {
                         onAssignee(option)
                     } label: {
-                        Label(option.displayName, systemImage: option.type == "agent" ? "bolt.circle" : "person.circle")
+                        MarkdownIconLabel(option.displayName, systemImage: option.type == "agent" ? "bolt.circle" : "person.circle")
                     }
                 }
             } label: {

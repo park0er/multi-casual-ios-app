@@ -15,6 +15,10 @@ final class MarkdownCoverageTests: XCTestCase {
             (
                 "Multi-Casual/Features/Settings/AgentsView.swift",
                 #"                        LabeledContent("Runtime", value: agent?.runtimeId"#
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueListView.swift",
+                "                        Label(option.displayName, systemImage:"
             )
         ]
 
