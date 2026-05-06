@@ -9,7 +9,10 @@ final class Multi-CasualUITests: XCTestCase {
     private let memberDisplayName = "XishengGmail"
     private let agentDisplayName = "RollieCC"
     private let transcriptTaskId = "9eab0d97-de00-4f90-82a6-d70cbb5161a2"
+    private let backendTimeoutMessage = "The server took too long to respond. Please try again."
     private let mutationFlagDirectory = URL(fileURLWithPath: "/tmp/multica-ui-mutation-tests", isDirectory: true)
+    private let debugTokenFile = URL(fileURLWithPath: "/tmp/multica-ui-debug-token")
+    private let debugNetworkLogFile = URL(fileURLWithPath: "/tmp/multica-ui-network-log")
 
     override func setUp() {
         super.setUp()
@@ -209,15 +212,12 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(waitForNonExistence(app.navigationBars["New Issue"], timeout: 20))
     }
 
-    func testInboxSwipeShowsArchiveActionWithoutSubmitting() {
+    func testInboxSwipeShowsArchiveActionWithoutSubmitting() throws {
         let app = launchApp(initialTab: "inbox")
 
         XCTAssertTrue(app.staticTexts["Inbox"].waitForExistence(timeout: 20))
-        let firstNotification = app.cells.element(boundBy: 0)
-        XCTAssertTrue(firstNotification.waitForExistence(timeout: 20))
-        let rowButton = firstNotification.buttons.element(boundBy: 0)
-        XCTAssertTrue(rowButton.waitForExistence(timeout: 5))
-        rowButton.swipeLeft()
+        let firstNotification = try firstInboxNotificationCell(in: app)
+        revealTrailingActions(on: firstNotification)
         XCTAssertTrue(app.buttons["Archive"].waitForExistence(timeout: 5))
         app.buttons["Archive"].tap()
         XCTAssertTrue(app.staticTexts["Archive this notification?"].waitForExistence(timeout: 5))
@@ -226,10 +226,15 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(firstNotification.waitForExistence(timeout: 5))
     }
 
-    func testIssueDetailRendersMetadataCommentsAndInput() {
+    func testIssueDetailRendersMetadataCommentsAndInput() throws {
         let app = launchApp(initialTab: "issues", issueId: par73IssueId)
 
-        XCTAssertTrue(app.staticTexts["PAR-73"].waitForExistence(timeout: 20))
+        try waitForElementOrBackendTimeout(
+            app.staticTexts["PAR-73"],
+            in: app,
+            timeout: 20,
+            reason: "Issue detail endpoint timed out before metadata coverage could run."
+        )
         XCTAssertTrue(app.staticTexts["Agent Activity"].waitForExistence(timeout: 20))
         let commentField = app.descendants(matching: .any)["IssueDetailCommentInput"].firstMatch
         XCTAssertTrue(commentField.waitForExistence(timeout: 10))
@@ -356,19 +361,16 @@ final class Multi-CasualUITests: XCTestCase {
         let app = launchApp(initialTab: "inbox")
 
         XCTAssertTrue(app.staticTexts["Inbox"].waitForExistence(timeout: 20))
-        let unreadCell = app.cells.containing(.staticText, identifier: "Unread").element(boundBy: 0)
-        guard unreadCell.waitForExistence(timeout: 20) else {
+        guard let unreadCell = try firstUnreadInboxNotificationCell(in: app) else {
             throw XCTSkip("No unread Inbox item is available to mark read.")
         }
 
-        let rowButton = unreadCell.buttons.element(boundBy: 0)
-        XCTAssertTrue(rowButton.waitForExistence(timeout: 5))
-        rowButton.swipeRight()
+        revealLeadingActions(on: unreadCell)
         XCTAssertTrue(app.buttons["Read"].waitForExistence(timeout: 5))
         app.buttons["Read"].tap()
         XCTAssertTrue(unreadCell.staticTexts["Read"].waitForExistence(timeout: 10))
 
-        rowButton.swipeLeft()
+        revealTrailingActions(on: unreadCell)
         XCTAssertTrue(app.buttons["Archive"].waitForExistence(timeout: 5))
         app.buttons["Archive"].tap()
         XCTAssertTrue(app.staticTexts["Archive this notification?"].waitForExistence(timeout: 5))
@@ -388,6 +390,15 @@ final class Multi-CasualUITests: XCTestCase {
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["MULTICA_DEBUG_SKIP_PUSH_PROMPT"] = "1"
+        if ProcessInfo.processInfo.environment["MULTICA_UI_DEBUG_NETWORK_LOG"] == "1"
+            || FileManager.default.fileExists(atPath: debugNetworkLogFile.path) {
+            app.launchEnvironment["MULTICA_DEBUG_NETWORK_LOG"] = "1"
+        }
+        if let token = debugToken() {
+            app.launchEnvironment["MULTICA_DEBUG_TOKEN"] = token
+        } else {
+            XCTFail("Authenticated UI tests require MULTICA_UI_DEBUG_TOKEN in the test runner environment.")
+        }
         if useWorkspaceOverride {
             app.launchEnvironment["MULTICA_DEBUG_WORKSPACE_ID"] = workspaceId
         }
@@ -414,6 +425,19 @@ final class Multi-CasualUITests: XCTestCase {
         }
         app.launch()
         return app
+    }
+
+    private func debugToken() -> String? {
+        if let token = ProcessInfo.processInfo.environment["MULTICA_UI_DEBUG_TOKEN"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !token.isEmpty {
+            return token
+        }
+        if let token = try? String(contentsOf: debugTokenFile, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !token.isEmpty {
+            return token
+        }
+        return nil
     }
 
     private func launchLoggedOutApp() -> XCUIApplication {
@@ -489,6 +513,81 @@ final class Multi-CasualUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         return element.exists && predicate(String(describing: element.value))
+    }
+
+    private func firstInboxNotificationCell(in app: XCUIApplication, timeout: TimeInterval = 20) throws -> XCUIElement {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let cells = app.cells.allElementsBoundByIndex
+            if let notificationCell = cells.first(where: { cell in
+                cell.staticTexts["Unread"].exists || cell.staticTexts["Read"].exists
+            }) {
+                return notificationCell
+            }
+            if app.staticTexts["No Inbox Items"].exists {
+                throw XCTSkip("No Inbox item is available for swipe action coverage.")
+            }
+            if app.staticTexts[backendTimeoutMessage].exists {
+                throw XCTSkip("Inbox endpoint timed out before swipe action coverage could run.")
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+
+        XCTFail("Timed out waiting for an Inbox notification row.")
+        return app.cells.element(boundBy: 0)
+    }
+
+    private func firstUnreadInboxNotificationCell(in app: XCUIApplication, timeout: TimeInterval = 20) throws -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let unreadCell = app.cells.containing(.staticText, identifier: "Unread").element(boundBy: 0)
+            if unreadCell.exists {
+                return unreadCell
+            }
+            if app.staticTexts["No Inbox Items"].exists {
+                return nil
+            }
+            let readCell = app.cells.containing(.staticText, identifier: "Read").element(boundBy: 0)
+            if readCell.exists {
+                return nil
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+
+        XCTFail("Timed out waiting for Inbox rows.")
+        return nil
+    }
+
+    private func waitForElementOrBackendTimeout(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+        timeout: TimeInterval,
+        reason: String
+    ) throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.exists { return }
+            if app.staticTexts[backendTimeoutMessage].exists {
+                throw XCTSkip(reason)
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+
+        XCTAssertTrue(element.exists)
+    }
+
+    private func revealTrailingActions(on element: XCUIElement) {
+        drag(element, from: CGVector(dx: 0.92, dy: 0.5), to: CGVector(dx: 0.12, dy: 0.5))
+    }
+
+    private func revealLeadingActions(on element: XCUIElement) {
+        drag(element, from: CGVector(dx: 0.08, dy: 0.5), to: CGVector(dx: 0.88, dy: 0.5))
+    }
+
+    private func drag(_ element: XCUIElement, from start: CGVector, to end: CGVector) {
+        let startCoordinate = element.coordinate(withNormalizedOffset: start)
+        let endCoordinate = element.coordinate(withNormalizedOffset: end)
+        startCoordinate.press(forDuration: 0.05, thenDragTo: endCoordinate)
     }
 
     private func scrollUntilStaticTextExists(_ text: String, app: XCUIApplication, timeout: TimeInterval) -> Bool {

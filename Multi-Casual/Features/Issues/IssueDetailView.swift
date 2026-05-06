@@ -26,9 +26,7 @@ public struct IssueDetailView: View {
                     api: api
                 )
                 Task {
-                    await viewModel?.loadIssueAndMetadata()
-                    await viewModel?.loadComments()
-                    await viewModel?.loadAgentRuns()
+                    await viewModel?.loadInitialData()
                 }
             }
         }

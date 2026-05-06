@@ -71,6 +71,45 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(user.email, "test@example.com")
     }
 
+    func test_getMe_sendsDesktopStyleClientHeaders() async throws {
+        let json = """
+        {"id":"u1","email":"test@example.com","name":"Test User","avatar_url":null}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            XCTAssertNotNil(req.value(forHTTPHeaderField: "X-Request-ID"))
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Client-Platform"), "ios")
+            XCTAssertNotNil(req.value(forHTTPHeaderField: "X-Client-Version"))
+            XCTAssertNotNil(req.value(forHTTPHeaderField: "X-Client-OS"))
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await client.getMe()
+    }
+
+    func test_requestTimeout_surfacesLocalizedAPIError() async {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: config)
+        client = APIClient(session: session, requestTimeout: 0.01, token: "test-token")
+        MockURLProtocol.handler = { req in
+            Thread.sleep(forTimeInterval: 0.2)
+            let json = """
+            {"id":"u1","email":"test@example.com","name":"Test User","avatar_url":null}
+            """.data(using: .utf8)!
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        do {
+            _ = try await client.getMe()
+            XCTFail("Expected timeout")
+        } catch APIClient.APIError.timeout {
+            XCTAssertEqual(APIClient.APIError.timeout.localizedDescription, "The server took too long to respond. Please try again.")
+        } catch {
+            XCTFail("Wrong error: \(error)")
+        }
+    }
+
     func test_unauthorized_throwsAuthError() async {
         MockURLProtocol.handler = { req in
             return (HTTPURLResponse(url: req.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!, Data())
@@ -215,14 +254,16 @@ final class APIClientTests: XCTestCase {
         MockURLProtocol.handler = { req in
             capturedURL = req.url
             XCTAssertEqual(req.url?.path, "/api/inbox")
+            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let page = try await client.listInbox(workspaceId: "w1")
+        let page = try await client.listInbox(workspaceSlug: "park0er")
 
         XCTAssertEqual(page.items.count, 1)
         XCTAssertEqual(page.items.first?.issueTitle, "PAR-73 updated")
-        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertNil(capturedURL?.query)
     }
 
     func test_markInboxRead_usesDesktopReadEndpoint() async throws {
@@ -238,13 +279,15 @@ final class APIClientTests: XCTestCase {
             capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/inbox/n1/read")
+            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let item = try await client.markInboxRead(id: "n1", workspaceId: "w1")
+        let item = try await client.markInboxRead(id: "n1", workspaceSlug: "park0er")
 
         XCTAssertTrue(item.read)
-        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertNil(capturedURL?.query)
     }
 
     func test_archiveInbox_usesDesktopArchiveEndpoint() async throws {
@@ -260,13 +303,15 @@ final class APIClientTests: XCTestCase {
             capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/inbox/n1/archive")
+            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let item = try await client.archiveInbox(id: "n1", workspaceId: "w1")
+        let item = try await client.archiveInbox(id: "n1", workspaceSlug: "park0er")
 
         XCTAssertTrue(item.archived)
-        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertNil(capturedURL?.query)
     }
 
     func test_listComments_decodesBareArrayResponse() async throws {

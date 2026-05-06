@@ -36,6 +36,13 @@ public final class IssueDetailViewModel {
         !commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSubmittingComment
     }
 
+    public func loadInitialData() async {
+        async let issueAndMetadata: Void = loadIssueAndMetadata()
+        async let comments: Void = loadComments()
+        async let agentRuns: Void = loadAgentRuns()
+        _ = await (issueAndMetadata, comments, agentRuns)
+    }
+
     public func loadIssue() async {
         isLoadingIssue = true
         error = nil

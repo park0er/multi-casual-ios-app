@@ -196,6 +196,41 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.commentsError)
     }
 
+    func test_loadInitialDataStartsAgentRunsWithoutWaitingForSlowComments() async throws {
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/issues/i1":
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-01T00:00:00Z"))
+            case "/api/workspaces/w1/members":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/agents":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/projects":
+                return Self.response(for: req, body: #"{"projects":[],"total":0}"#.data(using: .utf8)!)
+            case "/api/issues/i1/comments":
+                Thread.sleep(forTimeInterval: 2)
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/issues/i1/task-runs":
+                return Self.response(for: req, body: Data("[]".utf8))
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        let task = Task { await vm.loadInitialData() }
+
+        let deadline = Date().addingTimeInterval(1)
+        while !vm.isLoadingAgentRuns && !vm.didLoadAgentRuns && Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        XCTAssertTrue(vm.isLoadingAgentRuns || vm.didLoadAgentRuns)
+        XCTAssertFalse(vm.didLoadComments)
+        await task.value
+    }
+
     func test_loadMoreComments_appendsPaginatedCommentPages() async throws {
         var offsets: [String] = []
         let client = makeClient { req in

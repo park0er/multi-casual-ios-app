@@ -7,10 +7,12 @@ final class InboxViewModelTests: XCTestCase {
         let client = makeClient { req in
             switch req.url?.path {
             case "/api/inbox":
-                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Self.inboxItemJSON(read: false, archived: false))
             case "/api/inbox/n1/read":
-                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Self.singleInboxItemJSON(read: true, archived: false))
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
@@ -31,10 +33,12 @@ final class InboxViewModelTests: XCTestCase {
         let client = makeClient { req in
             switch req.url?.path {
             case "/api/inbox":
-                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Self.inboxItemJSON(read: false, archived: false))
             case "/api/inbox/n1/archive":
-                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Self.singleInboxItemJSON(read: false, archived: true))
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")

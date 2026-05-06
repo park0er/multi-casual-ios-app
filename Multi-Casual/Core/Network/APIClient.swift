@@ -9,10 +9,12 @@ public final class APIClient: @unchecked Sendable {
         case serverError(Int, body: String)
         case decodingError(underlying: Error, body: String)
         case networkError(Error)
+        case timeout
     }
 
     private let session: URLSession
     private let baseURL: URL
+    private let requestTimeoutNanoseconds: UInt64
     private var tokenProvider: @Sendable () -> String?
 
     /// Shared decoder — ISO8601 dates, single allocation across all requests.
@@ -42,11 +44,13 @@ public final class APIClient: @unchecked Sendable {
     public init(
         session: URLSession = .shared,
         baseURL: URL = URL(string: "https://api.multica.ai")!,
+        requestTimeout: TimeInterval = 15,
         token: String? = nil,
         tokenProvider: (@Sendable () -> String?)? = nil
     ) {
         self.session = session
         self.baseURL = baseURL
+        self.requestTimeoutNanoseconds = UInt64(requestTimeout * 1_000_000_000)
         if let token {
             self.tokenProvider = { token }
         } else {
@@ -66,6 +70,7 @@ public final class APIClient: @unchecked Sendable {
         _ method: String,
         path: String,
         queryItems: [URLQueryItem] = [],
+        headers: [String: String] = [:],
         body: (any Encodable)? = nil
     ) async throws -> T {
         guard var components = URLComponents(
@@ -81,24 +86,52 @@ public final class APIClient: @unchecked Sendable {
 
         var req = URLRequest(url: url)
         req.httpMethod = method
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(UUID().uuidString, forHTTPHeaderField: "X-Request-ID")
+        req.setValue("ios", forHTTPHeaderField: "X-Client-Platform")
+        req.setValue(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "debug",
+                     forHTTPHeaderField: "X-Client-Version")
+        req.setValue(ProcessInfo.processInfo.operatingSystemVersionString, forHTTPHeaderField: "X-Client-OS")
         if let token = tokenProvider() {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
+        for (field, value) in headers where !value.isEmpty {
+            req.setValue(value, forHTTPHeaderField: field)
+        }
         if let body {
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try APIClient.encoder.encode(body)
         }
 
+        #if DEBUG
+        let debugNetworkLog = ProcessInfo.processInfo.environment["MULTICA_DEBUG_NETWORK_LOG"] == "1"
+        if debugNetworkLog {
+            NSLog("MulticaAPI request \(method) \(url.path) query=\(url.query ?? "") headers=\(headers.keys.sorted().joined(separator: ","))")
+        }
+        #endif
+
         let (data, response): (Data, URLResponse)
         do {
-            (data, response) = try await session.data(for: req)
+            (data, response) = try await responseData(for: req)
         } catch {
+            if let apiError = error as? APIError {
+                throw apiError
+            }
+            #if DEBUG
+            if debugNetworkLog {
+                NSLog("MulticaAPI network error \(method) \(url.path): \(error.localizedDescription)")
+            }
+            #endif
             throw APIError.networkError(error)
         }
 
         guard let http = response as? HTTPURLResponse else {
             throw APIError.serverError(-1, body: "Non-HTTP response: \(response)")
         }
+        #if DEBUG
+        if debugNetworkLog {
+            NSLog("MulticaAPI response \(method) \(url.path) status=\(http.statusCode) bytes=\(data.count)")
+        }
+        #endif
         switch http.statusCode {
         case 200...299: break
         case 401: throw APIError.unauthorized
@@ -113,6 +146,25 @@ public final class APIClient: @unchecked Sendable {
         } catch {
             let body = String(data: data, encoding: .utf8) ?? "<binary \(data.count) bytes>"
             throw APIError.decodingError(underlying: error, body: body)
+        }
+    }
+
+    private func responseData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await withThrowingTaskGroup(of: (Data, URLResponse).self) { group in
+            group.addTask { [session] in
+                try await session.data(for: request)
+            }
+            group.addTask { [requestTimeoutNanoseconds] in
+                try await Task.sleep(nanoseconds: requestTimeoutNanoseconds)
+                throw APIError.timeout
+            }
+
+            guard let result = try await group.next() else {
+                group.cancelAll()
+                throw APIError.timeout
+            }
+            group.cancelAll()
+            return result
         }
     }
 
@@ -290,20 +342,16 @@ public final class APIClient: @unchecked Sendable {
 
     // MARK: - Inbox
 
-    public func listInbox(workspaceId: String, limit: Int = 50, offset: Int = 0) async throws -> PageResponse<InboxItem> {
-        try await request("GET", path: "api/inbox", queryItems: [
-            .init(name: "workspace_id", value: workspaceId),
-            .init(name: "limit", value: "\(limit)"),
-            .init(name: "offset", value: "\(offset)"),
-        ])
+    public func listInbox(workspaceSlug: String? = nil) async throws -> PageResponse<InboxItem> {
+        try await request("GET", path: "api/inbox", headers: workspaceHeaders(workspaceSlug))
     }
 
-    public func markInboxRead(id: String, workspaceId: String) async throws -> InboxItem {
-        try await request("POST", path: "api/inbox/\(id)/read", queryItems: workspaceQuery(workspaceId))
+    public func markInboxRead(id: String, workspaceSlug: String? = nil) async throws -> InboxItem {
+        try await request("POST", path: "api/inbox/\(id)/read", headers: workspaceHeaders(workspaceSlug))
     }
 
-    public func archiveInbox(id: String, workspaceId: String) async throws -> InboxItem {
-        try await request("POST", path: "api/inbox/\(id)/archive", queryItems: workspaceQuery(workspaceId))
+    public func archiveInbox(id: String, workspaceSlug: String? = nil) async throws -> InboxItem {
+        try await request("POST", path: "api/inbox/\(id)/archive", headers: workspaceHeaders(workspaceSlug))
     }
 
     // MARK: - Projects
@@ -328,6 +376,11 @@ public final class APIClient: @unchecked Sendable {
     private func workspaceQuery(_ workspaceId: String?) -> [URLQueryItem] {
         guard let workspaceId, !workspaceId.isEmpty else { return [] }
         return [.init(name: "workspace_id", value: workspaceId)]
+    }
+
+    private func workspaceHeaders(_ workspaceSlug: String?) -> [String: String] {
+        guard let workspaceSlug, !workspaceSlug.isEmpty else { return [:] }
+        return ["X-Workspace-Slug": workspaceSlug]
     }
 }
 
@@ -356,6 +409,8 @@ extension APIClient.APIError: LocalizedError {
             return "Couldn't parse server response\(detail). Raw: \(preview)"
         case .networkError(let error):
             return "Network problem: \(error.localizedDescription)"
+        case .timeout:
+            return "The server took too long to respond. Please try again."
         }
     }
 
