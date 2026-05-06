@@ -72,7 +72,7 @@ public final class AuthSession {
             workspaces = fetchedWorkspaces
             currentWorkspace = Self.preferredWorkspace(
                 from: fetchedWorkspaces,
-                preferredId: preferredWorkspaceId ?? self.preferredWorkspaceId
+                preferredId: Self.normalizedWorkspaceId(preferredWorkspaceId) ?? self.preferredWorkspaceId
             )
             if let currentWorkspace {
                 setWorkspace(currentWorkspace)
@@ -143,7 +143,7 @@ public final class AuthSession {
             workspaces = fetchedWorkspaces
             currentWorkspace = Self.preferredWorkspace(
                 from: fetchedWorkspaces,
-                preferredId: preferredWorkspaceId ?? self.preferredWorkspaceId
+                preferredId: Self.normalizedWorkspaceId(preferredWorkspaceId) ?? self.preferredWorkspaceId
             )
             if let currentWorkspace {
                 setWorkspace(currentWorkspace)
@@ -185,6 +185,13 @@ public extension AuthSession {
             return workspace
         }
         return workspaces.first
+    }
+
+    static func normalizedWorkspaceId(_ id: String?) -> String? {
+        guard let id = id?.trimmingCharacters(in: .whitespacesAndNewlines), !id.isEmpty else {
+            return nil
+        }
+        return id
     }
 
     #if DEBUG

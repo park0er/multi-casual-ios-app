@@ -12,11 +12,13 @@ final class AuthSessionTests: XCTestCase {
         #endif
         try? store.delete()
         defaults.removePersistentDomain(forName: "ai.multica.app.auth-session.test")
+        MockURLProtocol.handler = nil
     }
 
     override func tearDown() {
         try? store.delete()
         defaults.removePersistentDomain(forName: "ai.multica.app.auth-session.test")
+        MockURLProtocol.handler = nil
     }
 
     func test_installDebugToken_savesProvidedToken() throws {
@@ -84,6 +86,35 @@ final class AuthSessionTests: XCTestCase {
         XCTAssertEqual(session.token(), "token")
     }
 
+    func test_restoreIgnoresEmptyPreferredOverrideAndUsesPersistedSelection() async throws {
+        let first = Workspace(id: "w1", name: "First", slug: "first", issuePrefix: "FIR")
+        let second = Workspace(id: "w2", name: "Second", slug: "second", issuePrefix: "SEC")
+        defaults.set("w2", forKey: AuthSession.selectedWorkspaceDefaultsKey)
+        try store.save("token")
+        let session = AuthSession(keychain: store, userDefaults: defaults)
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/me":
+                return Self.jsonResponse(req, body: #"{"id":"u1","email":"u@example.com","name":"User","avatar_url":null}"#)
+            case "/api/workspaces":
+                return Self.jsonResponse(req, body: """
+                [
+                  {"id":"\(first.id)","name":"\(first.name)","slug":"\(first.slug)","issue_prefix":"\(first.issuePrefix)","repos":[]},
+                  {"id":"\(second.id)","name":"\(second.name)","slug":"\(second.slug)","issue_prefix":"\(second.issuePrefix)","repos":[]}
+                ]
+                """)
+            default:
+                XCTFail("Unexpected path: \(req.url?.path ?? "<nil>")")
+                throw URLError(.badURL)
+            }
+        }
+
+        await session.restore(using: client, preferredWorkspaceId: "")
+
+        XCTAssertEqual(session.currentWorkspace?.id, "w2")
+        XCTAssertEqual(session.preferredWorkspaceId, "w2")
+    }
+
     func test_logoutClearsWorkspaceStateAndPersistedSelection() {
         let workspace = Workspace(id: "w1", name: "First", slug: "first", issuePrefix: "FIR")
         let session = AuthSession(keychain: store, userDefaults: defaults)
@@ -95,5 +126,19 @@ final class AuthSessionTests: XCTestCase {
         XCTAssertNil(session.currentWorkspace)
         XCTAssertTrue(session.workspaces.isEmpty)
         XCTAssertNil(session.preferredWorkspaceId)
+    }
+
+    private func makeClient(handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)) -> APIClient {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        MockURLProtocol.handler = handler
+        return APIClient(session: URLSession(configuration: config), token: "test-token")
+    }
+
+    private static func jsonResponse(_ req: URLRequest, body: String) -> (HTTPURLResponse, Data) {
+        (
+            HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+            Data(body.utf8)
+        )
     }
 }
