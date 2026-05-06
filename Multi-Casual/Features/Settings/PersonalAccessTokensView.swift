@@ -22,7 +22,7 @@ public struct PersonalAccessTokensView: View {
 
                         Picker("Expires", selection: $expiry) {
                             ForEach(TokenExpiryOption.allCases) { option in
-                                Text(option.title).tag(option)
+                                MarkdownText(option.title).tag(option)
                             }
                         }
 

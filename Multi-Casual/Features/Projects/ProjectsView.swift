@@ -34,8 +34,8 @@ public struct ProjectsView: View {
                                         MarkdownText(desc).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                                     }
                                     HStack(spacing: 8) {
-                                        Label(project.status.displayName, systemImage: project.status.icon)
-                                        Label(project.priority.displayName, systemImage: "flag")
+                                        MarkdownIconLabel(project.status.displayName, systemImage: project.status.icon)
+                                        MarkdownIconLabel(project.priority.displayName, systemImage: "flag")
                                         MarkdownText("\(project.doneCount)/\(project.issueCount) done")
                                     }
                                     .font(.caption2)
@@ -176,12 +176,12 @@ private struct ProjectFormSheet: View {
                 Section("Details") {
                     Picker("Status", selection: $status) {
                         ForEach(statusOptions, id: \.self) { status in
-                            Label(status.displayName, systemImage: status.icon).tag(status)
+                            MarkdownIconLabel(status.displayName, systemImage: status.icon).tag(status)
                         }
                     }
                     Picker("Priority", selection: $priority) {
                         ForEach(priorityOptions, id: \.self) { priority in
-                            Text(priority.displayName).tag(priority)
+                            MarkdownText(priority.displayName).tag(priority)
                         }
                     }
                     Picker("Lead", selection: $selectedLeadOptionId) {

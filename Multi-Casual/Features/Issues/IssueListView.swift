@@ -22,9 +22,9 @@ public struct IssueListView: View {
                             get: { vm.scope },
                             set: { nextScope in Task { await vm.setScope(nextScope) } }
                         )) {
-                            Text(IssueListViewModel.Scope.assignedToMe.displayName).tag(IssueListViewModel.Scope.assignedToMe)
-                            Text(IssueListViewModel.Scope.createdByMe.displayName).tag(IssueListViewModel.Scope.createdByMe)
-                            Text(IssueListViewModel.Scope.myAgents.displayName).tag(IssueListViewModel.Scope.myAgents)
+                            MarkdownText(IssueListViewModel.Scope.assignedToMe.displayName).tag(IssueListViewModel.Scope.assignedToMe)
+                            MarkdownText(IssueListViewModel.Scope.createdByMe.displayName).tag(IssueListViewModel.Scope.createdByMe)
+                            MarkdownText(IssueListViewModel.Scope.myAgents.displayName).tag(IssueListViewModel.Scope.myAgents)
                         }
                         .pickerStyle(.segmented)
                         .padding(.horizontal)
@@ -64,7 +64,7 @@ public struct IssueListView: View {
                                 Button {
                                     Task { await vm.setPriorityFilter(priority) }
                                 } label: {
-                                    Label(priority.displayName, systemImage: vm.priorityFilter == priority ? "checkmark" : "flag")
+                                    MarkdownIconLabel(priority.displayName, systemImage: vm.priorityFilter == priority ? "checkmark" : "flag")
                                 }
                             }
                         } label: {
@@ -162,7 +162,7 @@ public struct IssueListView: View {
                 ContentUnavailableView(
                     vm.scope.emptyTitle,
                     systemImage: initialScope.isPersonal ? "person.crop.circle.badge.checkmark" : "checklist",
-                    description: Text(vm.scope.emptyDescription)
+                    description: Text(MarkdownRenderer.attributedString(from: vm.scope.emptyDescription))
                 )
             }
             ForEach(vm.loader.items) { issue in
@@ -212,7 +212,7 @@ public struct IssueListView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Image(systemName: status.icon)
-                            Text(status.displayName).font(.caption.bold())
+                            MarkdownText(status.displayName).font(.caption.bold())
                             Text("(\(issues.count))").font(.caption).foregroundStyle(.secondary)
                         }
                         .padding(.horizontal, 8)
@@ -351,7 +351,7 @@ public struct IssueRowView: View {
             }
             Spacer(minLength: 8)
             if let childProgressText {
-                Label(childProgressText, systemImage: "checklist")
+                MarkdownIconLabel(childProgressText, systemImage: "checklist")
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 7)
@@ -387,7 +387,7 @@ struct BoardCardView: View {
                 MarkdownText(issue.identifier).font(.caption).foregroundStyle(.secondary)
                 Spacer(minLength: 6)
                 if let childProgressText {
-                    Label(childProgressText, systemImage: "checklist")
+                    MarkdownIconLabel(childProgressText, systemImage: "checklist")
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .labelStyle(.titleAndIcon)

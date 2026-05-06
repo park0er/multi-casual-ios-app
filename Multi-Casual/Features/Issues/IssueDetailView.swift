@@ -272,7 +272,7 @@ public struct IssueDetailView: View {
                             .font(.caption)
                             .lineLimit(1)
                         if !vm.parentSiblingIssues.isEmpty {
-                            Text(vm.parentChildProgressText)
+                            MarkdownText(vm.parentChildProgressText)
                                 .font(.caption2.monospacedDigit())
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
@@ -289,11 +289,11 @@ public struct IssueDetailView: View {
                         Button {
                             Task { await vm.updateStatus(status) }
                         } label: {
-                            Label(status.displayName, systemImage: status.icon)
+                            MarkdownIconLabel(status.displayName, systemImage: status.icon)
                         }
                     }
                 } label: {
-                    Label(issue.status.displayName, systemImage: issue.status.icon)
+                    MarkdownIconLabel(issue.status.displayName, systemImage: issue.status.icon)
                         .font(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -306,11 +306,11 @@ public struct IssueDetailView: View {
                         Button {
                             Task { await vm.updatePriority(priority) }
                         } label: {
-                            Label(priority.displayName, systemImage: "flag")
+                            MarkdownIconLabel(priority.displayName, systemImage: "flag")
                         }
                     }
                 } label: {
-                    Label(issue.priority.displayName, systemImage: "flag")
+                    MarkdownIconLabel(issue.priority.displayName, systemImage: "flag")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -388,7 +388,7 @@ public struct IssueDetailView: View {
             HStack {
                 Text("Sub-issues").font(.headline)
                 if !vm.childIssues.isEmpty {
-                    Text(vm.childProgressText)
+                    MarkdownText(vm.childProgressText)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 7)
@@ -1268,7 +1268,7 @@ private struct AttachmentRowView: View {
                 MarkdownText(attachment.filename)
                     .font(.caption.bold())
                     .lineLimit(1)
-                Text(fileDetails)
+                MarkdownText(fileDetails)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

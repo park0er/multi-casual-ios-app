@@ -41,7 +41,7 @@ public struct IssueEditSheet: View {
                                 set: { vm.status = $0 }
                             )) {
                                 ForEach(vm.statusOptions, id: \.self) { status in
-                                    Text(status.displayName).tag(status)
+                                    MarkdownText(status.displayName).tag(status)
                                 }
                             }
 
@@ -50,7 +50,7 @@ public struct IssueEditSheet: View {
                                 set: { vm.priority = $0 }
                             )) {
                                 ForEach(vm.priorityOptions, id: \.self) { priority in
-                                    Text(priority.displayName).tag(priority)
+                                    MarkdownText(priority.displayName).tag(priority)
                                 }
                             }
 

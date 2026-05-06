@@ -41,7 +41,7 @@ public struct AgentTranscriptView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Image(systemName: iconForType(item.type)).foregroundStyle(.secondary)
-                                Text(labelForType(item.type)).font(.caption.bold()).foregroundStyle(.secondary)
+                                MarkdownText(labelForType(item.type)).font(.caption.bold()).foregroundStyle(.secondary)
                                 Spacer()
                                 MarkdownText("#\(item.id)").font(.caption2).foregroundStyle(.tertiary)
                             }

@@ -75,14 +75,14 @@ private struct IssueCreateForm: View {
                 Section("Details") {
                     Picker("Status", selection: $viewModel.status) {
                         ForEach(viewModel.statusOptions, id: \.self) { status in
-                            Label(status.displayName, systemImage: status.icon)
+                            MarkdownIconLabel(status.displayName, systemImage: status.icon)
                                 .tag(status)
                         }
                     }
 
                     Picker("Priority", selection: $viewModel.priority) {
                         ForEach(viewModel.priorityOptions, id: \.self) { priority in
-                            Text(priority.displayName).tag(priority)
+                            MarkdownText(priority.displayName).tag(priority)
                         }
                     }
                 }

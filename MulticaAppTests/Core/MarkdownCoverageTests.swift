@@ -71,6 +71,82 @@ final class MarkdownCoverageTests: XCTestCase {
             (
                 "Multi-Casual/Features/Settings/AgentsView.swift",
                 "        .navigationTitle(\"Agent Detail\")"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueListView.swift",
+                "                            Text(IssueListViewModel.Scope.assignedToMe.displayName)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueListView.swift",
+                "                                    Label(priority.displayName, systemImage:"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueListView.swift",
+                "                    description: Text(vm.scope.emptyDescription)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueListView.swift",
+                "                            Text(status.displayName).font(.caption.bold())"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueListView.swift",
+                "                Label(childProgressText, systemImage: \"checklist\")"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                "                            Text(vm.parentChildProgressText)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                "                            Label(status.displayName, systemImage: status.icon)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                "                    Label(issue.status.displayName, systemImage: issue.status.icon)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                "                    Text(vm.childProgressText)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                "                Text(fileDetails)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/AgentTranscriptView.swift",
+                "                                Text(labelForType(item.type)).font(.caption.bold()).foregroundStyle(.secondary)"
+            ),
+            (
+                "Multi-Casual/Features/Projects/ProjectsView.swift",
+                "                                        Label(project.status.displayName, systemImage: project.status.icon)"
+            ),
+            (
+                "Multi-Casual/Features/Projects/ProjectsView.swift",
+                "                            Label(status.displayName, systemImage: status.icon).tag(status)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueCreateSheet.swift",
+                "                            Label(status.displayName, systemImage: status.icon)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueCreateSheet.swift",
+                "                            Text(priority.displayName).tag(priority)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueEditSheet.swift",
+                "                                    Text(status.displayName).tag(status)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueEditSheet.swift",
+                "                                    Text(priority.displayName).tag(priority)"
+            ),
+            (
+                "Multi-Casual/Features/Inbox/InboxView.swift",
+                "                            Label(InboxBulkArchiveAction.read.menuTitle, systemImage:"
+            ),
+            (
+                "Multi-Casual/Features/Settings/PersonalAccessTokensView.swift",
+                "                                Text(option.title).tag(option)"
             )
         ]
 

@@ -87,7 +87,7 @@ public struct InboxView: View {
                             vm.requestBulkArchive(.read)
                             showingBulkArchiveConfirmation = true
                         } label: {
-                            Label(InboxBulkArchiveAction.read.menuTitle, systemImage: "archivebox")
+                            MarkdownIconLabel(InboxBulkArchiveAction.read.menuTitle, systemImage: "archivebox")
                         }
                         .disabled(!vm.loader.items.contains { $0.read } || vm.loader.isLoading)
 
@@ -95,7 +95,7 @@ public struct InboxView: View {
                             vm.requestBulkArchive(.completed)
                             showingBulkArchiveConfirmation = true
                         } label: {
-                            Label(InboxBulkArchiveAction.completed.menuTitle, systemImage: "checkmark.circle")
+                            MarkdownIconLabel(InboxBulkArchiveAction.completed.menuTitle, systemImage: "checkmark.circle")
                         }
                         .disabled(!vm.loader.items.contains { $0.issueStatus == .done } || vm.loader.isLoading)
 
@@ -103,7 +103,7 @@ public struct InboxView: View {
                             vm.requestBulkArchive(.all)
                             showingBulkArchiveConfirmation = true
                         } label: {
-                            Label(InboxBulkArchiveAction.all.menuTitle, systemImage: "archivebox.fill")
+                            MarkdownIconLabel(InboxBulkArchiveAction.all.menuTitle, systemImage: "archivebox.fill")
                         }
                         .disabled(vm.loader.items.isEmpty || vm.loader.isLoading)
                     } label: {
