@@ -6,7 +6,6 @@ public struct AutopilotsView: View {
     @Environment(AuthSession.self) private var authSession
     @State private var viewModel: AutopilotsViewModel?
     @State private var showCreateSheet = false
-    @State private var editingAutopilot: Autopilot?
 
     public init() {}
 
@@ -20,12 +19,11 @@ public struct AutopilotsView: View {
                         ContentUnavailableView("No Autopilots", systemImage: "bolt.badge.automatic", description: Text("This workspace has no autopilots yet."))
                     } else {
                         ForEach(vm.autopilots) { autopilot in
-                            Button {
-                                editingAutopilot = autopilot
+                            NavigationLink {
+                                AutopilotDetailView(autopilot: autopilot, viewModel: vm)
                             } label: {
                                 AutopilotRow(autopilot: autopilot, assigneeName: vm.agentName(for: autopilot.assigneeId))
                             }
-                            .buttonStyle(.plain)
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 Button {
                                     Task { _ = await vm.triggerAutopilot(id: autopilot.id) }
@@ -76,10 +74,6 @@ public struct AutopilotsView: View {
                     AutopilotFormSheet(autopilot: nil, viewModel: vm)
                         .presentationDragIndicator(.visible)
                 }
-                .sheet(item: $editingAutopilot) { autopilot in
-                    AutopilotFormSheet(autopilot: autopilot, viewModel: vm)
-                        .presentationDragIndicator(.visible)
-                }
             } else {
                 ProgressView()
             }
@@ -95,6 +89,109 @@ public struct AutopilotsView: View {
         .onChange(of: authSession.currentWorkspace?.id) { _, _ in
             guard let viewModel else { return }
             Task { await viewModel.load() }
+        }
+    }
+}
+
+private struct AutopilotDetailView: View {
+    let autopilot: Autopilot
+    let viewModel: AutopilotsViewModel
+
+    @State private var isAddingTrigger = false
+    @State private var editingAutopilot: Autopilot?
+
+    private var currentAutopilot: Autopilot {
+        viewModel.detailAutopilot?.id == autopilot.id ? viewModel.detailAutopilot! : autopilot
+    }
+
+    var body: some View {
+        let item = currentAutopilot
+        List {
+            if viewModel.isLoadingDetail && viewModel.detailAutopilot == nil {
+                ProgressView()
+            }
+
+            Section("Properties") {
+                MarkdownLabeledContent("Status", value: item.status.capitalized)
+                MarkdownLabeledContent("Agent", value: viewModel.agentName(for: item.assigneeId))
+                MarkdownLabeledContent("Output Mode", value: item.executionMode.replacingOccurrences(of: "_", with: " ").capitalized)
+                if let description = item.description,
+                   !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Prompt").font(.caption).foregroundStyle(.secondary)
+                        MarkdownText(description)
+                    }
+                }
+            }
+
+            Section("Triggers") {
+                if viewModel.detailTriggers.isEmpty {
+                    Text("No triggers configured").foregroundStyle(.secondary)
+                } else {
+                    ForEach(viewModel.detailTriggers) { trigger in
+                        AutopilotTriggerRow(trigger: trigger)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    Task { await viewModel.deleteTrigger(autopilotId: item.id, triggerId: trigger.id) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                                .disabled(viewModel.isMutating)
+                            }
+                    }
+                }
+
+                Button {
+                    isAddingTrigger = true
+                } label: {
+                    Label("Add Trigger", systemImage: "plus")
+                }
+                .disabled(viewModel.isMutating)
+            }
+
+            Section("Run History") {
+                if viewModel.detailRuns.isEmpty {
+                    Text("No runs yet").foregroundStyle(.secondary)
+                } else {
+                    ForEach(viewModel.detailRuns) { run in
+                        AutopilotRunRow(run: run)
+                    }
+                }
+            }
+
+            if let errorMessage = viewModel.errorMessage {
+                Section {
+                    ErrorRetryView(message: errorMessage) {
+                        Task { await viewModel.loadDetail(id: item.id) }
+                    }
+                }
+            }
+        }
+        .navigationTitle(item.title)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    editingAutopilot = item
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+                Button {
+                    Task { _ = await viewModel.triggerAutopilot(id: item.id) }
+                } label: {
+                    Label("Run Now", systemImage: "play.fill")
+                }
+                .disabled(item.status != "active" || viewModel.isMutating)
+            }
+        }
+        .refreshable { await viewModel.loadDetail(id: item.id) }
+        .task { await viewModel.loadDetail(id: item.id) }
+        .sheet(isPresented: $isAddingTrigger) {
+            AutopilotTriggerSheet(autopilotId: item.id, viewModel: viewModel)
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $editingAutopilot) { autopilot in
+            AutopilotFormSheet(autopilot: autopilot, viewModel: viewModel)
+                .presentationDragIndicator(.visible)
         }
     }
 }
@@ -128,6 +225,186 @@ private struct AutopilotRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+private struct AutopilotTriggerRow: View {
+    let trigger: AutopilotTrigger
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "clock")
+                .foregroundStyle(trigger.enabled ? Color.accentColor : Color.secondary)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    MarkdownText(trigger.kind.capitalized)
+                        .font(.body.weight(.semibold))
+                    if !trigger.enabled {
+                        Text("Disabled")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if let label = trigger.label, !label.isEmpty {
+                    MarkdownText(label)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let cron = trigger.cronExpression {
+                    MarkdownText([cron, trigger.timezone].compactMap { $0 }.joined(separator: " "))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if let nextRunAt = trigger.nextRunAt {
+                    Text("Next \(nextRunAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct AutopilotRunRow: View {
+    let run: AutopilotRun
+    @State private var showTranscript = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .foregroundStyle(statusColor)
+                    .frame(width: 22)
+                MarkdownText(run.status.replacingOccurrences(of: "_", with: " ").capitalized)
+                    .font(.body.weight(.semibold))
+                Spacer()
+                Text(run.triggeredAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 10) {
+                MarkdownText(run.source.capitalized)
+                if let failureReason = run.failureReason, !failureReason.isEmpty {
+                    MarkdownText(failureReason).foregroundStyle(.red)
+                } else if run.issueId != nil {
+                    MarkdownText("Issue linked")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            HStack {
+                if let issueId = run.issueId {
+                    NavigationLink {
+                        IssueDetailView(issueId: issueId)
+                    } label: {
+                        Label("Open Issue", systemImage: "number")
+                    }
+                }
+                if run.issueId == nil, let taskId = run.taskId {
+                    Button {
+                        showTranscript = true
+                    } label: {
+                        Label("Transcript", systemImage: "text.bubble")
+                    }
+                }
+            }
+            .font(.caption)
+        }
+        .padding(.vertical, 4)
+        .sheet(isPresented: $showTranscript) {
+            if let taskId = run.taskId {
+                AgentTranscriptView(taskId: taskId)
+                    .presentationDragIndicator(.visible)
+            }
+        }
+    }
+
+    private var icon: String {
+        switch run.status {
+        case "running": return "arrow.triangle.2.circlepath"
+        case "completed": return "checkmark.circle"
+        case "failed": return "xmark.circle"
+        default: return "clock"
+        }
+    }
+
+    private var statusColor: Color {
+        switch run.status {
+        case "running": return .blue
+        case "completed": return .green
+        case "failed": return .red
+        default: return .secondary
+        }
+    }
+}
+
+private struct AutopilotTriggerSheet: View {
+    let autopilotId: String
+    let viewModel: AutopilotsViewModel
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var cronExpression = "0 9 * * *"
+    @State private var timezone = TimeZone.current.identifier
+    @State private var label = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Schedule") {
+                    TextField("Cron expression", text: $cronExpression)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    TextField("Timezone", text: $timezone)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    TextField("Label", text: $label)
+                }
+
+                if let errorMessage = viewModel.errorMessage {
+                    Section {
+                        MarkdownText(errorMessage).font(.caption).foregroundStyle(.red)
+                    }
+                }
+            }
+            .navigationTitle("Add Trigger")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        Task { await submit() }
+                    } label: {
+                        if viewModel.isMutating {
+                            ProgressView()
+                        } else {
+                            Text("Add")
+                        }
+                    }
+                    .disabled(cronExpression.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isMutating)
+                }
+            }
+        }
+    }
+
+    private func submit() async {
+        let trimmedCron = cronExpression.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTimezone = timezone.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trigger = await viewModel.createTrigger(
+            autopilotId: autopilotId,
+            cronExpression: trimmedCron,
+            timezone: trimmedTimezone.isEmpty ? nil : trimmedTimezone,
+            label: trimmedLabel.isEmpty ? nil : trimmedLabel
+        )
+        if trigger != nil {
+            dismiss()
+        }
     }
 }
 
