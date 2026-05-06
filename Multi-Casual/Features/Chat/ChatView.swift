@@ -123,6 +123,13 @@ private struct ChatSessionDetailView: View {
                 MarkdownLabeledContent("Agent", value: viewModel.agentName(for: session.agentId))
                 if let pending = viewModel.pendingTask, let status = pending.status {
                     MarkdownLabeledContent("Task", value: status.capitalized)
+                    Button(role: .destructive) {
+                        Task { await viewModel.cancelPendingTask() }
+                    } label: {
+                        Label(viewModel.isCancellingTask ? "Cancelling" : "Cancel Task", systemImage: "xmark.circle")
+                    }
+                    .disabled(viewModel.isCancellingTask || pending.taskId?.isEmpty != false)
+                    .accessibilityIdentifier("ChatCancelPendingTaskButton")
                 }
             }
 

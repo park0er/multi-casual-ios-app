@@ -1684,6 +1684,14 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
+    public func cancelTaskById(taskId: String, workspaceId: String? = nil) async throws {
+        let _: EmptyResponse = try await request(
+            "POST",
+            path: "api/tasks/\(taskId)/cancel",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
     // MARK: - Personal Access Tokens
 
     public func listPersonalAccessTokens() async throws -> [PersonalAccessToken] {

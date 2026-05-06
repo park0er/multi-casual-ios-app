@@ -94,6 +94,44 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_cancelPendingTaskClearsTaskAndRefreshesPendingTaskList() async throws {
+        var requested: [(method: String?, path: String, workspaceId: String?)] = []
+        let client = makeClient { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            requested.append((
+                req.httpMethod,
+                req.url?.path ?? "",
+                components?.queryItems?.first(where: { $0.name == "workspace_id" })?.value
+            ))
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/tasks/t2/cancel"):
+                return Self.response(req, body: Data(), status: 204)
+            case ("GET", "/api/chat/pending-tasks"):
+                return Self.response(req, body: #"{"tasks":[]}"#.data(using: .utf8)!)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = ChatViewModel(api: client, authSession: makeSession())
+        vm.selectedSession = Self.chatSession(id: "c1")
+        vm.pendingTask = ChatPendingTask(taskId: "t2", status: "running", createdAt: nil)
+        vm.pendingTasks = PendingChatTasksResponse(tasks: [
+            PendingChatTaskItem(taskId: "t2", status: "running", chatSessionId: "c1")
+        ])
+
+        await vm.cancelPendingTask()
+
+        XCTAssertNil(vm.pendingTask?.taskId)
+        XCTAssertTrue(vm.pendingTasks.tasks.isEmpty)
+        XCTAssertNil(vm.errorMessage)
+        XCTAssertEqual(
+            requested.map { "\($0.method ?? "") \($0.path)" },
+            ["POST /api/tasks/t2/cancel", "GET /api/chat/pending-tasks"]
+        )
+        XCTAssertTrue(requested.allSatisfy { $0.workspaceId == "w1" })
+    }
+
     private static func chatSession(id: String) -> ChatSession {
         ChatSession(
             id: id,

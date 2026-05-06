@@ -2222,6 +2222,8 @@ final class APIClientTests: XCTestCase {
                 return Self.response(req, body: Self.pendingChatTasksJSON())
             case ("POST", "/api/chat/sessions/c1/read"):
                 return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            case ("POST", "/api/tasks/t2/cancel"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
             default:
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
                 return Self.response(req, body: Data("{}".utf8))
@@ -2237,6 +2239,7 @@ final class APIClientTests: XCTestCase {
         _ = try await client.getPendingChatTask(sessionId: "c1", workspaceId: "w1")
         _ = try await client.listPendingChatTasks(workspaceId: "w1")
         try await client.markChatSessionRead(sessionId: "c1", workspaceId: "w1")
+        try await client.cancelTaskById(taskId: "t2", workspaceId: "w1")
 
         XCTAssertEqual(
             requests.map { "\($0.method ?? "") \($0.path)" },
@@ -2250,6 +2253,7 @@ final class APIClientTests: XCTestCase {
                 "GET /api/chat/sessions/c1/pending-task",
                 "GET /api/chat/pending-tasks",
                 "POST /api/chat/sessions/c1/read",
+                "POST /api/tasks/t2/cancel",
             ]
         )
         XCTAssertTrue(requests.allSatisfy { $0.workspaceId == "w1" })

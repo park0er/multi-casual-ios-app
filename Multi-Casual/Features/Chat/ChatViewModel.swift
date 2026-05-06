@@ -14,6 +14,7 @@ public final class ChatViewModel {
     public var isLoading = false
     public var isSending = false
     public var isCreating = false
+    public var isCancellingTask = false
 
     private let api: APIClient
     private let authSession: AuthSession
@@ -138,6 +139,27 @@ public final class ChatViewModel {
             )
             messages.append(optimistic)
             pendingTask = try await api.getPendingChatTask(sessionId: session.id, workspaceId: workspaceId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func cancelPendingTask() async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before opening Chat."
+            return
+        }
+        guard let taskId = pendingTask?.taskId, !taskId.isEmpty else { return }
+        guard !isCancellingTask else { return }
+
+        isCancellingTask = true
+        errorMessage = nil
+        defer { isCancellingTask = false }
+
+        do {
+            try await api.cancelTaskById(taskId: taskId, workspaceId: workspaceId)
+            pendingTask = nil
+            pendingTasks = try await api.listPendingChatTasks(workspaceId: workspaceId)
         } catch {
             errorMessage = error.localizedDescription
         }
