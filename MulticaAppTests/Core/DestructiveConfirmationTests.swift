@@ -28,4 +28,13 @@ final class DestructiveConfirmationTests: XCTestCase {
         XCTAssertEqual(confirmation.confirmTitle, "Delete")
         XCTAssertEqual(confirmation.cancelTitle, "Cancel")
     }
+
+    func test_cancelTaskConfirmationNamesTaskId() {
+        let confirmation = DestructiveConfirmation.cancelTask(id: "task-123")
+
+        XCTAssertEqual(confirmation.title, "Cancel task task-123?")
+        XCTAssertEqual(confirmation.message, "The running agent task will be cancelled. Existing messages and history stay available.")
+        XCTAssertEqual(confirmation.confirmTitle, "Cancel Task")
+        XCTAssertEqual(confirmation.cancelTitle, "Keep Running")
+    }
 }

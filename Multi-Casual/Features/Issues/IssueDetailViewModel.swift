@@ -11,6 +11,7 @@ public final class IssueDetailViewModel {
     public var childIssues: [Issue] = []
     public var parentSiblingIssues: [Issue] = []
     public var agentRuns: [AgentTask] = []
+    public var activeTasks: [AgentTask] = []
     public var timelineEntries: [TimelineEntry] = []
     public var usage: IssueUsageSummary?
     public var subscribers: [IssueSubscriber] = []
@@ -22,13 +23,16 @@ public final class IssueDetailViewModel {
     public var isLoadingIssue = false
     public var isLoadingComments = false
     public var isLoadingAgentRuns = false
+    public var isLoadingActiveTasks = false
     public var isLoadingTimeline = false
     public var isLoadingUsage = false
     public var isLoadingSubscribers = false
     public var isLoadingIssueRelations = false
     public var isDeletingIssue = false
+    public var cancellingTaskIds: Set<String> = []
     public var didLoadComments = false
     public var didLoadAgentRuns = false
+    public var didLoadActiveTasks = false
     public var didLoadTimeline = false
     public var didLoadUsage = false
     public var didLoadSubscribers = false
@@ -36,6 +40,7 @@ public final class IssueDetailViewModel {
     public var error: String?
     public var commentsError: String?
     public var agentRunsError: String?
+    public var activeTasksError: String?
     public var timelineError: String?
     public var usageError: String?
     public var subscribersError: String?
@@ -81,10 +86,11 @@ public final class IssueDetailViewModel {
         async let issueAndMetadata: Void = loadIssueAndMetadata()
         async let comments: Void = loadComments()
         async let agentRuns: Void = loadAgentRuns()
+        async let activeTasks: Void = loadActiveTasks()
         async let timeline: Void = loadTimeline()
         async let usage: Void = loadUsage()
         async let subscribers: Void = loadSubscribers()
-        _ = await (issueAndMetadata, comments, agentRuns, timeline, usage, subscribers)
+        _ = await (issueAndMetadata, comments, agentRuns, activeTasks, timeline, usage, subscribers)
     }
 
     public func loadIssue() async {
@@ -303,6 +309,39 @@ public final class IssueDetailViewModel {
             agentRuns = []
             didLoadAgentRuns = true
             agentRunsError = error.localizedDescription
+        }
+    }
+
+    public func loadActiveTasks() async {
+        isLoadingActiveTasks = true
+        activeTasksError = nil
+        defer { isLoadingActiveTasks = false }
+        do {
+            activeTasks = try await api.getActiveTasksForIssue(issueId: issueId, workspaceId: workspaceId)
+            didLoadActiveTasks = true
+        } catch {
+            activeTasks = []
+            didLoadActiveTasks = true
+            activeTasksError = error.localizedDescription
+        }
+    }
+
+    public func cancelActiveTask(id taskId: String) async {
+        guard !cancellingTaskIds.contains(taskId) else { return }
+        cancellingTaskIds.insert(taskId)
+        activeTasksError = nil
+        defer { cancellingTaskIds.remove(taskId) }
+
+        do {
+            let cancelled = try await api.cancelTask(issueId: issueId, taskId: taskId, workspaceId: workspaceId)
+            activeTasks.removeAll { $0.id == taskId }
+            if let index = agentRuns.firstIndex(where: { $0.id == taskId }) {
+                agentRuns[index] = cancelled
+            } else {
+                agentRuns.insert(cancelled, at: 0)
+            }
+        } catch {
+            activeTasksError = error.localizedDescription
         }
     }
 

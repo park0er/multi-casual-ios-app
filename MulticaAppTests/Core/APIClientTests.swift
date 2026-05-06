@@ -584,6 +584,51 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
+    func test_getActiveTasksForIssue_usesDesktopEndpoint() async throws {
+        let json = """
+        {"tasks":[{
+            "id":"t1","agent_id":"a1","runtime_id":"r1","issue_id":"i1",
+            "status":"running","priority":0,"dispatched_at":null,
+            "started_at":"2026-01-01T00:00:00Z","completed_at":null,
+            "result":null,"error":null,"created_at":"2026-01-01T00:00:00Z"
+        }]}
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/active-task")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let tasks = try await client.getActiveTasksForIssue(issueId: "i1", workspaceId: "w1")
+
+        XCTAssertEqual(tasks.map(\.id), ["t1"])
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+    }
+
+    func test_cancelIssueTask_usesDesktopEndpoint() async throws {
+        let json = """
+        {"id":"t1","agent_id":"a1","runtime_id":"r1","issue_id":"i1",
+         "status":"cancelled","priority":0,"dispatched_at":null,
+         "started_at":"2026-01-01T00:00:00Z","completed_at":"2026-01-01T00:01:00Z",
+         "result":null,"error":null,"created_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        var capturedMethod: String?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            capturedMethod = req.httpMethod
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/tasks/t1/cancel")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let task = try await client.cancelTask(issueId: "i1", taskId: "t1", workspaceId: "w1")
+
+        XCTAssertEqual(capturedMethod, "POST")
+        XCTAssertEqual(task.status, "cancelled")
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+    }
+
     func test_listRunMessages_decodesBareArrayResponse() async throws {
         let json = """
         [{"task_id":"t1","issue_id":"i1","seq":7,"type":"text","content":"done"}]

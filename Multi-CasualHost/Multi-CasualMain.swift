@@ -36,6 +36,10 @@ struct Multi-CasualMain: App {
                         authSession.isLoading = false
                         return
                     }
+                    if env["MULTICA_DEBUG_FORCE_LOGIN_SCREEN"] == "1" {
+                        authSession.isLoading = false
+                        return
+                    }
                     try? authSession.installDebugToken(env["MULTICA_DEBUG_TOKEN"])
                     let preferredWorkspaceId = env["MULTICA_DEBUG_WORKSPACE_ID"]
                     #else

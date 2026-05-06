@@ -276,6 +276,10 @@ public final class APIClient: @unchecked Sendable {
         }
     }
 
+    private struct ActiveTasksResponse: Codable, Sendable {
+        let tasks: [AgentTask]
+    }
+
     public func sendCode(email: String) async throws {
         let _: EmptyResponse = try await request("POST", path: "auth/send-code",
                                                   body: SendCodeRequest(email: email))
@@ -642,6 +646,23 @@ public final class APIClient: @unchecked Sendable {
 
     public func listAgentRuns(issueId: String, workspaceId: String? = nil) async throws -> [AgentTask] {
         try await request("GET", path: "api/issues/\(issueId)/task-runs", queryItems: workspaceQuery(workspaceId))
+    }
+
+    public func getActiveTasksForIssue(issueId: String, workspaceId: String? = nil) async throws -> [AgentTask] {
+        let response: ActiveTasksResponse = try await request(
+            "GET",
+            path: "api/issues/\(issueId)/active-task",
+            queryItems: workspaceQuery(workspaceId)
+        )
+        return response.tasks
+    }
+
+    public func cancelTask(issueId: String, taskId: String, workspaceId: String? = nil) async throws -> AgentTask {
+        try await request(
+            "POST",
+            path: "api/issues/\(issueId)/tasks/\(taskId)/cancel",
+            queryItems: workspaceQuery(workspaceId)
+        )
     }
 
     public func listRunMessages(taskId: String, workspaceId: String? = nil) async throws -> [TaskMessage] {

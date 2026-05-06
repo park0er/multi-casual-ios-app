@@ -633,6 +633,14 @@ final class Multi-CasualUITests: XCTestCase {
             }) {
                 return notificationCell
             }
+            let unreadStatus = app.staticTexts["Unread"].firstMatch
+            if unreadStatus.exists {
+                return unreadStatus
+            }
+            let readStatus = app.staticTexts["Read"].firstMatch
+            if readStatus.exists {
+                return readStatus
+            }
             if app.staticTexts["No Inbox Items"].exists {
                 throw XCTSkip("No Inbox item is available for swipe action coverage.")
             }
@@ -652,6 +660,10 @@ final class Multi-CasualUITests: XCTestCase {
             let unreadCell = app.cells.containing(.staticText, identifier: "Unread").element(boundBy: 0)
             if unreadCell.exists {
                 return unreadCell
+            }
+            let unreadStatus = app.staticTexts["Unread"].firstMatch
+            if unreadStatus.exists {
+                return unreadStatus
             }
             if app.staticTexts["No Inbox Items"].exists {
                 return nil

@@ -256,6 +256,64 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.agentRunsError)
     }
 
+    func test_loadActiveTasks_fetchesDesktopActiveTaskEndpoint() async throws {
+        var capturedURL: URL?
+        let client = makeClient { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/active-task")
+            let json = """
+            {"tasks":[{
+                "id":"t1","agent_id":"a1","runtime_id":"r1","issue_id":"i1",
+                "status":"running","priority":0,"dispatched_at":null,
+                "started_at":"2026-01-01T00:00:00Z","completed_at":null,
+                "result":null,"error":null,"created_at":"2026-01-01T00:00:00Z"
+            }]}
+            """.data(using: .utf8)!
+            return Self.response(for: req, body: json)
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadActiveTasks()
+
+        XCTAssertEqual(vm.activeTasks.map(\.id), ["t1"])
+        XCTAssertTrue(vm.didLoadActiveTasks)
+        XCTAssertNil(vm.activeTasksError)
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+    }
+
+    func test_cancelActiveTask_removesActiveTaskAndRecordsReturnedRun() async throws {
+        var requests: [String] = []
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/issues/i1/tasks/t1/cancel"):
+                let json = """
+                {"id":"t1","agent_id":"a1","runtime_id":"r1","issue_id":"i1",
+                 "status":"cancelled","priority":0,"dispatched_at":null,
+                 "started_at":"2026-01-01T00:00:00Z","completed_at":"2026-01-01T00:01:00Z",
+                 "result":null,"error":null,"created_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+        vm.activeTasks = [
+            AgentTask(id: "t1", issueId: "i1", status: "running", startedAt: Date(), completedAt: nil, error: nil)
+        ]
+
+        await vm.cancelActiveTask(id: "t1")
+
+        XCTAssertEqual(requests, ["POST /api/issues/i1/tasks/t1/cancel"])
+        XCTAssertTrue(vm.activeTasks.isEmpty)
+        XCTAssertEqual(vm.agentRuns.first?.id, "t1")
+        XCTAssertEqual(vm.agentRuns.first?.status, "cancelled")
+        XCTAssertNil(vm.activeTasksError)
+        XCTAssertFalse(vm.cancellingTaskIds.contains("t1"))
+    }
+
     func test_loadTimeline_fetchesAndFormatsDesktopActivities() async throws {
         let client = makeClient { req in
             XCTAssertEqual(req.url?.path, "/api/issues/i1/timeline")
@@ -620,6 +678,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                 return Self.response(for: req, body: Data("[]".utf8))
             case "/api/issues/i1/task-runs":
                 return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/issues/i1/active-task":
+                return Self.response(for: req, body: #"{"tasks":[]}"#.data(using: .utf8)!)
             case "/api/issues/i1/timeline":
                 return Self.response(for: req, body: Data("[]".utf8))
             case "/api/issues/i1/usage":

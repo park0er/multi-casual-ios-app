@@ -12,6 +12,8 @@ public struct IssueDetailView: View {
     @State private var showCreateSubIssue = false
     @State private var showSubscribers = false
     @State private var showDeleteIssueConfirmation = false
+    @State private var showCancelTaskConfirmation = false
+    @State private var pendingCancelTask: AgentTask?
     @State private var selectedTaskId: String?
 
     public init(issueId: String) { self.issueId = issueId }
@@ -96,6 +98,20 @@ public struct IssueDetailView: View {
                 }
             }
         }
+        .destructiveConfirmation(
+            cancelTaskConfirmation,
+            isPresented: $showCancelTaskConfirmation,
+            onConfirm: {
+                guard let taskId = pendingCancelTask?.id else { return }
+                Task {
+                    await viewModel?.cancelActiveTask(id: taskId)
+                    pendingCancelTask = nil
+                }
+            },
+            onCancel: {
+                pendingCancelTask = nil
+            }
+        )
     }
 
     @ViewBuilder
@@ -125,6 +141,10 @@ public struct IssueDetailView: View {
                     }
                     if vm.didLoadUsage || vm.usageError != nil || vm.isLoadingUsage {
                         usageSection(vm: vm)
+                        Divider()
+                    }
+                    if vm.didLoadActiveTasks || vm.activeTasksError != nil || vm.isLoadingActiveTasks {
+                        activeTasksSection(vm: vm)
                         Divider()
                     }
                     if vm.didLoadAgentRuns || vm.agentRunsError != nil || vm.isLoadingAgentRuns {
@@ -180,6 +200,10 @@ public struct IssueDetailView: View {
             identifier: viewModel?.issue?.identifier,
             title: viewModel?.issue?.title
         )
+    }
+
+    private var cancelTaskConfirmation: DestructiveConfirmation {
+        DestructiveConfirmation.cancelTask(id: pendingCancelTask?.id ?? "")
     }
 
     private func issueHeader(issue: Issue, vm: IssueDetailViewModel, currentUserId: String?) -> some View {
@@ -443,6 +467,44 @@ public struct IssueDetailView: View {
         .padding(.horizontal)
     }
 
+    private func activeTasksSection(vm: IssueDetailViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Active Tasks").font(.headline).padding(.horizontal)
+            if vm.isLoadingActiveTasks {
+                ProgressView().padding(.horizontal)
+            }
+            if let activeTasksError = vm.activeTasksError {
+                ErrorMessageRow(message: activeTasksError) {
+                    Task { await vm.loadActiveTasks() }
+                }
+            }
+            if vm.didLoadActiveTasks && vm.activeTasks.isEmpty && vm.activeTasksError == nil && !vm.isLoadingActiveTasks {
+                ContentUnavailableView("No Active Tasks", systemImage: "bolt.slash", description: Text("This issue has no running agent tasks."))
+                    .padding(.horizontal)
+            }
+            ForEach(vm.activeTasks) { task in
+                VStack(alignment: .leading, spacing: 8) {
+                    AgentLiveView(taskId: task.id)
+                    HStack {
+                        MarkdownText(task.status.capitalized)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button(role: .destructive) {
+                            pendingCancelTask = task
+                            showCancelTaskConfirmation = true
+                        } label: {
+                            Label("Cancel Task", systemImage: "xmark.circle")
+                        }
+                        .disabled(vm.cancellingTaskIds.contains(task.id))
+                    }
+                    .padding(.horizontal)
+                }
+                .accessibilityIdentifier("IssueDetailActiveTaskRow")
+            }
+        }
+    }
+
     private func agentRunsSection(vm: IssueDetailViewModel) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Agent Activity").font(.headline).padding(.horizontal)
@@ -458,7 +520,7 @@ public struct IssueDetailView: View {
                 ContentUnavailableView("No Agent Activity", systemImage: "bolt", description: Text("This issue has no agent runs yet."))
                     .padding(.horizontal)
             }
-            if let running = vm.agentRuns.first(where: { $0.status == "running" }) {
+            if vm.activeTasks.isEmpty, let running = vm.agentRuns.first(where: { $0.status == "running" }) {
                 AgentLiveView(taskId: running.id)
             }
             ForEach(vm.agentRuns) { run in

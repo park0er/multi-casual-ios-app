@@ -43,6 +43,17 @@ public struct DestructiveConfirmation: Equatable, Sendable {
             confirmTitle: "Delete"
         )
     }
+
+    public static func cancelTask(id: String) -> DestructiveConfirmation {
+        let taskId = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subject = taskId.isEmpty ? "this task" : "task \(taskId)"
+        return DestructiveConfirmation(
+            title: "Cancel \(subject)?",
+            message: "The running agent task will be cancelled. Existing messages and history stay available.",
+            confirmTitle: "Cancel Task",
+            cancelTitle: "Keep Running"
+        )
+    }
 }
 
 #if canImport(SwiftUI)
