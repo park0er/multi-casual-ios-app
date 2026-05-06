@@ -381,10 +381,13 @@ public final class APIClient: @unchecked Sendable {
     private struct CreateProjectResourceRequest: Encodable {
         let resourceType: String
         let resourceRef: [String: JSONValue]
+        let label: String?
+        let position: Int?
 
         enum CodingKeys: String, CodingKey {
             case resourceType = "resource_type"
             case resourceRef = "resource_ref"
+            case label, position
         }
     }
 
@@ -1638,6 +1641,35 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/projects/\(projectId)/resources", queryItems: workspaceQuery(workspaceId))
     }
 
+    public func createProjectResource(
+        projectId: String,
+        workspaceId: String,
+        resourceType: String,
+        resourceRef: [String: JSONValue],
+        label: String? = nil,
+        position: Int? = nil
+    ) async throws -> ProjectResource {
+        try await request(
+            "POST",
+            path: "api/projects/\(projectId)/resources",
+            queryItems: workspaceQuery(workspaceId),
+            body: CreateProjectResourceRequest(
+                resourceType: resourceType,
+                resourceRef: resourceRef,
+                label: label,
+                position: position
+            )
+        )
+    }
+
+    public func deleteProjectResource(projectId: String, resourceId: String, workspaceId: String) async throws {
+        let _: EmptyResponse = try await request(
+            "DELETE",
+            path: "api/projects/\(projectId)/resources/\(resourceId)",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
     private func projectResourceRequests(from urls: [String]) -> [CreateProjectResourceRequest]? {
         let resources = urls
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -1645,7 +1677,9 @@ public final class APIClient: @unchecked Sendable {
             .map {
                 CreateProjectResourceRequest(
                     resourceType: "github_repo",
-                    resourceRef: ["url": .string($0)]
+                    resourceRef: ["url": .string($0)],
+                    label: nil,
+                    position: nil
                 )
             }
         return resources.isEmpty ? nil : resources

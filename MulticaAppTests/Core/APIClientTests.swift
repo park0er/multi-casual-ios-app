@@ -1160,6 +1160,54 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
+    func test_projectResourceMutationEndpointsUseDesktopPathsAndBody() async throws {
+        var requests: [(method: String?, path: String, workspaceId: String?, body: [String: Any]?)] = []
+        let resourceJSON = """
+        {"id":"r1","project_id":"p1","workspace_id":"w1","resource_type":"github_repo",
+         "resource_ref":{"url":"https://github.com/multica-ai/multica"},"label":"Multica",
+         "position":3,"created_at":"2026-01-01T00:00:00Z","created_by":null}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            let bodyData = MockURLProtocol.bodyData(for: req)
+            let body = bodyData.isEmpty ? nil : try JSONSerialization.jsonObject(with: bodyData) as? [String: Any]
+            requests.append((
+                req.httpMethod,
+                req.url?.path ?? "",
+                components?.queryItems?.first(where: { $0.name == "workspace_id" })?.value,
+                body
+            ))
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/projects/p1/resources"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 201, httpVersion: nil, headerFields: nil)!, resourceJSON)
+            case ("DELETE", "/api/projects/p1/resources/r1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data())
+            }
+        }
+
+        let resource = try await client.createProjectResource(
+            projectId: "p1",
+            workspaceId: "w1",
+            resourceType: "github_repo",
+            resourceRef: ["url": .string("https://github.com/multica-ai/multica")],
+            label: "Multica",
+            position: 3
+        )
+        try await client.deleteProjectResource(projectId: "p1", resourceId: "r1", workspaceId: "w1")
+
+        XCTAssertEqual(resource.id, "r1")
+        XCTAssertEqual(requests.map(\.method), ["POST", "DELETE"])
+        XCTAssertEqual(requests.map(\.path), ["/api/projects/p1/resources", "/api/projects/p1/resources/r1"])
+        XCTAssertEqual(requests.map(\.workspaceId), ["w1", "w1"])
+        XCTAssertEqual(requests[0].body?["resource_type"] as? String, "github_repo")
+        XCTAssertEqual((requests[0].body?["resource_ref"] as? [String: Any])?["url"] as? String, "https://github.com/multica-ai/multica")
+        XCTAssertEqual(requests[0].body?["label"] as? String, "Multica")
+        XCTAssertEqual(requests[0].body?["position"] as? Int, 3)
+    }
+
     func test_getProject_sendsWorkspaceIdParamWhenProvided() async throws {
         let json = """
         {"id":"p1","workspace_id":"w1","title":"iOS MVP","description":null,

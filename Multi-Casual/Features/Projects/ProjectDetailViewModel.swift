@@ -8,6 +8,7 @@ public final class ProjectDetailViewModel {
     public var issues: [Issue] = []
     public var resources: [ProjectResource] = []
     public var isLoading = false
+    public var isMutatingResource = false
     public var errorMessage: String?
 
     private let api: APIClient
@@ -81,5 +82,57 @@ public final class ProjectDetailViewModel {
             loaded.append(contentsOf: statusItems)
         }
         return loaded
+    }
+
+    public func attachGitHubResource(url: String) async {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before editing project resources."
+            return
+        }
+
+        isMutatingResource = true
+        errorMessage = nil
+        defer { isMutatingResource = false }
+
+        do {
+            let resource = try await api.createProjectResource(
+                projectId: project.id,
+                workspaceId: workspaceId,
+                resourceType: "github_repo",
+                resourceRef: ["url": .string(trimmed)]
+            )
+            upsertResource(resource)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func removeResource(id: String) async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before editing project resources."
+            return
+        }
+
+        isMutatingResource = true
+        errorMessage = nil
+        defer { isMutatingResource = false }
+
+        do {
+            try await api.deleteProjectResource(projectId: project.id, resourceId: id, workspaceId: workspaceId)
+            resources.removeAll { $0.id == id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func upsertResource(_ resource: ProjectResource) {
+        if let index = resources.firstIndex(where: { $0.id == resource.id }) {
+            resources[index] = resource
+        } else {
+            resources.append(resource)
+        }
+        resources.sort { $0.position < $1.position }
     }
 }

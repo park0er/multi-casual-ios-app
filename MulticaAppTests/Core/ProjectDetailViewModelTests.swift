@@ -99,6 +99,46 @@ final class ProjectDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_attachAndRemoveGitHubResourceUpdatesResources() async throws {
+        var requests: [(method: String?, path: String, workspaceId: String?, body: [String: Any]?)] = []
+        let client = makeClient { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            let bodyData = MockURLProtocol.bodyData(for: req)
+            let body = bodyData.isEmpty ? nil : try JSONSerialization.jsonObject(with: bodyData) as? [String: Any]
+            requests.append((
+                req.httpMethod,
+                req.url?.path ?? "",
+                components?.queryItems?.first(where: { $0.name == "workspace_id" })?.value,
+                body
+            ))
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/projects/p1/resources"):
+                let json = """
+                {"id":"r1","project_id":"p1","workspace_id":"w1","resource_type":"github_repo",
+                 "resource_ref":{"url":"https://github.com/multica-ai/multica"},"label":null,
+                 "position":0,"created_at":"2026-01-01T00:00:00Z","created_by":null}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json, status: 201)
+            case ("DELETE", "/api/projects/p1/resources/r1"):
+                return Self.response(for: req, body: Data(), status: 204)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = ProjectDetailViewModel(project: project, api: client, authSession: makeSession())
+
+        await vm.attachGitHubResource(url: " https://github.com/multica-ai/multica ")
+        await vm.removeResource(id: "r1")
+
+        XCTAssertEqual(requests.map(\.method), ["POST", "DELETE"])
+        XCTAssertEqual(requests.map(\.path), ["/api/projects/p1/resources", "/api/projects/p1/resources/r1"])
+        XCTAssertEqual(requests.map(\.workspaceId), ["w1", "w1"])
+        XCTAssertEqual((requests[0].body?["resource_ref"] as? [String: Any])?["url"] as? String, "https://github.com/multica-ai/multica")
+        XCTAssertEqual(vm.resources.map(\.id), [])
+        XCTAssertNil(vm.errorMessage)
+    }
+
     private func makeSession() -> AuthSession {
         let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.project-detail.test"))
         session.currentWorkspace = workspace

@@ -7,6 +7,7 @@ public struct ProjectDetailView: View {
     @Environment(APIClient.self) private var api
     @State private var viewModel: ProjectDetailViewModel?
     @State private var pinViewModel: PinToggleViewModel?
+    @State private var isAddingResource = false
 
     public init(project: Project) { self.project = project }
 
@@ -38,7 +39,21 @@ public struct ProjectDetailView: View {
                             ForEach(vm.resources) { resource in
                                 ProjectResourceRow(resource: resource)
                             }
+                            .onDelete { offsets in
+                                let ids = offsets.map { vm.resources[$0].id }
+                                Task {
+                                    for id in ids {
+                                        await vm.removeResource(id: id)
+                                    }
+                                }
+                            }
                         }
+                        Button {
+                            isAddingResource = true
+                        } label: {
+                            Label("Add Resource", systemImage: "plus")
+                        }
+                        .disabled(vm.isMutatingResource)
                     }
 
                     Section("Issues (\(vm.issues.count))") {
@@ -68,6 +83,20 @@ public struct ProjectDetailView: View {
             }
         }
         .navigationTitle(project.name)
+        .sheet(isPresented: $isAddingResource) {
+            if let vm = viewModel {
+                ProjectResourceAddSheet(
+                    repos: authSession.currentWorkspace?.repos ?? [],
+                    attachedURLs: attachedResourceURLs(vm.resources),
+                    isSubmitting: vm.isMutatingResource
+                ) { url in
+                    await vm.attachGitHubResource(url: url)
+                    if vm.errorMessage == nil {
+                        isAddingResource = false
+                    }
+                }
+            }
+        }
         .toolbar {
             if let pinViewModel {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -105,6 +134,16 @@ public struct ProjectDetailView: View {
         else { return nil }
         return "\(type.capitalized) \(id.prefix(8))"
     }
+
+    private func attachedResourceURLs(_ resources: [ProjectResource]) -> Set<String> {
+        Set(resources.compactMap { resource in
+            guard resource.resourceType == "github_repo",
+                  case .string(let url)? = resource.resourceRef["url"],
+                  !url.isEmpty
+            else { return nil }
+            return url
+        })
+    }
 }
 
 private struct ProjectResourceRow: View {
@@ -125,6 +164,72 @@ private struct ProjectResourceRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+private struct ProjectResourceAddSheet: View {
+    let repos: [WorkspaceRepo]
+    let attachedURLs: Set<String>
+    let isSubmitting: Bool
+    let onSubmit: (String) async -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var customURL = ""
+
+    private var trimmedCustomURL: String {
+        customURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if !repos.isEmpty {
+                    Section("Workspace Repositories") {
+                        ForEach(repos, id: \.url) { repo in
+                            let isAttached = attachedURLs.contains(repo.url)
+                            Button {
+                                Task { await onSubmit(repo.url) }
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "folder.badge.gearshape")
+                                        .foregroundStyle(.secondary)
+                                    MarkdownText(repo.url)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    if isAttached {
+                                        Text("Attached")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .disabled(isAttached || isSubmitting)
+                        }
+                    }
+                }
+
+                Section("Custom GitHub URL") {
+                    TextField("https://github.com/owner/repo", text: $customURL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+
+                    Button {
+                        let url = trimmedCustomURL
+                        Task { await onSubmit(url) }
+                    } label: {
+                        Label("Add Custom URL", systemImage: "plus")
+                    }
+                    .disabled(trimmedCustomURL.isEmpty || isSubmitting)
+                }
+            }
+            .navigationTitle("Add Resource")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
     }
 }
 #endif
