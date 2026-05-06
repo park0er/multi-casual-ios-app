@@ -194,6 +194,24 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Todo"].waitForExistence(timeout: 10))
     }
 
+    func testIssueListBatchSelectionActionsAreReachableWithoutSubmitting() {
+        let app = launchApp(initialTab: "issues")
+
+        XCTAssertTrue(app.staticTexts["Issues"].waitForExistence(timeout: 20))
+        let selectionToggle = app.buttons["IssueSelectionToggle"]
+        XCTAssertTrue(selectionToggle.waitForExistence(timeout: 10))
+        selectionToggle.tap()
+
+        let firstIssue = app.cells.element(boundBy: 0)
+        XCTAssertTrue(firstIssue.waitForExistence(timeout: 20))
+        firstIssue.tap()
+
+        XCTAssertTrue(app.staticTexts["1 selected"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["IssueBatchStatusMenu"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["IssueBatchPriorityMenu"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Delete Selected Issues"].waitForExistence(timeout: 5))
+    }
+
     func testCreateIssueSubmitsToBackendWhenMutationTestsEnabled() throws {
         try requireMutationTestsEnabled(reason: "create a real backend issue")
         guard mutationFlagEnabled(

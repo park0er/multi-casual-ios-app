@@ -565,6 +565,49 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(capturedMethod, "DELETE")
     }
 
+    func test_batchUpdateIssues_usesDesktopEndpointAndBody() async throws {
+        var body: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/issues/batch-update")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            return (
+                HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(#"{"updated":2}"#.utf8)
+            )
+        }
+
+        let response = try await client.batchUpdateIssues(
+            ids: ["i1", "i2"],
+            status: .done,
+            priority: .urgent
+        )
+
+        XCTAssertEqual(response.updated, 2)
+        XCTAssertEqual(body["issue_ids"] as? [String], ["i1", "i2"])
+        let updates = body["updates"] as? [String: Any]
+        XCTAssertEqual(updates?["status"] as? String, "done")
+        XCTAssertEqual(updates?["priority"] as? String, "urgent")
+    }
+
+    func test_batchDeleteIssues_usesDesktopEndpointAndBody() async throws {
+        var body: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/issues/batch-delete")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            return (
+                HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(#"{"deleted":2}"#.utf8)
+            )
+        }
+
+        let response = try await client.batchDeleteIssues(ids: ["i1", "i2"])
+
+        XCTAssertEqual(response.deleted, 2)
+        XCTAssertEqual(body["issue_ids"] as? [String], ["i1", "i2"])
+    }
+
     func test_updateIssueDetails_sendsEditableFieldsAndNulls() async throws {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"Updated","description":null,

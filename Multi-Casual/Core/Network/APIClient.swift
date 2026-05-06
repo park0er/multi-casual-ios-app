@@ -7,6 +7,14 @@ public final class APIClient: @unchecked Sendable {
         public let count: Int
     }
 
+    public struct BatchUpdateIssuesResponse: Codable, Sendable {
+        public let updated: Int
+    }
+
+    public struct BatchDeleteIssuesResponse: Codable, Sendable {
+        public let deleted: Int
+    }
+
     public enum APIError: Error, @unchecked Sendable {
         case unauthorized
         case notFound
@@ -372,6 +380,37 @@ public final class APIClient: @unchecked Sendable {
         let priority: IssuePriority?
     }
 
+    private struct BatchIssueUpdates: Encodable {
+        let status: IssueStatus?
+        let priority: IssuePriority?
+        let assigneeType: String?
+        let assigneeId: String?
+
+        enum CodingKeys: String, CodingKey {
+            case status, priority
+            case assigneeType = "assignee_type"
+            case assigneeId = "assignee_id"
+        }
+    }
+
+    private struct BatchUpdateIssuesRequest: Encodable {
+        let issueIds: [String]
+        let updates: BatchIssueUpdates
+
+        enum CodingKeys: String, CodingKey {
+            case issueIds = "issue_ids"
+            case updates
+        }
+    }
+
+    private struct BatchDeleteIssuesRequest: Encodable {
+        let issueIds: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case issueIds = "issue_ids"
+        }
+    }
+
     private struct UpdateIssueDetailsRequest: Encodable {
         let title: String
         let description: String?
@@ -586,6 +625,36 @@ public final class APIClient: @unchecked Sendable {
 
     public func deleteIssue(id: String) async throws {
         let _: EmptyResponse = try await request("DELETE", path: "api/issues/\(id)")
+    }
+
+    public func batchUpdateIssues(
+        ids: [String],
+        status: IssueStatus? = nil,
+        priority: IssuePriority? = nil,
+        assigneeType: String? = nil,
+        assigneeId: String? = nil
+    ) async throws -> BatchUpdateIssuesResponse {
+        try await request(
+            "POST",
+            path: "api/issues/batch-update",
+            body: BatchUpdateIssuesRequest(
+                issueIds: ids,
+                updates: BatchIssueUpdates(
+                    status: status,
+                    priority: priority,
+                    assigneeType: assigneeType,
+                    assigneeId: assigneeId
+                )
+            )
+        )
+    }
+
+    public func batchDeleteIssues(ids: [String]) async throws -> BatchDeleteIssuesResponse {
+        try await request(
+            "POST",
+            path: "api/issues/batch-delete",
+            body: BatchDeleteIssuesRequest(issueIds: ids)
+        )
     }
 
     public func listLabels() async throws -> ListLabelsResponse {

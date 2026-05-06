@@ -29,6 +29,8 @@ public final class IssueListViewModel {
     public var showCreateSheet = false
     public var lastError: Error?
     public var priorityFilter: IssuePriority?
+    public var isSelectionMode = false
+    public private(set) var selectedIssueIds: Set<String> = []
     public private(set) var sortOption: SortOption = .position
     public private(set) var issuesByStatus: [IssueStatus: [Issue]] = [:]
     public private(set) var childProgressByParentIssueId: [String: ChildIssueProgressEntry] = [:]
@@ -89,6 +91,73 @@ public final class IssueListViewModel {
     public func setPriorityFilter(_ priority: IssuePriority?) async {
         priorityFilter = priority
         await refresh()
+    }
+
+    public func toggleSelection(issueId: String) {
+        if selectedIssueIds.contains(issueId) {
+            selectedIssueIds.remove(issueId)
+        } else {
+            selectedIssueIds.insert(issueId)
+        }
+        if selectedIssueIds.isEmpty {
+            isSelectionMode = false
+        }
+    }
+
+    public func clearSelection() {
+        selectedIssueIds.removeAll()
+        isSelectionMode = false
+    }
+
+    public func batchUpdateSelected(
+        status: IssueStatus? = nil,
+        priority: IssuePriority? = nil,
+        assigneeType: String? = nil,
+        assigneeId: String? = nil
+    ) async {
+        guard authSession.currentWorkspace?.id != nil else {
+            lastError = UserVisibleError("Pick a workspace before updating Issues.")
+            return
+        }
+        let ids = selectedIssueIds.sorted()
+        guard !ids.isEmpty else { return }
+        do {
+            _ = try await api.batchUpdateIssues(
+                ids: ids,
+                status: status,
+                priority: priority,
+                assigneeType: assigneeType,
+                assigneeId: assigneeId
+            )
+            applyBatchUpdate(ids: Set(ids), status: status, priority: priority, assigneeType: assigneeType, assigneeId: assigneeId)
+            clearSelection()
+            lastError = nil
+            for id in ids {
+                await DataStore.shared.invalidateIssue(id)
+            }
+        } catch {
+            lastError = error
+        }
+    }
+
+    public func batchDeleteSelected() async {
+        guard authSession.currentWorkspace?.id != nil else {
+            lastError = UserVisibleError("Pick a workspace before updating Issues.")
+            return
+        }
+        let ids = selectedIssueIds.sorted()
+        guard !ids.isEmpty else { return }
+        do {
+            _ = try await api.batchDeleteIssues(ids: ids)
+            removeIssues(withIds: Set(ids))
+            clearSelection()
+            lastError = nil
+            for id in ids {
+                await DataStore.shared.invalidateIssue(id)
+            }
+        } catch {
+            lastError = error
+        }
     }
 
     public func updateStatus(issueId: String, to status: IssueStatus) async {
@@ -172,6 +241,53 @@ public final class IssueListViewModel {
         syncFlatIssues()
     }
 
+    private func applyBatchUpdate(
+        ids: Set<String>,
+        status: IssueStatus?,
+        priority: IssuePriority?,
+        assigneeType: String?,
+        assigneeId: String?
+    ) {
+        var patched: [Issue] = []
+        for bucketStatus in IssueStatus.boardCases {
+            let existing = issuesByStatus[bucketStatus] ?? []
+            issuesByStatus[bucketStatus] = existing.compactMap { issue in
+                guard ids.contains(issue.id) else { return issue }
+                patched.append(
+                    issue.replacing(
+                        status: status ?? issue.status,
+                        priority: priority ?? issue.priority,
+                        assigneeType: assigneeType ?? issue.assigneeType,
+                        assigneeId: assigneeId ?? issue.assigneeId
+                    )
+                )
+                return nil
+            }
+        }
+        for issue in patched where IssueStatus.boardCases.contains(issue.status) {
+            issuesByStatus[issue.status, default: []].append(issue)
+        }
+        resetPaginationCountsFromBuckets()
+        syncFlatIssues()
+    }
+
+    private func removeIssues(withIds ids: Set<String>) {
+        for status in IssueStatus.boardCases {
+            issuesByStatus[status]?.removeAll { ids.contains($0.id) }
+        }
+        resetPaginationCountsFromBuckets()
+        syncFlatIssues()
+    }
+
+    private func resetPaginationCountsFromBuckets() {
+        for status in IssueStatus.boardCases {
+            let count = issuesByStatus[status, default: []].count
+            offsetsByStatus[status] = count
+            totalsByStatus[status] = count
+            pageHasMoreByStatus[status] = false
+        }
+    }
+
     private func reconcilePaginationAfterReplacingIssue(from previousStatus: IssueStatus?, to newStatus: IssueStatus) {
         var affectedStatuses = Set<IssueStatus>()
         if let previousStatus {
@@ -252,5 +368,35 @@ private extension IssuePriority {
         case .noPriority: return 4
         case .unknown: return 5
         }
+    }
+}
+
+private extension Issue {
+    func replacing(
+        status: IssueStatus,
+        priority: IssuePriority,
+        assigneeType: String?,
+        assigneeId: String?
+    ) -> Issue {
+        Issue(
+            id: id,
+            identifier: identifier,
+            number: number,
+            title: title,
+            description: description,
+            status: status,
+            priority: priority,
+            assigneeId: assigneeId,
+            assigneeType: assigneeType,
+            parentIssueId: parentIssueId,
+            projectId: projectId,
+            workspaceId: workspaceId,
+            dueDate: dueDate,
+            attachments: attachments,
+            labels: labels,
+            reactions: reactions,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
     }
 }

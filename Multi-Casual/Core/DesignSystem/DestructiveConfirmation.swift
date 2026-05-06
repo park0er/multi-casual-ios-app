@@ -52,6 +52,15 @@ public struct DestructiveConfirmation: Equatable, Sendable {
         )
     }
 
+    public static func deleteIssues(count: Int) -> DestructiveConfirmation {
+        let noun = count == 1 ? "issue" : "issues"
+        return DestructiveConfirmation(
+            title: "Delete \(count) \(noun)?",
+            message: "This removes the selected \(noun) and their activity from the workspace. This action cannot be undone.",
+            confirmTitle: "Delete"
+        )
+    }
+
     public static func cancelTask(id: String) -> DestructiveConfirmation {
         let taskId = id.trimmingCharacters(in: .whitespacesAndNewlines)
         let subject = taskId.isEmpty ? "this task" : "task \(taskId)"

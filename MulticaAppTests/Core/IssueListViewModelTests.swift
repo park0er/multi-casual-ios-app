@@ -176,6 +176,82 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertNil(vm.lastError)
     }
 
+    func test_batchUpdateSelectedIssues_updatesServerAndMovesIssuesBetweenStatusBuckets() async throws {
+        var updateRequestBody: [String: Any] = [:]
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/child-progress"):
+                return Self.childProgressResponse(for: req, progress: [])
+            case ("GET", "/api/issues"):
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+                if status == "backlog" || status == "todo" {
+                    return Self.issuesResponse(for: req, status: status, total: 1)
+                }
+                return Self.emptyIssuesResponse(for: req)
+            case ("POST", "/api/issues/batch-update"):
+                updateRequestBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return Self.response(for: req, body: Data(#"{"updated":2}"#.utf8))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        vm.toggleSelection(issueId: "backlog-1")
+        vm.toggleSelection(issueId: "todo-1")
+        await vm.batchUpdateSelected(status: .done, priority: .urgent)
+
+        XCTAssertEqual(Set(updateRequestBody["issue_ids"] as? [String] ?? []), ["backlog-1", "todo-1"])
+        let updates = updateRequestBody["updates"] as? [String: Any]
+        XCTAssertEqual(updates?["status"] as? String, "done")
+        XCTAssertEqual(updates?["priority"] as? String, "urgent")
+        XCTAssertTrue(vm.selectedIssueIds.isEmpty)
+        XCTAssertEqual(vm.issuesByStatus[.backlog]?.map(\.id) ?? [], [])
+        XCTAssertEqual(vm.issuesByStatus[.todo]?.map(\.id) ?? [], [])
+        XCTAssertEqual(Set(vm.issuesByStatus[.done]?.map(\.id) ?? []), ["backlog-1", "todo-1"])
+        XCTAssertEqual(Set(vm.loader.items.map(\.priority)), [.urgent])
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_batchDeleteSelectedIssues_removesIssuesAndClearsSelection() async throws {
+        var deleteRequestBody: [String: Any] = [:]
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/child-progress"):
+                return Self.childProgressResponse(for: req, progress: [])
+            case ("GET", "/api/issues"):
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+                if status == "backlog" || status == "todo" {
+                    return Self.issuesResponse(for: req, status: status, total: 1)
+                }
+                return Self.emptyIssuesResponse(for: req)
+            case ("POST", "/api/issues/batch-delete"):
+                deleteRequestBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return Self.response(for: req, body: Data(#"{"deleted":2}"#.utf8))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        vm.toggleSelection(issueId: "backlog-1")
+        vm.toggleSelection(issueId: "todo-1")
+        await vm.batchDeleteSelected()
+
+        XCTAssertEqual(Set(deleteRequestBody["issue_ids"] as? [String] ?? []), ["backlog-1", "todo-1"])
+        XCTAssertTrue(vm.selectedIssueIds.isEmpty)
+        XCTAssertTrue(vm.loader.items.isEmpty)
+        XCTAssertEqual(vm.issuesByStatus[.backlog]?.map(\.id) ?? [], [])
+        XCTAssertEqual(vm.issuesByStatus[.todo]?.map(\.id) ?? [], [])
+        XCTAssertNil(vm.lastError)
+    }
+
     private func makeClient(handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? = nil) -> APIClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]

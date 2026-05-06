@@ -5,6 +5,7 @@ public struct IssueListView: View {
     @Environment(AuthSession.self) private var authSession
     @Environment(APIClient.self) private var api
     @State private var viewModel: IssueListViewModel?
+    @State private var showingBatchDeleteConfirmation = false
 
     public init() {}
 
@@ -18,6 +19,19 @@ public struct IssueListView: View {
                     }
                 }
                 .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button {
+                            if vm.isSelectionMode {
+                                vm.clearSelection()
+                            } else {
+                                vm.isSelectionMode = true
+                                vm.viewMode = .list
+                            }
+                        } label: {
+                            Image(systemName: vm.isSelectionMode ? "xmark.circle" : "checkmark.circle")
+                        }
+                        .accessibilityIdentifier("IssueSelectionToggle")
+                    }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
                             Button {
@@ -71,6 +85,23 @@ public struct IssueListView: View {
                         .presentationDragIndicator(.visible)
                 }
                 .refreshable { await vm.refresh() }
+                .safeAreaInset(edge: .bottom) {
+                    if vm.isSelectionMode && !vm.selectedIssueIds.isEmpty {
+                        IssueBatchActionBar(
+                            selectedCount: vm.selectedIssueIds.count,
+                            onClear: { vm.clearSelection() },
+                            onStatus: { status in Task { await vm.batchUpdateSelected(status: status) } },
+                            onPriority: { priority in Task { await vm.batchUpdateSelected(priority: priority) } },
+                            onDelete: { showingBatchDeleteConfirmation = true }
+                        )
+                    }
+                }
+                .destructiveConfirmation(
+                    DestructiveConfirmation.deleteIssues(count: vm.selectedIssueIds.count),
+                    isPresented: $showingBatchDeleteConfirmation
+                ) {
+                    Task { await vm.batchDeleteSelected() }
+                }
             } else { ProgressView() }
         }
         .navigationTitle("Issues")
@@ -97,17 +128,31 @@ public struct IssueListView: View {
                 ContentUnavailableView("No Issues", systemImage: "checklist", description: Text("There are no issues in this workspace."))
             }
             ForEach(vm.loader.items) { issue in
-                NavigationLink(destination: IssueDetailView(issueId: issue.id)) {
-                    IssueRowView(issue: issue, childProgressText: vm.childProgressText(for: issue))
-                }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    if issue.status != .done {
-                        Button {
-                            Task { await vm.updateStatus(issueId: issue.id, to: .done) }
-                        } label: {
-                            Label("Done", systemImage: "checkmark.circle")
+                if vm.isSelectionMode {
+                    Button {
+                        vm.toggleSelection(issueId: issue.id)
+                    } label: {
+                        IssueSelectableRowView(
+                            issue: issue,
+                            childProgressText: vm.childProgressText(for: issue),
+                            isSelected: vm.selectedIssueIds.contains(issue.id)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("IssueSelectionRow-\(issue.identifier)")
+                } else {
+                    NavigationLink(destination: IssueDetailView(issueId: issue.id)) {
+                        IssueRowView(issue: issue, childProgressText: vm.childProgressText(for: issue))
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        if issue.status != .done {
+                            Button {
+                                Task { await vm.updateStatus(issueId: issue.id, to: .done) }
+                            } label: {
+                                Label("Done", systemImage: "checkmark.circle")
+                            }
+                            .tint(.green)
                         }
-                        .tint(.green)
                     }
                 }
             }
@@ -155,6 +200,58 @@ public struct IssueListView: View {
     }
 }
 
+private struct IssueBatchActionBar: View {
+    let selectedCount: Int
+    let onClear: () -> Void
+    let onStatus: (IssueStatus) -> Void
+    let onPriority: (IssuePriority) -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: onClear) {
+                Image(systemName: "xmark")
+            }
+            .accessibilityLabel("Clear Selection")
+
+            MarkdownText("\(selectedCount) selected")
+                .font(.caption.weight(.semibold))
+                .frame(minWidth: 76, alignment: .leading)
+
+            Menu {
+                ForEach(IssueStatus.displayCases, id: \.self) { status in
+                    Button(status.displayName) { onStatus(status) }
+                }
+            } label: {
+                Label("Status", systemImage: "circle.dashed")
+            }
+            .accessibilityIdentifier("IssueBatchStatusMenu")
+
+            Menu {
+                ForEach(IssuePriority.allCases.filter { $0 != .unknown }, id: \.self) { priority in
+                    Button(priority.displayName) { onPriority(priority) }
+                }
+            } label: {
+                Label("Priority", systemImage: "flag")
+            }
+            .accessibilityIdentifier("IssueBatchPriorityMenu")
+
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "trash")
+            }
+            .accessibilityLabel("Delete Selected Issues")
+        }
+        .font(.subheadline)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+        .overlay(alignment: .top) {
+            Divider()
+        }
+    }
+}
+
 public struct IssueRowView: View {
     public let issue: Issue
     public let childProgressText: String?
@@ -180,6 +277,21 @@ public struct IssueRowView: View {
                     .accessibilityLabel("Sub-issues \(childProgressText)")
             }
         }.padding(.vertical, 4)
+    }
+}
+
+private struct IssueSelectableRowView: View {
+    let issue: Issue
+    let childProgressText: String?
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                .frame(width: 20)
+            IssueRowView(issue: issue, childProgressText: childProgressText)
+        }
     }
 }
 

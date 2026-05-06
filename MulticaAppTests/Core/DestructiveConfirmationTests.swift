@@ -38,6 +38,15 @@ final class DestructiveConfirmationTests: XCTestCase {
         XCTAssertEqual(confirmation.cancelTitle, "Cancel")
     }
 
+    func test_issueBatchDeleteConfirmationNamesCount() {
+        let confirmation = DestructiveConfirmation.deleteIssues(count: 3)
+
+        XCTAssertEqual(confirmation.title, "Delete 3 issues?")
+        XCTAssertEqual(confirmation.message, "This removes the selected issues and their activity from the workspace. This action cannot be undone.")
+        XCTAssertEqual(confirmation.confirmTitle, "Delete")
+        XCTAssertEqual(confirmation.cancelTitle, "Cancel")
+    }
+
     func test_cancelTaskConfirmationNamesTaskId() {
         let confirmation = DestructiveConfirmation.cancelTask(id: "task-123")
 
