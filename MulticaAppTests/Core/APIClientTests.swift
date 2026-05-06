@@ -1782,6 +1782,7 @@ final class APIClientTests: XCTestCase {
             name: "Updated",
             description: "",
             instructions: "",
+            runtimeId: "r2",
             visibility: "private",
             maxConcurrentTasks: 1,
             model: "gpt-5",
@@ -1801,6 +1802,7 @@ final class APIClientTests: XCTestCase {
         ])
         XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertEqual(cancelled.count, 2)
+        XCTAssertEqual(updateBody["runtime_id"] as? String, "r2")
         XCTAssertEqual((updateBody["custom_env"] as? [String: String])?["OPENAI_API_KEY"], "sk-test")
         XCTAssertEqual(updateBody["custom_args"] as? [String], ["--debug"])
     }

@@ -67,6 +67,7 @@ final class AgentsViewModelTests: XCTestCase {
             name: "Updated",
             description: "D",
             instructions: "I",
+            runtimeId: "r2",
             visibility: "private",
             maxConcurrentTasks: 2,
             model: "gpt-5",
@@ -81,6 +82,7 @@ final class AgentsViewModelTests: XCTestCase {
         XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertEqual((bodies[0]["custom_env"] as? [String: String])?["ANTHROPIC_BASE_URL"], "https://example.com")
         XCTAssertEqual(bodies[0]["custom_args"] as? [String], ["--verbose"])
+        XCTAssertEqual(bodies[1]["runtime_id"] as? String, "r2")
         XCTAssertEqual((bodies[1]["custom_env"] as? [String: String])?["OPENAI_API_KEY"], "sk-test")
         XCTAssertEqual(bodies[1]["custom_args"] as? [String], ["--debug"])
         XCTAssertNil(vm.errorMessage)
@@ -262,6 +264,7 @@ final class AgentsViewModelTests: XCTestCase {
             name: "Updated",
             description: "D",
             instructions: "I",
+            runtimeId: "r2",
             visibility: "private",
             maxConcurrentTasks: 2,
             model: "gpt-5",

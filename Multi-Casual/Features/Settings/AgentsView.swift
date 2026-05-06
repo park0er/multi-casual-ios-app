@@ -488,7 +488,7 @@ private struct AgentFormSheet: View {
                 }
 
                 Section("Runtime") {
-                    if agent == nil {
+                    if !viewModel.runtimes.isEmpty {
                         Picker("Runtime", selection: $runtimeId) {
                             ForEach(viewModel.runtimes) { runtime in
                                 MarkdownText("\(runtime.name) (\(runtime.status))").tag(runtime.id)
@@ -618,6 +618,7 @@ private struct AgentFormSheet: View {
                 name: trimmedName,
                 description: trimmedDescription,
                 instructions: trimmedInstructions,
+                runtimeId: runtimeId,
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
                 model: trimmedModel,
