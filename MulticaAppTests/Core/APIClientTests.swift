@@ -244,10 +244,13 @@ final class APIClientTests: XCTestCase {
 
     func test_childIssueEndpoints_matchDesktopPaths() async throws {
         var requests: [String] = []
+        var childIssuesURL: URL?
+        var childProgressURL: URL?
         MockURLProtocol.handler = { req in
             requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
             switch req.url?.path {
             case "/api/issues/i1/children":
+                childIssuesURL = req.url
                 let json = """
                 {"issues":[{"id":"c1","identifier":"PAR-2","number":2,"title":"Child","description":null,
                  "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
@@ -256,6 +259,7 @@ final class APIClientTests: XCTestCase {
                 """.data(using: .utf8)!
                 return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
             case "/api/issues/child-progress":
+                childProgressURL = req.url
                 let json = #"{"progress":[{"parent_issue_id":"i1","total":3,"done":1}]}"#.data(using: .utf8)!
                 return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
             default:
@@ -264,11 +268,13 @@ final class APIClientTests: XCTestCase {
             }
         }
 
-        let children = try await client.listChildIssues(issueId: "i1")
-        let progress = try await client.getChildIssueProgress()
+        let children = try await client.listChildIssues(issueId: "i1", workspaceId: "w1")
+        let progress = try await client.getChildIssueProgress(workspaceId: "w1")
 
         XCTAssertEqual(children.map(\.id), ["c1"])
         XCTAssertEqual(children.first?.parentIssueId, "i1")
+        XCTAssertTrue(childIssuesURL?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertTrue(childProgressURL?.absoluteString.contains("workspace_id=w1") ?? false)
         XCTAssertEqual(progress.progress.map(\.parentIssueId), ["i1"])
         XCTAssertEqual(progress.progress.first?.done, 1)
         XCTAssertEqual(requests, [
@@ -497,9 +503,9 @@ final class APIClientTests: XCTestCase {
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let entries = try await client.listTimeline(issueId: "i1")
+        let entries = try await client.listTimeline(issueId: "i1", workspaceId: "w1")
 
-        XCTAssertEqual(capturedURL?.query, nil)
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
         XCTAssertEqual(entries.map(\.id), ["a1", "c1"])
         XCTAssertEqual(entries.first?.action, "status_changed")
         XCTAssertEqual(entries.first?.detailString("to"), "done")
@@ -512,13 +518,16 @@ final class APIClientTests: XCTestCase {
          "total_cache_read_tokens":50,"total_cache_write_tokens":10,
          "task_count":3}
         """.data(using: .utf8)!
+        var capturedURL: URL?
         MockURLProtocol.handler = { req in
+            capturedURL = req.url
             XCTAssertEqual(req.url?.path, "/api/issues/i1/usage")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let usage = try await client.getIssueUsage(issueId: "i1")
+        let usage = try await client.getIssueUsage(issueId: "i1", workspaceId: "w1")
 
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
         XCTAssertEqual(usage.taskCount, 3)
         XCTAssertEqual(usage.totalInputTokens, 1_200)
         XCTAssertEqual(usage.totalOutputTokens, 340)
@@ -554,15 +563,18 @@ final class APIClientTests: XCTestCase {
 
     func test_deleteIssue_usesDesktopEndpoint() async throws {
         var capturedMethod: String?
+        var capturedURL: URL?
         MockURLProtocol.handler = { req in
             capturedMethod = req.httpMethod
+            capturedURL = req.url
             XCTAssertEqual(req.url?.path, "/api/issues/i1")
             return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
         }
 
-        try await client.deleteIssue(id: "i1")
+        try await client.deleteIssue(id: "i1", workspaceId: "w1")
 
         XCTAssertEqual(capturedMethod, "DELETE")
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
     func test_batchUpdateIssues_usesDesktopEndpointAndBody() async throws {
@@ -1159,8 +1171,10 @@ final class APIClientTests: XCTestCase {
 
     func test_labelEndpointsUseDesktopPaths() async throws {
         var requests: [String] = []
+        var requestURLs: [URL] = []
         MockURLProtocol.handler = { req in
             requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            requestURLs.append(req.url!)
             if req.httpMethod == "DELETE", req.url?.path == "/api/labels/l1" {
                 return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
             }
@@ -1178,14 +1192,14 @@ final class APIClientTests: XCTestCase {
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
         }
 
-        let list = try await client.listLabels()
-        _ = try await client.getLabel(id: "l1")
-        _ = try await client.createLabel(name: "bug", color: "#ef4444")
-        _ = try await client.updateLabel(id: "l1", name: "bug", color: "#dc2626")
-        try await client.deleteLabel(id: "l1")
-        let issueLabels = try await client.listLabelsForIssue(issueId: "i1")
-        _ = try await client.attachLabel(issueId: "i1", labelId: "l1")
-        _ = try await client.detachLabel(issueId: "i1", labelId: "l1")
+        let list = try await client.listLabels(workspaceId: "w1")
+        _ = try await client.getLabel(id: "l1", workspaceId: "w1")
+        _ = try await client.createLabel(name: "bug", color: "#ef4444", workspaceId: "w1")
+        _ = try await client.updateLabel(id: "l1", name: "bug", color: "#dc2626", workspaceId: "w1")
+        try await client.deleteLabel(id: "l1", workspaceId: "w1")
+        let issueLabels = try await client.listLabelsForIssue(issueId: "i1", workspaceId: "w1")
+        _ = try await client.attachLabel(issueId: "i1", labelId: "l1", workspaceId: "w1")
+        _ = try await client.detachLabel(issueId: "i1", labelId: "l1", workspaceId: "w1")
 
         XCTAssertEqual(list.labels.map(\.id), ["l1"])
         XCTAssertEqual(issueLabels.labels.map(\.id), ["l1"])
@@ -1199,14 +1213,17 @@ final class APIClientTests: XCTestCase {
             "POST /api/issues/i1/labels",
             "DELETE /api/issues/i1/labels/l1",
         ])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
     }
 
     func test_issueSubscriberEndpointsUseDesktopPaths() async throws {
         var requests: [String] = []
+        var requestURLs: [URL] = []
         var subscribeBody: [String: Any] = [:]
         var unsubscribeBody: [String: Any] = [:]
         MockURLProtocol.handler = { req in
             requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            requestURLs.append(req.url!)
             switch req.url?.path {
             case "/api/issues/i1/subscribers":
                 let body = """
@@ -1225,9 +1242,9 @@ final class APIClientTests: XCTestCase {
             }
         }
 
-        let subscribers = try await client.listIssueSubscribers(issueId: "i1")
-        try await client.subscribeToIssue(issueId: "i1", userId: "u2", userType: "member")
-        try await client.unsubscribeFromIssue(issueId: "i1", userId: "a1", userType: "agent")
+        let subscribers = try await client.listIssueSubscribers(issueId: "i1", workspaceId: "w1")
+        try await client.subscribeToIssue(issueId: "i1", userId: "u2", userType: "member", workspaceId: "w1")
+        try await client.unsubscribeFromIssue(issueId: "i1", userId: "a1", userType: "agent", workspaceId: "w1")
 
         XCTAssertEqual(subscribers.map(\.id), ["member:u1"])
         XCTAssertEqual(subscribeBody["user_id"] as? String, "u2")
@@ -1239,6 +1256,7 @@ final class APIClientTests: XCTestCase {
             "POST /api/issues/i1/subscribe",
             "POST /api/issues/i1/unsubscribe",
         ])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
     }
 
     func test_reactionEndpointsUseDesktopPaths() async throws {
@@ -1274,8 +1292,8 @@ final class APIClientTests: XCTestCase {
 
         let commentReaction = try await client.addReaction(commentId: "c1", emoji: "👍")
         try await client.removeReaction(commentId: "c1", emoji: "👍")
-        let issueReaction = try await client.addIssueReaction(issueId: "i1", emoji: "👀")
-        try await client.removeIssueReaction(issueId: "i1", emoji: "👀")
+        let issueReaction = try await client.addIssueReaction(issueId: "i1", emoji: "👀", workspaceId: "w1")
+        try await client.removeIssueReaction(issueId: "i1", emoji: "👀", workspaceId: "w1")
 
         XCTAssertEqual(commentReaction.id, "r1")
         XCTAssertEqual(issueReaction.id, "ir1")

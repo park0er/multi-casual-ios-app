@@ -247,13 +247,13 @@ public final class IssueListViewModel {
             )
             append(page, for: status)
         }
-        try await loadChildProgress()
+        try await loadChildProgress(workspaceId: workspaceId)
         hasLoadedFirstPages = true
         syncFlatIssues()
     }
 
-    private func loadChildProgress() async throws {
-        let response = try await api.getChildIssueProgress()
+    private func loadChildProgress(workspaceId: String) async throws {
+        let response = try await api.getChildIssueProgress(workspaceId: workspaceId)
         childProgressByParentIssueId = Dictionary(
             uniqueKeysWithValues: response.progress.map { ($0.parentIssueId, $0) }
         )

@@ -54,6 +54,10 @@ public final class IssueDetailViewModel {
 
     private let api: APIClient
 
+    private var effectiveWorkspaceId: String? {
+        workspaceId ?? issue?.workspaceId
+    }
+
     public init(issueId: String, workspaceId: String? = nil, api: APIClient) {
         self.issueId = issueId
         self.workspaceId = workspaceId
@@ -83,14 +87,15 @@ public final class IssueDetailViewModel {
     }
 
     public func loadInitialData() async {
-        async let issueAndMetadata: Void = loadIssueAndMetadata()
+        await loadIssueAndMetadata()
+        guard issue != nil, error == nil else { return }
         async let comments: Void = loadComments()
         async let agentRuns: Void = loadAgentRuns()
         async let activeTasks: Void = loadActiveTasks()
         async let timeline: Void = loadTimeline()
         async let usage: Void = loadUsage()
         async let subscribers: Void = loadSubscribers()
-        _ = await (issueAndMetadata, comments, agentRuns, activeTasks, timeline, usage, subscribers)
+        _ = await (comments, agentRuns, activeTasks, timeline, usage, subscribers)
     }
 
     public func loadIssue() async {
@@ -98,7 +103,7 @@ public final class IssueDetailViewModel {
         error = nil
         defer { isLoadingIssue = false }
         do {
-            issue = try await api.getIssue(id: issueId, workspaceId: workspaceId)
+            issue = try await api.getIssue(id: issueId, workspaceId: effectiveWorkspaceId)
         } catch {
             self.error = error.localizedDescription
         }
@@ -119,10 +124,11 @@ public final class IssueDetailViewModel {
         defer { isLoadingIssueRelations = false }
 
         do {
-            childIssues = try await api.listChildIssues(issueId: issue.id)
+            let workspaceId = effectiveWorkspaceId
+            childIssues = try await api.listChildIssues(issueId: issue.id, workspaceId: workspaceId)
             if let parentIssueId = issue.parentIssueId {
                 parentIssue = try await api.getIssue(id: parentIssueId, workspaceId: workspaceId)
-                parentSiblingIssues = try await api.listChildIssues(issueId: parentIssueId)
+                parentSiblingIssues = try await api.listChildIssues(issueId: parentIssueId, workspaceId: workspaceId)
             } else {
                 parentIssue = nil
                 parentSiblingIssues = []
@@ -138,7 +144,7 @@ public final class IssueDetailViewModel {
     }
 
     public func loadMetadata() async {
-        guard let issue, let workspaceId else { return }
+        guard let issue, let workspaceId = effectiveWorkspaceId else { return }
         metadataError = nil
         assigneeDisplayName = nil
         projectDisplayName = nil
@@ -182,7 +188,7 @@ public final class IssueDetailViewModel {
         subscribersError = nil
         defer { isLoadingSubscribers = false }
         do {
-            subscribers = try await api.listIssueSubscribers(issueId: issueId)
+            subscribers = try await api.listIssueSubscribers(issueId: issueId, workspaceId: effectiveWorkspaceId)
             didLoadSubscribers = true
         } catch {
             subscribers = []
@@ -214,10 +220,11 @@ public final class IssueDetailViewModel {
         subscribersError = nil
         let currentlySubscribed = isSubscribed(userId: userId, userType: userType)
         do {
+            let workspaceId = effectiveWorkspaceId
             if currentlySubscribed {
-                try await api.unsubscribeFromIssue(issueId: issueId, userId: userId, userType: userType)
+                try await api.unsubscribeFromIssue(issueId: issueId, userId: userId, userType: userType, workspaceId: workspaceId)
             } else {
-                try await api.subscribeToIssue(issueId: issueId, userId: userId, userType: userType)
+                try await api.subscribeToIssue(issueId: issueId, userId: userId, userType: userType, workspaceId: workspaceId)
             }
             isLoadingSubscribers = false
             await loadSubscribers()
@@ -236,14 +243,14 @@ public final class IssueDetailViewModel {
 
         do {
             if existing != nil {
-                try await api.removeIssueReaction(issueId: issueId, emoji: emoji)
+                try await api.removeIssueReaction(issueId: issueId, emoji: emoji, workspaceId: effectiveWorkspaceId)
                 issue = currentIssue.replacingReactions(
                     currentIssue.reactions.filter {
                         !($0.emoji == emoji && $0.actorType == "member" && $0.actorId == currentUserId)
                     }
                 )
             } else {
-                let reaction = try await api.addIssueReaction(issueId: issueId, emoji: emoji)
+                let reaction = try await api.addIssueReaction(issueId: issueId, emoji: emoji, workspaceId: effectiveWorkspaceId)
                 issue = currentIssue.replacingReactions(currentIssue.reactions + [reaction])
             }
         } catch {
@@ -289,6 +296,7 @@ public final class IssueDetailViewModel {
         commentsError = nil
         defer { isLoadingComments = false }
         do {
+            let workspaceId = effectiveWorkspaceId
             try await commentLoader.loadNext { [api, issueId, workspaceId] offset in
                 try await api.listComments(issueId: issueId, workspaceId: workspaceId, limit: 50, offset: offset)
             }
@@ -303,7 +311,7 @@ public final class IssueDetailViewModel {
         agentRunsError = nil
         defer { isLoadingAgentRuns = false }
         do {
-            agentRuns = try await api.listAgentRuns(issueId: issueId, workspaceId: workspaceId)
+            agentRuns = try await api.listAgentRuns(issueId: issueId, workspaceId: effectiveWorkspaceId)
             didLoadAgentRuns = true
         } catch {
             agentRuns = []
@@ -317,7 +325,7 @@ public final class IssueDetailViewModel {
         activeTasksError = nil
         defer { isLoadingActiveTasks = false }
         do {
-            activeTasks = try await api.getActiveTasksForIssue(issueId: issueId, workspaceId: workspaceId)
+            activeTasks = try await api.getActiveTasksForIssue(issueId: issueId, workspaceId: effectiveWorkspaceId)
             didLoadActiveTasks = true
         } catch {
             activeTasks = []
@@ -333,7 +341,7 @@ public final class IssueDetailViewModel {
         defer { cancellingTaskIds.remove(taskId) }
 
         do {
-            let cancelled = try await api.cancelTask(issueId: issueId, taskId: taskId, workspaceId: workspaceId)
+            let cancelled = try await api.cancelTask(issueId: issueId, taskId: taskId, workspaceId: effectiveWorkspaceId)
             activeTasks.removeAll { $0.id == taskId }
             if let index = agentRuns.firstIndex(where: { $0.id == taskId }) {
                 agentRuns[index] = cancelled
@@ -350,7 +358,7 @@ public final class IssueDetailViewModel {
         timelineError = nil
         defer { isLoadingTimeline = false }
         do {
-            timelineEntries = try await api.listTimeline(issueId: issueId)
+            timelineEntries = try await api.listTimeline(issueId: issueId, workspaceId: effectiveWorkspaceId)
             didLoadTimeline = true
         } catch {
             timelineEntries = []
@@ -364,7 +372,7 @@ public final class IssueDetailViewModel {
         usageError = nil
         defer { isLoadingUsage = false }
         do {
-            usage = try await api.getIssueUsage(issueId: issueId)
+            usage = try await api.getIssueUsage(issueId: issueId, workspaceId: effectiveWorkspaceId)
             didLoadUsage = true
         } catch {
             usage = nil
@@ -378,7 +386,7 @@ public final class IssueDetailViewModel {
         deleteIssueError = nil
         defer { isDeletingIssue = false }
         do {
-            try await api.deleteIssue(id: issueId)
+            try await api.deleteIssue(id: issueId, workspaceId: effectiveWorkspaceId)
             didDeleteIssue = true
         } catch {
             didDeleteIssue = false
@@ -482,7 +490,7 @@ public final class IssueDetailViewModel {
     private func submitComment(content: String, parentId: String?) async -> Bool {
         isSubmittingComment = true; defer { isSubmittingComment = false }
         do {
-            let comment = try await api.addComment(issueId: issueId, content: content, parentId: parentId, workspaceId: workspaceId)
+            let comment = try await api.addComment(issueId: issueId, content: content, parentId: parentId, workspaceId: effectiveWorkspaceId)
             commentLoader.items.append(comment)
             await loadIssue()
             await DataStore.shared.invalidateIssue(issueId)
@@ -534,7 +542,7 @@ public final class IssueDetailViewModel {
         do {
             issue = try await api.updateIssue(
                 id: issueId,
-                workspaceId: workspaceId,
+                workspaceId: effectiveWorkspaceId,
                 status: status,
                 priority: priority
             )

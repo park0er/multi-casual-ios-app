@@ -560,12 +560,12 @@ public final class APIClient: @unchecked Sendable {
                           body: AddCommentRequest(content: content, type: "comment", parentId: parentId))
     }
 
-    public func listTimeline(issueId: String) async throws -> [TimelineEntry] {
-        try await request("GET", path: "api/issues/\(issueId)/timeline")
+    public func listTimeline(issueId: String, workspaceId: String? = nil) async throws -> [TimelineEntry] {
+        try await request("GET", path: "api/issues/\(issueId)/timeline", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func getIssueUsage(issueId: String) async throws -> IssueUsageSummary {
-        try await request("GET", path: "api/issues/\(issueId)/usage")
+    public func getIssueUsage(issueId: String, workspaceId: String? = nil) async throws -> IssueUsageSummary {
+        try await request("GET", path: "api/issues/\(issueId)/usage", queryItems: workspaceQuery(workspaceId))
     }
 
     public func updateComment(commentId: String, content: String) async throws -> Comment {
@@ -623,8 +623,8 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
-    public func deleteIssue(id: String) async throws {
-        let _: EmptyResponse = try await request("DELETE", path: "api/issues/\(id)")
+    public func deleteIssue(id: String, workspaceId: String? = nil) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/issues/\(id)", queryItems: workspaceQuery(workspaceId))
     }
 
     public func batchUpdateIssues(
@@ -657,36 +657,51 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
-    public func listLabels() async throws -> ListLabelsResponse {
-        try await request("GET", path: "api/labels")
+    public func listLabels(workspaceId: String? = nil) async throws -> ListLabelsResponse {
+        try await request("GET", path: "api/labels", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func getLabel(id: String) async throws -> IssueLabel {
-        try await request("GET", path: "api/labels/\(id)")
+    public func getLabel(id: String, workspaceId: String? = nil) async throws -> IssueLabel {
+        try await request("GET", path: "api/labels/\(id)", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func createLabel(name: String, color: String) async throws -> IssueLabel {
-        try await request("POST", path: "api/labels", body: LabelMutationRequest(name: name, color: color))
+    public func createLabel(name: String, color: String, workspaceId: String? = nil) async throws -> IssueLabel {
+        try await request(
+            "POST",
+            path: "api/labels",
+            queryItems: workspaceQuery(workspaceId),
+            body: LabelMutationRequest(name: name, color: color)
+        )
     }
 
-    public func updateLabel(id: String, name: String, color: String) async throws -> IssueLabel {
-        try await request("PUT", path: "api/labels/\(id)", body: LabelMutationRequest(name: name, color: color))
+    public func updateLabel(id: String, name: String, color: String, workspaceId: String? = nil) async throws -> IssueLabel {
+        try await request(
+            "PUT",
+            path: "api/labels/\(id)",
+            queryItems: workspaceQuery(workspaceId),
+            body: LabelMutationRequest(name: name, color: color)
+        )
     }
 
-    public func deleteLabel(id: String) async throws {
-        let _: EmptyResponse = try await request("DELETE", path: "api/labels/\(id)")
+    public func deleteLabel(id: String, workspaceId: String? = nil) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/labels/\(id)", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func listLabelsForIssue(issueId: String) async throws -> IssueLabelsResponse {
-        try await request("GET", path: "api/issues/\(issueId)/labels")
+    public func listLabelsForIssue(issueId: String, workspaceId: String? = nil) async throws -> IssueLabelsResponse {
+        try await request("GET", path: "api/issues/\(issueId)/labels", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func attachLabel(issueId: String, labelId: String) async throws -> IssueLabelsResponse {
-        try await request("POST", path: "api/issues/\(issueId)/labels", body: AttachLabelRequest(labelId: labelId))
+    public func attachLabel(issueId: String, labelId: String, workspaceId: String? = nil) async throws -> IssueLabelsResponse {
+        try await request(
+            "POST",
+            path: "api/issues/\(issueId)/labels",
+            queryItems: workspaceQuery(workspaceId),
+            body: AttachLabelRequest(labelId: labelId)
+        )
     }
 
-    public func detachLabel(issueId: String, labelId: String) async throws -> IssueLabelsResponse {
-        try await request("DELETE", path: "api/issues/\(issueId)/labels/\(labelId)")
+    public func detachLabel(issueId: String, labelId: String, workspaceId: String? = nil) async throws -> IssueLabelsResponse {
+        try await request("DELETE", path: "api/issues/\(issueId)/labels/\(labelId)", queryItems: workspaceQuery(workspaceId))
     }
 
     public func listPins(workspaceSlug: String? = nil) async throws -> [PinnedItem] {
@@ -718,22 +733,34 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
-    public func listIssueSubscribers(issueId: String) async throws -> [IssueSubscriber] {
-        try await request("GET", path: "api/issues/\(issueId)/subscribers")
+    public func listIssueSubscribers(issueId: String, workspaceId: String? = nil) async throws -> [IssueSubscriber] {
+        try await request("GET", path: "api/issues/\(issueId)/subscribers", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func subscribeToIssue(issueId: String, userId: String? = nil, userType: String? = nil) async throws {
+    public func subscribeToIssue(
+        issueId: String,
+        userId: String? = nil,
+        userType: String? = nil,
+        workspaceId: String? = nil
+    ) async throws {
         let _: EmptyResponse = try await request(
             "POST",
             path: "api/issues/\(issueId)/subscribe",
+            queryItems: workspaceQuery(workspaceId),
             body: IssueSubscriberMutationRequest(userId: userId, userType: userType)
         )
     }
 
-    public func unsubscribeFromIssue(issueId: String, userId: String? = nil, userType: String? = nil) async throws {
+    public func unsubscribeFromIssue(
+        issueId: String,
+        userId: String? = nil,
+        userType: String? = nil,
+        workspaceId: String? = nil
+    ) async throws {
         let _: EmptyResponse = try await request(
             "POST",
             path: "api/issues/\(issueId)/unsubscribe",
+            queryItems: workspaceQuery(workspaceId),
             body: IssueSubscriberMutationRequest(userId: userId, userType: userType)
         )
     }
@@ -754,29 +781,35 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
-    public func addIssueReaction(issueId: String, emoji: String) async throws -> IssueReaction {
+    public func addIssueReaction(issueId: String, emoji: String, workspaceId: String? = nil) async throws -> IssueReaction {
         try await request(
             "POST",
             path: "api/issues/\(issueId)/reactions",
+            queryItems: workspaceQuery(workspaceId),
             body: ReactionRequest(emoji: emoji)
         )
     }
 
-    public func removeIssueReaction(issueId: String, emoji: String) async throws {
+    public func removeIssueReaction(issueId: String, emoji: String, workspaceId: String? = nil) async throws {
         let _: EmptyResponse = try await request(
             "DELETE",
             path: "api/issues/\(issueId)/reactions",
+            queryItems: workspaceQuery(workspaceId),
             body: ReactionRequest(emoji: emoji)
         )
     }
 
-    public func listChildIssues(issueId: String) async throws -> [Issue] {
-        let response: ChildIssuesResponse = try await request("GET", path: "api/issues/\(issueId)/children")
+    public func listChildIssues(issueId: String, workspaceId: String? = nil) async throws -> [Issue] {
+        let response: ChildIssuesResponse = try await request(
+            "GET",
+            path: "api/issues/\(issueId)/children",
+            queryItems: workspaceQuery(workspaceId)
+        )
         return response.issues
     }
 
-    public func getChildIssueProgress() async throws -> ChildIssueProgressResponse {
-        try await request("GET", path: "api/issues/child-progress")
+    public func getChildIssueProgress(workspaceId: String? = nil) async throws -> ChildIssueProgressResponse {
+        try await request("GET", path: "api/issues/child-progress", queryItems: workspaceQuery(workspaceId))
     }
 
     public func listAgentRuns(issueId: String, workspaceId: String? = nil) async throws -> [AgentTask] {

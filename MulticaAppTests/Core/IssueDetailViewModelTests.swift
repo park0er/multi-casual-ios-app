@@ -229,6 +229,79 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertTrue(requests.contains("GET /api/issues/p0/children"))
     }
 
+    func test_loadInitialDataUsesIssueWorkspaceIdForScopedDetailSectionsWhenInitWorkspaceMissing() async throws {
+        let lock = NSLock()
+        var workspaceByPath: [String: String?] = [:]
+        var requests: [String] = []
+        let client = makeClient { req in
+            let path = req.url?.path ?? ""
+            let workspace = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "workspace_id" })?
+                .value
+            lock.withLock {
+                workspaceByPath[path] = workspace
+                requests.append("\(req.httpMethod ?? "") \(path)")
+            }
+
+            switch path {
+            case "/api/issues/i1":
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-01T00:00:00Z"))
+            case "/api/workspaces/w1/members":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/agents":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/projects":
+                return Self.response(for: req, body: #"{"projects":[],"total":0}"#.data(using: .utf8)!)
+            case "/api/issues/i1/comments":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/issues/i1/subscribers":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/issues/i1/task-runs":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/issues/i1/active-task":
+                return Self.response(for: req, body: #"{"tasks":[]}"#.data(using: .utf8)!)
+            case "/api/issues/i1/timeline":
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/issues/i1/usage":
+                let json = """
+                {"total_input_tokens":0,"total_output_tokens":0,
+                 "total_cache_read_tokens":0,"total_cache_write_tokens":0,
+                 "task_count":0}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/issues/i1/children":
+                return Self.response(for: req, body: #"{"issues":[]}"#.data(using: .utf8)!)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: nil, api: client)
+
+        await vm.loadInitialData()
+
+        let (capturedWorkspaces, capturedRequests) = lock.withLock {
+            (workspaceByPath, requests)
+        }
+        XCTAssertTrue(capturedRequests.contains("GET /api/workspaces/w1/members"))
+        XCTAssertEqual(capturedWorkspaces["/api/agents"] ?? nil, "w1")
+        XCTAssertEqual(capturedWorkspaces["/api/projects"] ?? nil, "w1")
+        XCTAssertEqual(capturedWorkspaces["/api/issues/i1/comments"] ?? nil, "w1")
+        XCTAssertEqual(capturedWorkspaces["/api/issues/i1/subscribers"] ?? nil, "w1")
+        XCTAssertEqual(capturedWorkspaces["/api/issues/i1/task-runs"] ?? nil, "w1")
+        XCTAssertEqual(capturedWorkspaces["/api/issues/i1/active-task"] ?? nil, "w1")
+        XCTAssertEqual(capturedWorkspaces["/api/issues/i1/timeline"] ?? nil, "w1")
+        XCTAssertEqual(capturedWorkspaces["/api/issues/i1/usage"] ?? nil, "w1")
+        XCTAssertEqual(capturedWorkspaces["/api/issues/i1/children"] ?? nil, "w1")
+        XCTAssertNil(vm.error)
+        XCTAssertNil(vm.commentsError)
+        XCTAssertNil(vm.subscribersError)
+        XCTAssertNil(vm.timelineError)
+        XCTAssertNil(vm.usageError)
+        XCTAssertNil(vm.issueRelationsError)
+    }
+
     func test_loadAgentRuns_surfacesEndpointError() async throws {
         let client = makeClient { req in
             XCTAssertEqual(req.url?.path, "/api/issues/i1/task-runs")

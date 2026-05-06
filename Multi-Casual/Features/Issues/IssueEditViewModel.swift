@@ -91,7 +91,7 @@ public final class IssueEditViewModel {
         async let agentsResult = optionResult { try await api.listAgents(workspaceId: workspaceId) }
         async let projectsResult = optionResult { try await loadAllProjects(workspaceId: workspaceId) }
         async let labelsResult = optionResult {
-            let response = try await api.listLabels()
+            let response = try await api.listLabels(workspaceId: workspaceId)
             return response.labels
         }
 
@@ -245,10 +245,10 @@ public final class IssueEditViewModel {
 
         var latestLabels: [IssueLabel]?
         for labelId in toAttach {
-            latestLabels = try await api.attachLabel(issueId: issueId, labelId: labelId).labels
+            latestLabels = try await api.attachLabel(issueId: issueId, labelId: labelId, workspaceId: workspaceId).labels
         }
         for labelId in toDetach {
-            latestLabels = try await api.detachLabel(issueId: issueId, labelId: labelId).labels
+            latestLabels = try await api.detachLabel(issueId: issueId, labelId: labelId, workspaceId: workspaceId).labels
         }
         return latestLabels
     }
