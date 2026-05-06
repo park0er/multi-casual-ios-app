@@ -796,9 +796,9 @@ public struct CommentRowView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: comment.authorType == "agent" ? "bolt.circle" : "person.circle")
-                Text(comment.authorType == "agent" ? "Agent" : "Member").font(.caption.bold())
+                MarkdownText(comment.authorType == "agent" ? "Agent" : "Member").font(.caption.bold())
                 Spacer()
-                Text(iso8601DateOnlyFormatter.string(from: comment.createdAt)).font(.caption2).foregroundStyle(.secondary)
+                MarkdownText(iso8601DateOnlyFormatter.string(from: comment.createdAt)).font(.caption2).foregroundStyle(.secondary)
                 if currentUserId != nil {
                     Menu {
                         Button {
@@ -1301,7 +1301,7 @@ public struct AgentRunRowView: View {
             Image(systemName: statusIcon).foregroundStyle(statusColor)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Agent run").font(.subheadline.bold())
-                Text(run.startedAt.map(iso8601DisplayFormatter.string(from:)) ?? "")
+                MarkdownText(run.startedAt.map(iso8601DisplayFormatter.string(from:)) ?? "")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
@@ -1346,7 +1346,7 @@ private struct TimelineActivityRow: View {
                 HStack(spacing: 4) {
                     MarkdownText(actorName)
                         .font(.caption.weight(.semibold))
-                    Text(iso8601DateOnlyFormatter.string(from: entry.createdAt))
+                    MarkdownText(iso8601DateOnlyFormatter.string(from: entry.createdAt))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -1389,7 +1389,7 @@ private struct UsageMetricView: View {
             Text(title)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            Text(value.formatted())
+            MarkdownText(value.formatted())
                 .font(.caption.monospacedDigit())
         }
         .frame(maxWidth: .infinity, alignment: .leading)

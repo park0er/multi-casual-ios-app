@@ -257,7 +257,7 @@ private struct AutopilotTriggerRow: View {
                         .foregroundStyle(.secondary)
                 }
                 if let nextRunAt = trigger.nextRunAt {
-                    Text("Next \(nextRunAt.formatted(date: .abbreviated, time: .shortened))")
+                    MarkdownText("Next \(nextRunAt.formatted(date: .abbreviated, time: .shortened))")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -281,7 +281,7 @@ private struct AutopilotRunRow: View {
                 MarkdownText(run.status.replacingOccurrences(of: "_", with: " ").capitalized)
                     .font(.body.weight(.semibold))
                 Spacer()
-                Text(run.triggeredAt.formatted(date: .abbreviated, time: .shortened))
+                MarkdownText(run.triggeredAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

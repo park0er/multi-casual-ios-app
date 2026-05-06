@@ -99,7 +99,7 @@ private struct ChatSessionRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack(spacing: 8) {
-                    Text(session.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                    MarkdownText(session.updatedAt.formatted(date: .abbreviated, time: .shortened))
                     if pendingCount > 0 {
                         Text("Running")
                     }

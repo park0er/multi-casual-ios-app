@@ -184,7 +184,7 @@ private struct IssueCreateForm: View {
                                     .foregroundStyle(.secondary)
                                 MarkdownText(attachment.filename)
                                 Spacer()
-                                Text(ByteCountFormatter.string(fromByteCount: Int64(attachment.sizeBytes), countStyle: .file))
+                                MarkdownText(ByteCountFormatter.string(fromByteCount: Int64(attachment.sizeBytes), countStyle: .file))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

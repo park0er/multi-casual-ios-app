@@ -147,6 +147,62 @@ final class MarkdownCoverageTests: XCTestCase {
             (
                 "Multi-Casual/Features/Settings/PersonalAccessTokensView.swift",
                 "                                Text(option.title).tag(option)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueListView.swift",
+                "                    Button(status.displayName) { onStatus(status) }"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueListView.swift",
+                "                    Button(priority.displayName) { onPriority(priority) }"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                "                Text(comment.authorType == \"agent\" ? \"Agent\" : \"Member\")"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                "                Text(run.startedAt.map(iso8601DisplayFormatter.string(from:)) ?? \"\")"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                "                    Text(iso8601DateOnlyFormatter.string(from: entry.createdAt))"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                "            Text(value.formatted())"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueCreateSheet.swift",
+                "                                Text(ByteCountFormatter.string(fromByteCount: Int64(attachment.sizeBytes), countStyle: .file))"
+            ),
+            (
+                "Multi-Casual/Features/Chat/ChatView.swift",
+                "                    Text(session.updatedAt.formatted(date: .abbreviated, time: .shortened))"
+            ),
+            (
+                "Multi-Casual/Features/Inbox/InboxView.swift",
+                "                Text(item.createdAt, style: .relative)"
+            ),
+            (
+                "Multi-Casual/Features/Settings/WorkspaceAccessView.swift",
+                "                        Button(action.confirmTitle, role: .destructive)"
+            ),
+            (
+                "Multi-Casual/Features/Settings/AgentsView.swift",
+                "                    Text(completedAt.formatted(date: .abbreviated, time: .shortened))"
+            ),
+            (
+                "Multi-Casual/Features/Settings/AgentsView.swift",
+                "                    Text(startedAt.formatted(date: .abbreviated, time: .shortened))"
+            ),
+            (
+                "Multi-Casual/Features/Settings/AutopilotsView.swift",
+                "                    Text(\"Next \\(nextRunAt.formatted(date: .abbreviated, time: .shortened))\")"
+            ),
+            (
+                "Multi-Casual/Features/Settings/AutopilotsView.swift",
+                "                Text(run.triggeredAt.formatted(date: .abbreviated, time: .shortened))"
             )
         ]
 

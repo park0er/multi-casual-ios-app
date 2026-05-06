@@ -361,11 +361,11 @@ private struct AgentTaskRow: View {
                     .font(.body.weight(.medium))
                 Spacer()
                 if let completedAt = task.completedAt {
-                    Text(completedAt.formatted(date: .abbreviated, time: .shortened))
+                    MarkdownText(completedAt.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else if let startedAt = task.startedAt {
-                    Text(startedAt.formatted(date: .abbreviated, time: .shortened))
+                    MarkdownText(startedAt.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

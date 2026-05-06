@@ -64,8 +64,10 @@ public struct WorkspaceAccessView: View {
                     titleVisibility: .visible
                 ) {
                     if let action = pendingDestructiveAction {
-                        Button(action.confirmTitle, role: .destructive) {
+                        Button(role: .destructive) {
                             Task { await perform(action, vm: vm) }
+                        } label: {
+                            MarkdownText(action.confirmTitle)
                         }
                     }
                     Button("Cancel", role: .cancel) { pendingDestructiveAction = nil }

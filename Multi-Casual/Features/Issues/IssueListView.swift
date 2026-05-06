@@ -281,7 +281,11 @@ private struct IssueBatchActionBar: View {
 
             Menu {
                 ForEach(IssueStatus.displayCases, id: \.self) { status in
-                    Button(status.displayName) { onStatus(status) }
+                    Button {
+                        onStatus(status)
+                    } label: {
+                        MarkdownText(status.displayName)
+                    }
                 }
             } label: {
                 Label("Status", systemImage: "circle.dashed")
@@ -290,7 +294,11 @@ private struct IssueBatchActionBar: View {
 
             Menu {
                 ForEach(IssuePriority.allCases.filter { $0 != .unknown }, id: \.self) { priority in
-                    Button(priority.displayName) { onPriority(priority) }
+                    Button {
+                        onPriority(priority)
+                    } label: {
+                        MarkdownText(priority.displayName)
+                    }
                 }
             } label: {
                 Label("Priority", systemImage: "flag")

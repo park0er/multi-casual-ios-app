@@ -143,7 +143,7 @@ private struct InboxRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 8)
-                Text(item.createdAt, style: .relative)
+                MarkdownText(item.createdAt.formatted(.relative(presentation: .named)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
