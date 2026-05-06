@@ -213,6 +213,14 @@ final class MarkdownCoverageTests: XCTestCase {
                 #"                            Text("(\(issues.count))").font(.caption).foregroundStyle(.secondary)"#
             ),
             (
+                "Multi-Casual/Features/Projects/ProjectDetailView.swift",
+                #"                    Section("Resources (\(vm.resources.count))")"#
+            ),
+            (
+                "Multi-Casual/Features/Projects/ProjectDetailView.swift",
+                #"                    Section("Issues (\(vm.issues.count))")"#
+            ),
+            (
                 "Multi-Casual/Features/Issues/IssueDetailView.swift",
                 #"                    Text("\(badge.emoji) \(badge.count)")"#
             ),

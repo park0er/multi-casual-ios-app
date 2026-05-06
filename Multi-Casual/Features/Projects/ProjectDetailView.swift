@@ -30,7 +30,7 @@ public struct ProjectDetailView: View {
                         MarkdownLabeledContent("Progress", value: vm.progressText)
                     }
 
-                    Section("Resources (\(vm.resources.count))") {
+                    Section {
                         if vm.isLoading {
                             ProgressView()
                         } else if vm.resources.isEmpty {
@@ -54,9 +54,11 @@ public struct ProjectDetailView: View {
                             Label("Add Resource", systemImage: "plus")
                         }
                         .disabled(vm.isMutatingResource)
+                    } header: {
+                        MarkdownText("Resources (\(vm.resources.count))")
                     }
 
-                    Section("Issues (\(vm.issues.count))") {
+                    Section {
                         if vm.isLoading {
                             ProgressView()
                         } else if vm.issues.isEmpty {
@@ -68,6 +70,8 @@ public struct ProjectDetailView: View {
                                 }
                             }
                         }
+                    } header: {
+                        MarkdownText("Issues (\(vm.issues.count))")
                     }
 
                     if let error = vm.errorMessage {
