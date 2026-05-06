@@ -30,6 +30,7 @@ public final class APIClient: @unchecked Sendable {
     private let baseURL: URL
     private let requestTimeoutNanoseconds: UInt64
     private var tokenProvider: @Sendable () -> String?
+    private var workspaceIdProvider: @Sendable () async -> String?
     private var workspaceSlugProvider: @Sendable () async -> String?
 
     /// Shared decoder — ISO8601 dates, single allocation across all requests.
@@ -72,6 +73,7 @@ public final class APIClient: @unchecked Sendable {
         } else {
             self.tokenProvider = tokenProvider ?? { nil }
         }
+        self.workspaceIdProvider = { nil }
         self.workspaceSlugProvider = workspaceSlugProvider ?? { nil }
     }
 
@@ -79,6 +81,7 @@ public final class APIClient: @unchecked Sendable {
     /// Used by the app root to wire the environment-injected APIClient to AuthSession.
     public func configure(authSession: AuthSession) {
         self.tokenProvider = { authSession.token() }
+        self.workspaceIdProvider = { await MainActor.run { authSession.currentWorkspace?.id } }
         self.workspaceSlugProvider = { await MainActor.run { authSession.currentWorkspace?.slug } }
     }
 
@@ -97,7 +100,8 @@ public final class APIClient: @unchecked Sendable {
         ) else {
             throw APIError.serverError(-1, body: "Invalid base URL: \(baseURL) + \(path)")
         }
-        if !queryItems.isEmpty { components.queryItems = queryItems }
+        let finalQueryItems = await queryItemsWithWorkspaceIfNeeded(path: path, queryItems: queryItems)
+        if !finalQueryItems.isEmpty { components.queryItems = finalQueryItems }
         guard let url = components.url else {
             throw APIError.serverError(-1, body: "Invalid URL components for path \(path)")
         }
@@ -192,6 +196,42 @@ public final class APIClient: @unchecked Sendable {
             group.cancelAll()
             return result
         }
+    }
+
+    private func queryItemsWithWorkspaceIfNeeded(path: String, queryItems: [URLQueryItem]) async -> [URLQueryItem] {
+        guard isWorkspaceScopedPath(path),
+              !queryItems.contains(where: { $0.name == "workspace_id" || $0.name == "workspace_slug" }),
+              let workspaceId = await workspaceIdProvider(),
+              !workspaceId.isEmpty
+        else {
+            return queryItems
+        }
+        return queryItems + [.init(name: "workspace_id", value: workspaceId)]
+    }
+
+    private func isWorkspaceScopedPath(_ path: String) -> Bool {
+        let scopedPrefixes = [
+            "api/assignee-frequency",
+            "api/issues",
+            "api/tasks",
+            "api/labels",
+            "api/projects",
+            "api/autopilots",
+            "api/pins",
+            "api/attachments",
+            "api/comments",
+            "api/agents",
+            "api/skills",
+            "api/usage",
+            "api/runtimes",
+            "api/agent-task-snapshot",
+            "api/agent-activity-30d",
+            "api/agent-run-counts",
+            "api/chat",
+            "api/inbox",
+            "api/notification-preferences",
+        ]
+        return scopedPrefixes.contains { path == $0 || path.hasPrefix($0 + "/") }
     }
 
     // MARK: - Auth endpoints

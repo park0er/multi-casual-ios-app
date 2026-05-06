@@ -257,6 +257,46 @@ final class APIClientTests: XCTestCase {
         _ = try await client.getIssue(id: "i1")
     }
 
+    func test_configuredClientInjectsCurrentWorkspaceIdForWorkspaceScopedRequests() async throws {
+        let json = """
+        {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
+         "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+         "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+         "updated_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+        let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.api-client.inject-workspace.test"))
+        session.currentWorkspace = Workspace(id: "w1", name: "park0er", slug: "park0er", issuePrefix: "PAR")
+
+        client.configure(authSession: session)
+
+        MockURLProtocol.handler = { req in
+            let components = try XCTUnwrap(URLComponents(url: req.url!, resolvingAgainstBaseURL: false))
+            XCTAssertEqual(components.queryItems?.first(where: { $0.name == "workspace_id" })?.value, "w1")
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await client.getIssue(id: "i1")
+    }
+
+    func test_configuredClientDoesNotInjectWorkspaceIdForUserScopedRequests() async throws {
+        let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.api-client.user-scope.test"))
+        session.currentWorkspace = Workspace(id: "w1", name: "park0er", slug: "park0er", issuePrefix: "PAR")
+
+        client.configure(authSession: session)
+
+        MockURLProtocol.handler = { req in
+            let components = try XCTUnwrap(URLComponents(url: req.url!, resolvingAgainstBaseURL: false))
+            XCTAssertNil(components.queryItems?.first(where: { $0.name == "workspace_id" }))
+            return (
+                HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                #"{"id":"u1","email":"u@example.com","name":"User","avatar_url":null}"#.data(using: .utf8)!
+            )
+        }
+
+        _ = try await client.getMe()
+    }
+
     func test_registerPushTokenSendsWorkspaceId() async throws {
         var capturedURL: URL?
         var body: [String: Any] = [:]
