@@ -35,9 +35,9 @@ public struct SettingsView: View {
 
             Section("Configure") {
                 NavigationLink("Agents") { AgentsView() }
-                NavigationLink("Autopilots") { ComingSoonView(title: "Autopilots") }
-                NavigationLink("Runtimes") { ComingSoonView(title: "Runtimes") }
-                NavigationLink("Skills") { ComingSoonView(title: "Skills") }
+                NavigationLink("Autopilots") { AutopilotsView() }
+                NavigationLink("Runtimes") { RuntimesView() }
+                NavigationLink("Skills") { SkillsView() }
             }
 
             Section {
@@ -73,11 +73,4 @@ public struct SettingsView: View {
     }
 }
 
-struct ComingSoonView: View {
-    let title: String
-    var body: some View {
-        ContentUnavailableView(title, systemImage: "clock", description: Text("Available in v2."))
-            .navigationTitle(title)
-    }
-}
 #endif

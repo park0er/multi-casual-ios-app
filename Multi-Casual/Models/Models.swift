@@ -145,6 +145,187 @@ public struct AgentRuntime: Codable, Identifiable, Sendable {
     }
 }
 
+public struct SkillFile: Codable, Identifiable, Sendable, Hashable {
+    public let id: String
+    public let path: String
+    public let content: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, path, content
+    }
+
+    public init(id: String, path: String, content: String?) {
+        self.id = id
+        self.path = path
+        self.content = content
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        path = try container.decodeIfPresent(String.self, forKey: .path) ?? ""
+        content = try container.decodeIfPresent(String.self, forKey: .content)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? path
+    }
+}
+
+public struct Skill: Codable, Identifiable, Sendable {
+    public let id: String
+    public let workspaceId: String
+    public let name: String
+    public let description: String
+    public let content: String
+    public let config: [String: JSONValue]
+    public let files: [SkillFile]
+    public let createdBy: String?
+    public let createdAt: Date?
+    public let updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, content, config, files
+        case workspaceId = "workspace_id"
+        case createdBy = "created_by"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    public init(
+        id: String,
+        workspaceId: String,
+        name: String,
+        description: String,
+        content: String,
+        config: [String: JSONValue] = [:],
+        files: [SkillFile] = [],
+        createdBy: String? = nil,
+        createdAt: Date? = nil,
+        updatedAt: Date? = nil
+    ) {
+        self.id = id
+        self.workspaceId = workspaceId
+        self.name = name
+        self.description = description
+        self.content = content
+        self.config = config
+        self.files = files
+        self.createdBy = createdBy
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        workspaceId = try container.decodeIfPresent(String.self, forKey: .workspaceId) ?? ""
+        name = try container.decode(String.self, forKey: .name)
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+        content = try container.decodeIfPresent(String.self, forKey: .content) ?? ""
+        config = try container.decodeIfPresent([String: JSONValue].self, forKey: .config) ?? [:]
+        files = try container.decodeIfPresent([SkillFile].self, forKey: .files) ?? []
+        createdBy = try container.decodeIfPresent(String.self, forKey: .createdBy)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+    }
+}
+
+public struct ListAutopilotsResponse: Codable, Sendable {
+    public let autopilots: [Autopilot]
+    public let total: Int
+}
+
+public struct GetAutopilotResponse: Codable, Sendable {
+    public let autopilot: Autopilot
+    public let triggers: [AutopilotTrigger]
+}
+
+public struct ListAutopilotRunsResponse: Codable, Sendable {
+    public let runs: [AutopilotRun]
+    public let total: Int
+}
+
+public struct Autopilot: Codable, Identifiable, Sendable {
+    public let id: String
+    public let workspaceId: String
+    public let title: String
+    public let description: String?
+    public let assigneeId: String
+    public let status: String
+    public let executionMode: String
+    public let issueTitleTemplate: String?
+    public let createdByType: String
+    public let createdById: String
+    public let lastRunAt: Date?
+    public let createdAt: Date
+    public let updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, description, status
+        case workspaceId = "workspace_id"
+        case assigneeId = "assignee_id"
+        case executionMode = "execution_mode"
+        case issueTitleTemplate = "issue_title_template"
+        case createdByType = "created_by_type"
+        case createdById = "created_by_id"
+        case lastRunAt = "last_run_at"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+public struct AutopilotTrigger: Codable, Identifiable, Sendable {
+    public let id: String
+    public let autopilotId: String
+    public let kind: String
+    public let enabled: Bool
+    public let cronExpression: String?
+    public let timezone: String?
+    public let nextRunAt: Date?
+    public let webhookToken: String?
+    public let label: String?
+    public let lastFiredAt: Date?
+    public let createdAt: Date
+    public let updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, enabled, timezone, label
+        case autopilotId = "autopilot_id"
+        case cronExpression = "cron_expression"
+        case nextRunAt = "next_run_at"
+        case webhookToken = "webhook_token"
+        case lastFiredAt = "last_fired_at"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+public struct AutopilotRun: Codable, Identifiable, Sendable {
+    public let id: String
+    public let autopilotId: String
+    public let triggerId: String?
+    public let source: String
+    public let status: String
+    public let issueId: String?
+    public let taskId: String?
+    public let triggeredAt: Date
+    public let completedAt: Date?
+    public let failureReason: String?
+    public let triggerPayload: JSONValue?
+    public let result: JSONValue?
+    public let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, source, status, result
+        case autopilotId = "autopilot_id"
+        case triggerId = "trigger_id"
+        case issueId = "issue_id"
+        case taskId = "task_id"
+        case triggeredAt = "triggered_at"
+        case completedAt = "completed_at"
+        case failureReason = "failure_reason"
+        case triggerPayload = "trigger_payload"
+        case createdAt = "created_at"
+    }
+}
+
 // MARK: - Date formatting
 
 /// Shared ISO8601 formatter for UI display (date + time, no Z suffix).

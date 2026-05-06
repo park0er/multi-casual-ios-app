@@ -99,6 +99,39 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons["AgentsNewButton"].waitForExistence(timeout: 10))
     }
 
+    func testSettingsAutopilotsScreenRenders() {
+        let app = launchStubbedAuthenticatedApp(initialTab: "settings")
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Autopilots"].waitForExistence(timeout: 10))
+        app.buttons["Autopilots"].tap()
+
+        XCTAssertTrue(app.staticTexts["Autopilots"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["AutopilotsNewButton"].waitForExistence(timeout: 10))
+    }
+
+    func testSettingsRuntimesScreenRenders() {
+        let app = launchStubbedAuthenticatedApp(initialTab: "settings")
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Runtimes"].waitForExistence(timeout: 10))
+        app.buttons["Runtimes"].tap()
+
+        XCTAssertTrue(app.staticTexts["Runtimes"].waitForExistence(timeout: 20))
+    }
+
+    func testSettingsSkillsScreenRenders() {
+        let app = launchStubbedAuthenticatedApp(initialTab: "settings")
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Skills"].waitForExistence(timeout: 10))
+        app.buttons["Skills"].tap()
+
+        XCTAssertTrue(app.staticTexts["Skills"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["SkillsNewButton"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["SkillsImportButton"].waitForExistence(timeout: 10))
+    }
+
     func testCreateIssueSheetRendersRequiredFields() {
         let app = launchApp(initialTab: "issues", openCreateSheet: true)
 
@@ -502,6 +535,24 @@ final class Multi-CasualUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["MULTICA_DEBUG_SKIP_PUSH_PROMPT"] = "1"
         app.launchEnvironment["MULTICA_DEBUG_FORCE_LOGIN_SCREEN"] = "1"
+        addTeardownBlock {
+            if app.state != .notRunning {
+                app.terminate()
+            }
+        }
+        app.launch()
+        return app
+    }
+
+    private func launchStubbedAuthenticatedApp(initialTab: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["MULTICA_DEBUG_SKIP_PUSH_PROMPT"] = "1"
+        app.launchEnvironment["MULTICA_DEBUG_AUTH_STUB"] = "1"
+        app.launchEnvironment["MULTICA_DEBUG_INITIAL_TAB"] = initialTab
+        app.launchEnvironment["MULTICA_DEBUG_WORKSPACE_ID"] = workspaceId
+        app.launchEnvironment["MULTICA_DEBUG_WORKSPACE_NAME"] = workspaceName
+        app.launchEnvironment["MULTICA_DEBUG_WORKSPACE_SLUG"] = workspaceName
+        app.launchEnvironment["MULTICA_DEBUG_WORKSPACE_PREFIX"] = "PAR"
         addTeardownBlock {
             if app.state != .notRunning {
                 app.terminate()

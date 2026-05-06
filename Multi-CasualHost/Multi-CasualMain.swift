@@ -18,6 +18,24 @@ struct Multi-CasualMain: App {
                     apiClient.configure(authSession: authSession)
                     #if DEBUG
                     let env = ProcessInfo.processInfo.environment
+                    if env["MULTICA_DEBUG_AUTH_STUB"] == "1" {
+                        authSession.currentUser = User(
+                            id: "debug-user",
+                            email: "debug@example.com",
+                            name: "Debug User",
+                            avatarUrl: nil
+                        )
+                        let workspace = Workspace(
+                            id: env["MULTICA_DEBUG_WORKSPACE_ID"] ?? "debug-workspace",
+                            name: env["MULTICA_DEBUG_WORKSPACE_NAME"] ?? "Debug Workspace",
+                            slug: env["MULTICA_DEBUG_WORKSPACE_SLUG"] ?? "debug",
+                            issuePrefix: env["MULTICA_DEBUG_WORKSPACE_PREFIX"] ?? "DBG"
+                        )
+                        authSession.workspaces = [workspace]
+                        authSession.currentWorkspace = workspace
+                        authSession.isLoading = false
+                        return
+                    }
                     try? authSession.installDebugToken(env["MULTICA_DEBUG_TOKEN"])
                     let preferredWorkspaceId = env["MULTICA_DEBUG_WORKSPACE_ID"]
                     #else

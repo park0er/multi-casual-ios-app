@@ -145,6 +145,10 @@ public final class APIClient: @unchecked Sendable {
             throw APIError.serverError(http.statusCode, body: body)
         }
 
+        if data.isEmpty, T.self == EmptyResponse.self {
+            return EmptyResponse() as! T
+        }
+
         do {
             return try APIClient.decoder.decode(T.self, from: data)
         } catch {
@@ -181,6 +185,87 @@ public final class APIClient: @unchecked Sendable {
     private struct RegisterPushTokenRequest: Encodable {
         let token: String
         let platform: String = "apns"
+    }
+    private struct SkillMutationRequest: Encodable {
+        let name: String
+        let description: String
+        let content: String
+    }
+    private struct SkillImportRequest: Encodable {
+        let url: String
+    }
+    private struct CreateAutopilotRequest: Encodable {
+        let title: String
+        let description: String?
+        let assigneeId: String
+        let executionMode: String
+        let issueTitleTemplate: String?
+
+        enum CodingKeys: String, CodingKey {
+            case title, description
+            case assigneeId = "assignee_id"
+            case executionMode = "execution_mode"
+            case issueTitleTemplate = "issue_title_template"
+        }
+    }
+    private struct UpdateAutopilotRequest: Encodable {
+        let title: String
+        let description: String?
+        let assigneeId: String
+        let status: String
+        let executionMode: String
+        let issueTitleTemplate: String?
+
+        enum CodingKeys: String, CodingKey {
+            case title, description, status
+            case assigneeId = "assignee_id"
+            case executionMode = "execution_mode"
+            case issueTitleTemplate = "issue_title_template"
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(title, forKey: .title)
+            try encodeNullable(description, to: &container, forKey: .description)
+            try container.encode(assigneeId, forKey: .assigneeId)
+            try container.encode(status, forKey: .status)
+            try container.encode(executionMode, forKey: .executionMode)
+            try encodeNullable(issueTitleTemplate, to: &container, forKey: .issueTitleTemplate)
+        }
+
+        private func encodeNullable<Value: Encodable>(
+            _ value: Value?,
+            to container: inout KeyedEncodingContainer<CodingKeys>,
+            forKey key: CodingKeys
+        ) throws {
+            if let value {
+                try container.encode(value, forKey: key)
+            } else {
+                try container.encodeNil(forKey: key)
+            }
+        }
+    }
+    private struct CreateAutopilotTriggerRequest: Encodable {
+        let kind: String
+        let cronExpression: String?
+        let timezone: String?
+        let label: String?
+
+        enum CodingKeys: String, CodingKey {
+            case kind, timezone, label
+            case cronExpression = "cron_expression"
+        }
+    }
+    private struct UpdateAutopilotTriggerRequest: Encodable {
+        let enabled: Bool?
+        let cronExpression: String?
+        let timezone: String?
+        let label: String?
+
+        enum CodingKeys: String, CodingKey {
+            case enabled, timezone, label
+            case cronExpression = "cron_expression"
+        }
     }
 
     public struct AgentCancelResponse: Codable, Sendable {
@@ -506,6 +591,159 @@ public final class APIClient: @unchecked Sendable {
 
     public func listRuntimes(workspaceId: String) async throws -> [AgentRuntime] {
         try await request("GET", path: "api/runtimes", queryItems: workspaceQuery(workspaceId))
+    }
+
+    public func deleteRuntime(id: String) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/runtimes/\(id)")
+    }
+
+    // MARK: - Skills
+
+    public func listSkills() async throws -> [Skill] {
+        try await request("GET", path: "api/skills")
+    }
+
+    public func getSkill(id: String) async throws -> Skill {
+        try await request("GET", path: "api/skills/\(id)")
+    }
+
+    public func createSkill(name: String, description: String, content: String) async throws -> Skill {
+        try await request(
+            "POST",
+            path: "api/skills",
+            body: SkillMutationRequest(name: name, description: description, content: content)
+        )
+    }
+
+    public func updateSkill(id: String, name: String, description: String, content: String) async throws -> Skill {
+        try await request(
+            "PUT",
+            path: "api/skills/\(id)",
+            body: SkillMutationRequest(name: name, description: description, content: content)
+        )
+    }
+
+    public func importSkill(url: String) async throws -> Skill {
+        try await request("POST", path: "api/skills/import", body: SkillImportRequest(url: url))
+    }
+
+    public func deleteSkill(id: String) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/skills/\(id)")
+    }
+
+    // MARK: - Autopilots
+
+    public func listAutopilots(status: String? = nil) async throws -> ListAutopilotsResponse {
+        var queryItems: [URLQueryItem] = []
+        if let status, !status.isEmpty {
+            queryItems.append(.init(name: "status", value: status))
+        }
+        return try await request("GET", path: "api/autopilots", queryItems: queryItems)
+    }
+
+    public func getAutopilot(id: String) async throws -> GetAutopilotResponse {
+        try await request("GET", path: "api/autopilots/\(id)")
+    }
+
+    public func createAutopilot(
+        title: String,
+        description: String?,
+        assigneeId: String,
+        executionMode: String,
+        issueTitleTemplate: String?
+    ) async throws -> Autopilot {
+        try await request(
+            "POST",
+            path: "api/autopilots",
+            body: CreateAutopilotRequest(
+                title: title,
+                description: description,
+                assigneeId: assigneeId,
+                executionMode: executionMode,
+                issueTitleTemplate: issueTitleTemplate
+            )
+        )
+    }
+
+    public func updateAutopilot(
+        id: String,
+        title: String,
+        description: String?,
+        assigneeId: String,
+        status: String,
+        executionMode: String,
+        issueTitleTemplate: String?
+    ) async throws -> Autopilot {
+        try await request(
+            "PATCH",
+            path: "api/autopilots/\(id)",
+            body: UpdateAutopilotRequest(
+                title: title,
+                description: description,
+                assigneeId: assigneeId,
+                status: status,
+                executionMode: executionMode,
+                issueTitleTemplate: issueTitleTemplate
+            )
+        )
+    }
+
+    public func deleteAutopilot(id: String) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/autopilots/\(id)")
+    }
+
+    public func triggerAutopilot(id: String) async throws -> AutopilotRun {
+        try await request("POST", path: "api/autopilots/\(id)/trigger")
+    }
+
+    public func listAutopilotRuns(id: String, limit: Int = 50, offset: Int = 0) async throws -> ListAutopilotRunsResponse {
+        try await request("GET", path: "api/autopilots/\(id)/runs", queryItems: [
+            .init(name: "limit", value: "\(limit)"),
+            .init(name: "offset", value: "\(offset)"),
+        ])
+    }
+
+    public func createAutopilotTrigger(
+        autopilotId: String,
+        kind: String,
+        cronExpression: String?,
+        timezone: String?,
+        label: String?
+    ) async throws -> AutopilotTrigger {
+        try await request(
+            "POST",
+            path: "api/autopilots/\(autopilotId)/triggers",
+            body: CreateAutopilotTriggerRequest(
+                kind: kind,
+                cronExpression: cronExpression,
+                timezone: timezone,
+                label: label
+            )
+        )
+    }
+
+    public func updateAutopilotTrigger(
+        autopilotId: String,
+        triggerId: String,
+        enabled: Bool?,
+        cronExpression: String?,
+        timezone: String?,
+        label: String?
+    ) async throws -> AutopilotTrigger {
+        try await request(
+            "PATCH",
+            path: "api/autopilots/\(autopilotId)/triggers/\(triggerId)",
+            body: UpdateAutopilotTriggerRequest(
+                enabled: enabled,
+                cronExpression: cronExpression,
+                timezone: timezone,
+                label: label
+            )
+        )
+    }
+
+    public func deleteAutopilotTrigger(autopilotId: String, triggerId: String) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/autopilots/\(autopilotId)/triggers/\(triggerId)")
     }
 
     // MARK: - Inbox

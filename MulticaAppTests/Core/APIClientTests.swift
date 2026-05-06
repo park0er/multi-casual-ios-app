@@ -719,6 +719,112 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(runtimes.first?.status, "online")
     }
 
+    func test_deleteRuntime_usesDesktopEndpoint() async throws {
+        var capturedRequest: URLRequest?
+        MockURLProtocol.handler = { req in
+            capturedRequest = req
+            return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data("{}".utf8))
+        }
+
+        try await client.deleteRuntime(id: "r1")
+
+        XCTAssertEqual(capturedRequest?.httpMethod, "DELETE")
+        XCTAssertEqual(capturedRequest?.url?.path, "/api/runtimes/r1")
+    }
+
+    func test_skillEndpointsUseDesktopPaths() async throws {
+        var requests: [String] = []
+        MockURLProtocol.handler = { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            if req.httpMethod == "DELETE" {
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data("{}".utf8))
+            }
+            let body: Data
+            if req.url?.path == "/api/skills", req.httpMethod == "GET" {
+                body = "[\(String(data: Self.skillJSON(id: "s1", name: "Writer"), encoding: .utf8)!)]".data(using: .utf8)!
+            } else {
+                body = Self.skillJSON(id: "s1", name: "Writer")
+            }
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+        }
+
+        let skills = try await client.listSkills()
+        _ = try await client.getSkill(id: "s1")
+        _ = try await client.createSkill(name: "Writer", description: "D", content: "C")
+        _ = try await client.updateSkill(id: "s1", name: "Writer", description: "D2", content: "C2")
+        _ = try await client.importSkill(url: "https://example.com/skill")
+        try await client.deleteSkill(id: "s1")
+
+        XCTAssertEqual(skills.map(\.id), ["s1"])
+        XCTAssertEqual(requests, [
+            "GET /api/skills",
+            "GET /api/skills/s1",
+            "POST /api/skills",
+            "PUT /api/skills/s1",
+            "POST /api/skills/import",
+            "DELETE /api/skills/s1",
+        ])
+    }
+
+    func test_autopilotEndpointsUseDesktopPaths() async throws {
+        var requests: [String] = []
+        MockURLProtocol.handler = { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")?\(req.url?.query ?? "")")
+            let path = req.url?.path
+            if req.httpMethod == "DELETE" {
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            }
+            let body: Data
+            switch path {
+            case "/api/autopilots" where req.httpMethod == "GET":
+                body = #"{"autopilots":[\#(String(data: Self.autopilotJSON(id: "ap1", title: "Daily triage"), encoding: .utf8)!)],"total":1}"#.data(using: .utf8)!
+            case "/api/autopilots/ap1":
+                if req.httpMethod == "GET" {
+                    body = #"{"autopilot":\#(String(data: Self.autopilotJSON(id: "ap1", title: "Daily triage"), encoding: .utf8)!),"triggers":[]}"#.data(using: .utf8)!
+                } else {
+                    body = Self.autopilotJSON(id: "ap1", title: "Daily triage")
+                }
+            case "/api/autopilots/ap1/runs":
+                body = #"{"runs":[\#(String(data: Self.autopilotRunJSON(id: "run1"), encoding: .utf8)!)],"total":1}"#.data(using: .utf8)!
+            case "/api/autopilots/ap1/triggers":
+                body = Self.autopilotTriggerJSON(id: "tr1")
+            case "/api/autopilots/ap1/triggers/tr1":
+                body = Self.autopilotTriggerJSON(id: "tr1")
+            case "/api/autopilots/ap1/trigger":
+                body = Self.autopilotRunJSON(id: "run1")
+            default:
+                body = Self.autopilotJSON(id: "ap1", title: "Daily triage")
+            }
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+        }
+
+        let list = try await client.listAutopilots(status: "active")
+        _ = try await client.getAutopilot(id: "ap1")
+        _ = try await client.createAutopilot(title: "Daily triage", description: "D", assigneeId: "a1", executionMode: "create_issue", issueTitleTemplate: "T")
+        _ = try await client.updateAutopilot(id: "ap1", title: "Daily triage", description: nil, assigneeId: "a1", status: "paused", executionMode: "run_only", issueTitleTemplate: nil)
+        try await client.deleteAutopilot(id: "ap1")
+        _ = try await client.triggerAutopilot(id: "ap1")
+        let runs = try await client.listAutopilotRuns(id: "ap1", limit: 10, offset: 20)
+        _ = try await client.createAutopilotTrigger(autopilotId: "ap1", kind: "schedule", cronExpression: "0 9 * * *", timezone: "UTC", label: "Morning")
+        _ = try await client.updateAutopilotTrigger(autopilotId: "ap1", triggerId: "tr1", enabled: false, cronExpression: nil, timezone: nil, label: nil)
+        try await client.deleteAutopilotTrigger(autopilotId: "ap1", triggerId: "tr1")
+
+        XCTAssertEqual(list.autopilots.map(\.id), ["ap1"])
+        XCTAssertEqual(runs.runs.map(\.id), ["run1"])
+        XCTAssertEqual(requests, [
+            "GET /api/autopilots?status=active",
+            "GET /api/autopilots/ap1?",
+            "POST /api/autopilots?",
+            "PATCH /api/autopilots/ap1?",
+            "DELETE /api/autopilots/ap1?",
+            "POST /api/autopilots/ap1/trigger?",
+            "GET /api/autopilots/ap1/runs?limit=10&offset=20",
+            "POST /api/autopilots/ap1/triggers?",
+            "PATCH /api/autopilots/ap1/triggers/tr1?",
+            "DELETE /api/autopilots/ap1/triggers/tr1?",
+        ])
+    }
+
     private static func agentJSON(id: String, name: String) -> Data {
         """
         {"id":"\(id)","workspace_id":"w1","runtime_id":"r1","name":"\(name)",
@@ -727,6 +833,41 @@ final class APIClientTests: XCTestCase {
           "visibility":"workspace","status":"idle","max_concurrent_tasks":1,
           "model":"gpt","owner_id":null,"skills":[],"created_at":"2026-01-01T00:00:00Z",
           "updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}
+        """.data(using: .utf8)!
+    }
+
+    private static func skillJSON(id: String, name: String) -> Data {
+        """
+        {"id":"\(id)","workspace_id":"w1","name":"\(name)","description":"**D**",
+         "content":"# Skill","config":{},"files":[],"created_by":"u1",
+         "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+    }
+
+    private static func autopilotJSON(id: String, title: String) -> Data {
+        """
+        {"id":"\(id)","workspace_id":"w1","title":"\(title)","description":"**D**",
+         "assignee_id":"a1","status":"active","execution_mode":"create_issue",
+         "issue_title_template":"T","created_by_type":"member","created_by_id":"u1",
+         "last_run_at":null,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+    }
+
+    private static func autopilotTriggerJSON(id: String) -> Data {
+        """
+        {"id":"\(id)","autopilot_id":"ap1","kind":"schedule","enabled":true,
+         "cron_expression":"0 9 * * *","timezone":"UTC","next_run_at":null,
+         "webhook_token":null,"label":"Morning","last_fired_at":null,
+         "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+    }
+
+    private static func autopilotRunJSON(id: String) -> Data {
+        """
+        {"id":"\(id)","autopilot_id":"ap1","trigger_id":null,"source":"manual",
+         "status":"running","issue_id":null,"task_id":"t1","triggered_at":"2026-01-01T00:00:00Z",
+         "completed_at":null,"failure_reason":null,"trigger_payload":{},"result":null,
+         "created_at":"2026-01-01T00:00:00Z"}
         """.data(using: .utf8)!
     }
 
