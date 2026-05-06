@@ -224,6 +224,36 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(agent.ownerId, "u1")
     }
 
+    func test_agentRuntime_decodesDesktopDetailFields() throws {
+        let json = """
+        {
+            "id": "r1",
+            "workspace_id": "w1",
+            "daemon_id": "daemon-abcdef",
+            "name": "MacBook **Pro**",
+            "runtime_mode": "local",
+            "provider": "claude",
+            "launch_header": "multica runtime",
+            "status": "offline",
+            "device_info": "host.local · darwin-arm64",
+            "metadata": {"cli_version": "0.2.17", "launched_by": "desktop"},
+            "owner_id": "u1",
+            "last_seen_at": "2026-01-02T03:04:05Z",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-03T00:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let runtime = try decoder.decode(AgentRuntime.self, from: json)
+
+        XCTAssertEqual(runtime.daemonId, "daemon-abcdef")
+        XCTAssertEqual(runtime.deviceInfo, "host.local · darwin-arm64")
+        XCTAssertEqual(runtime.metadata["cli_version"]?.displayString, "0.2.17")
+        XCTAssertEqual(runtime.metadata["launched_by"]?.displayString, "desktop")
+        XCTAssertEqual(runtime.ownerId, "u1")
+        XCTAssertEqual(runtime.lastSeenAt, ISO8601DateFormatter().date(from: "2026-01-02T03:04:05Z"))
+    }
+
     func test_timelineEntry_decodesDesktopActivityAndCommentShapes() throws {
         let json = """
         [{

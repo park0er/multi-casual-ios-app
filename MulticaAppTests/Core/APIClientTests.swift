@@ -1584,6 +1584,26 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedRequest?.url?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
+    func test_getRuntimeUsage_usesDesktopEndpoint() async throws {
+        let json = """
+        [{"runtime_id":"r1","date":"2026-01-01","provider":"anthropic","model":"claude-sonnet-4",
+          "input_tokens":1000,"output_tokens":2000,"cache_read_tokens":300,"cache_write_tokens":400}]
+        """.data(using: .utf8)!
+        var capturedRequest: URLRequest?
+        MockURLProtocol.handler = { req in
+            capturedRequest = req
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let usage = try await client.getRuntimeUsage(id: "r1", workspaceId: "w1", days: 30)
+
+        XCTAssertEqual(capturedRequest?.url?.path, "/api/runtimes/r1/usage")
+        XCTAssertTrue(capturedRequest?.url?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertTrue(capturedRequest?.url?.absoluteString.contains("days=30") ?? false)
+        XCTAssertEqual(usage.first?.model, "claude-sonnet-4")
+        XCTAssertEqual(usage.first?.totalTokens, 3700)
+    }
+
     func test_skillEndpointsUseDesktopPaths() async throws {
         var requests: [String] = []
         var requestURLs: [URL] = []

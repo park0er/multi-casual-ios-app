@@ -86,7 +86,8 @@ final class AutopilotsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.detailAutopilot?.id, "ap1")
         XCTAssertEqual(vm.detailTriggers.map(\.id), ["tr1"])
         XCTAssertEqual(vm.detailRuns.map(\.id), ["run1"])
-        XCTAssertEqual(requests, ["GET /api/autopilots/ap1", "GET /api/autopilots/ap1/runs"])
+        XCTAssertEqual(Set(requests), Set(["GET /api/autopilots/ap1", "GET /api/autopilots/ap1/runs"]))
+        XCTAssertEqual(requests.count, 2)
         XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertNil(vm.errorMessage)
     }

@@ -1248,6 +1248,14 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/runtimes", queryItems: workspaceQuery(workspaceId))
     }
 
+    public func getRuntimeUsage(id: String, workspaceId: String? = nil, days: Int = 30) async throws -> [RuntimeUsage] {
+        try await request(
+            "GET",
+            path: "api/runtimes/\(id)/usage",
+            queryItems: [.init(name: "days", value: String(days))] + workspaceQuery(workspaceId)
+        )
+    }
+
     public func deleteRuntime(id: String, workspaceId: String? = nil) async throws {
         let _: EmptyResponse = try await request("DELETE", path: "api/runtimes/\(id)", queryItems: workspaceQuery(workspaceId))
     }

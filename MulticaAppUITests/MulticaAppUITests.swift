@@ -249,6 +249,25 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Runtimes"].waitForExistence(timeout: 20))
     }
 
+    func testSettingsRuntimeDetailRendersWhenRuntimeExists() throws {
+        let app = launchApp(initialTab: "settings")
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Runtimes"].waitForExistence(timeout: 10))
+        app.buttons["Runtimes"].tap()
+
+        XCTAssertTrue(app.staticTexts["Runtimes"].waitForExistence(timeout: 20))
+        let firstRuntime = app.cells.firstMatch
+        guard firstRuntime.waitForExistence(timeout: 20) else {
+            throw XCTSkip("No runtime row is available for detail smoke coverage.")
+        }
+        firstRuntime.tap()
+
+        XCTAssertTrue(app.staticTexts["Runtime"].waitForExistence(timeout: 10))
+        app.swipeUp()
+        XCTAssertTrue(app.staticTexts["Serving Agents"].waitForExistence(timeout: 10))
+    }
+
     func testSettingsSkillsScreenRenders() {
         let app = launchStubbedAuthenticatedApp(initialTab: "settings")
 

@@ -461,15 +461,125 @@ public struct Agent: Codable, Identifiable, Sendable {
 public struct AgentRuntime: Codable, Identifiable, Sendable {
     public let id: String
     public let workspaceId: String
+    public let daemonId: String?
     public let name: String
     public let runtimeMode: String
     public let provider: String
+    public let launchHeader: String
     public let status: String
+    public let deviceInfo: String
+    public let metadata: [String: JSONValue]
+    public let ownerId: String?
+    public let lastSeenAt: Date?
+    public let createdAt: Date?
+    public let updatedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, name, provider, status
         case workspaceId = "workspace_id"
+        case daemonId = "daemon_id"
         case runtimeMode = "runtime_mode"
+        case launchHeader = "launch_header"
+        case deviceInfo = "device_info"
+        case metadata
+        case ownerId = "owner_id"
+        case lastSeenAt = "last_seen_at"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    public init(
+        id: String,
+        workspaceId: String,
+        name: String,
+        runtimeMode: String,
+        provider: String,
+        status: String,
+        daemonId: String? = nil,
+        launchHeader: String = "",
+        deviceInfo: String = "",
+        metadata: [String: JSONValue] = [:],
+        ownerId: String? = nil,
+        lastSeenAt: Date? = nil,
+        createdAt: Date? = nil,
+        updatedAt: Date? = nil
+    ) {
+        self.id = id
+        self.workspaceId = workspaceId
+        self.name = name
+        self.runtimeMode = runtimeMode
+        self.provider = provider
+        self.status = status
+        self.daemonId = daemonId
+        self.launchHeader = launchHeader
+        self.deviceInfo = deviceInfo
+        self.metadata = metadata
+        self.ownerId = ownerId
+        self.lastSeenAt = lastSeenAt
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        workspaceId = try c.decode(String.self, forKey: .workspaceId)
+        daemonId = try c.decodeIfPresent(String.self, forKey: .daemonId)
+        name = try c.decode(String.self, forKey: .name)
+        runtimeMode = try c.decodeIfPresent(String.self, forKey: .runtimeMode) ?? "cloud"
+        provider = try c.decodeIfPresent(String.self, forKey: .provider) ?? ""
+        launchHeader = try c.decodeIfPresent(String.self, forKey: .launchHeader) ?? ""
+        status = try c.decodeIfPresent(String.self, forKey: .status) ?? "offline"
+        deviceInfo = try c.decodeIfPresent(String.self, forKey: .deviceInfo) ?? ""
+        metadata = try c.decodeIfPresent([String: JSONValue].self, forKey: .metadata) ?? [:]
+        ownerId = try c.decodeIfPresent(String.self, forKey: .ownerId)
+        lastSeenAt = try c.decodeIfPresent(Date.self, forKey: .lastSeenAt)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
+    }
+}
+
+public struct RuntimeUsage: Codable, Sendable, Hashable {
+    public let runtimeId: String
+    public let date: String
+    public let provider: String
+    public let model: String
+    public let inputTokens: Int
+    public let outputTokens: Int
+    public let cacheReadTokens: Int
+    public let cacheWriteTokens: Int
+
+    public var totalTokens: Int {
+        inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case runtimeId = "runtime_id"
+        case date, provider, model
+        case inputTokens = "input_tokens"
+        case outputTokens = "output_tokens"
+        case cacheReadTokens = "cache_read_tokens"
+        case cacheWriteTokens = "cache_write_tokens"
+    }
+}
+
+public struct RuntimeUsageSummary: Sendable, Hashable {
+    public let totalInputTokens: Int
+    public let totalOutputTokens: Int
+    public let totalCacheReadTokens: Int
+    public let totalCacheWriteTokens: Int
+
+    public var totalTokens: Int {
+        totalInputTokens + totalOutputTokens + totalCacheReadTokens + totalCacheWriteTokens
+    }
+
+    public static func summarize(_ rows: [RuntimeUsage]) -> RuntimeUsageSummary {
+        RuntimeUsageSummary(
+            totalInputTokens: rows.reduce(0) { $0 + $1.inputTokens },
+            totalOutputTokens: rows.reduce(0) { $0 + $1.outputTokens },
+            totalCacheReadTokens: rows.reduce(0) { $0 + $1.cacheReadTokens },
+            totalCacheWriteTokens: rows.reduce(0) { $0 + $1.cacheWriteTokens }
+        )
     }
 }
 
