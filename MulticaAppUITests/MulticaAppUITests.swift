@@ -21,12 +21,31 @@ final class Multi-CasualUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
         XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts[workspaceName].waitForExistence(timeout: 10))
+        let workspacePicker = app.buttons["SettingsWorkspacePicker"]
+        XCTAssertTrue(workspacePicker.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForValue(workspacePicker, timeout: 10) { value in
+            value.contains("Current workspace: \(workspaceName)")
+        })
         XCTAssertTrue(app.buttons["Log Out"].exists)
         app.buttons["Log Out"].tap()
         XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap()
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
+    }
+
+    func testSettingsWorkspacePickerShowsAvailableWorkspace() {
+        let app = launchApp(initialTab: "settings")
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        let workspacePicker = app.buttons["SettingsWorkspacePicker"]
+        XCTAssertTrue(workspacePicker.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForValue(workspacePicker, timeout: 10) { value in
+            value.contains("Workspace options loaded:") && !value.contains("Workspace options loaded: 0")
+        })
+        workspacePicker.tap()
+
+        XCTAssertTrue(app.navigationBars["Workspace"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[workspaceName].waitForExistence(timeout: 10))
     }
 
     func testCreateIssueSheetRendersRequiredFields() {

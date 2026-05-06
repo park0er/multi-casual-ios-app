@@ -27,7 +27,9 @@ public struct SettingsView: View {
                             Text(workspace.name).tag(workspace.id)
                         }
                     }
-                    .disabled(authSession.workspaces.count == 1)
+                    .pickerStyle(.navigationLink)
+                    .accessibilityIdentifier("SettingsWorkspacePicker")
+                    .accessibilityValue("Current workspace: \(authSession.currentWorkspace?.name ?? "None"). Workspace options loaded: \(authSession.workspaces.count)")
                 }
             }
 
