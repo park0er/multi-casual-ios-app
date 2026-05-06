@@ -89,9 +89,13 @@ public struct IssueListView: View {
                     if vm.isSelectionMode && !vm.selectedIssueIds.isEmpty {
                         IssueBatchActionBar(
                             selectedCount: vm.selectedIssueIds.count,
+                            assigneeOptions: vm.batchAssigneeOptions,
+                            isLoadingAssignees: vm.isLoadingBatchAssignees,
                             onClear: { vm.clearSelection() },
+                            onLoadAssignees: { Task { await vm.loadBatchAssigneeOptions() } },
                             onStatus: { status in Task { await vm.batchUpdateSelected(status: status) } },
                             onPriority: { priority in Task { await vm.batchUpdateSelected(priority: priority) } },
+                            onAssignee: { option in Task { await vm.batchAssignSelected(optionId: option.id) } },
                             onDelete: { showingBatchDeleteConfirmation = true }
                         )
                     }
@@ -202,9 +206,13 @@ public struct IssueListView: View {
 
 private struct IssueBatchActionBar: View {
     let selectedCount: Int
+    let assigneeOptions: [IssueAssigneeOption]
+    let isLoadingAssignees: Bool
     let onClear: () -> Void
+    let onLoadAssignees: () -> Void
     let onStatus: (IssueStatus) -> Void
     let onPriority: (IssuePriority) -> Void
+    let onAssignee: (IssueAssigneeOption) -> Void
     let onDelete: () -> Void
 
     var body: some View {
@@ -236,6 +244,23 @@ private struct IssueBatchActionBar: View {
             }
             .accessibilityIdentifier("IssueBatchPriorityMenu")
 
+            Menu {
+                if isLoadingAssignees {
+                    Label("Loading", systemImage: "hourglass")
+                }
+                ForEach(assigneeOptions) { option in
+                    Button {
+                        onAssignee(option)
+                    } label: {
+                        Label(option.displayName, systemImage: option.type == "agent" ? "bolt.circle" : "person.circle")
+                    }
+                }
+            } label: {
+                Label("Assignee", systemImage: "person.crop.circle")
+            }
+            .accessibilityIdentifier("IssueBatchAssigneeMenu")
+            .accessibilityValue(isLoadingAssignees ? "Loading assignees" : "Assignee options loaded: \(assigneeOptions.count)")
+
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "trash")
             }
@@ -248,6 +273,11 @@ private struct IssueBatchActionBar: View {
         .background(.bar)
         .overlay(alignment: .top) {
             Divider()
+        }
+        .task {
+            if assigneeOptions.isEmpty {
+                onLoadAssignees()
+            }
         }
     }
 }

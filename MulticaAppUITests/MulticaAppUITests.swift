@@ -209,6 +209,14 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["1 selected"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["IssueBatchStatusMenu"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["IssueBatchPriorityMenu"].waitForExistence(timeout: 5))
+        let assigneeMenu = app.buttons["IssueBatchAssigneeMenu"]
+        XCTAssertTrue(assigneeMenu.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForValue(assigneeMenu, timeout: 30) { value in
+            value.contains("Assignee options loaded:") && !value.contains("Assignee options loaded: 0")
+        })
+        assigneeMenu.tap()
+        XCTAssertTrue(app.buttons[memberDisplayName].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[agentDisplayName].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Delete Selected Issues"].waitForExistence(timeout: 5))
     }
 

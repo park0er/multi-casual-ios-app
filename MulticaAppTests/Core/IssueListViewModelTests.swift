@@ -216,6 +216,79 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertNil(vm.lastError)
     }
 
+    func test_loadBatchAssigneeOptionsBuildsMemberAndAgentChoices() async throws {
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/workspaces/w1/members"):
+                return Self.response(
+                    for: req,
+                    body: Data(#"[{"id":"m1","workspace_id":"w1","user_id":"u1","role":"admin","created_at":"2026-01-01T00:00:00Z","email":"parker@example.com","name":"Parker","avatar_url":null}]"#.utf8)
+                )
+            case ("GET", "/api/agents"):
+                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+                return Self.response(
+                    for: req,
+                    body: Data(#"[{"id":"a1","workspace_id":"w1","runtime_id":"r1","name":"Codex","description":"","instructions":"","avatar_url":null,"runtime_mode":"cloud","runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,"visibility":"workspace","status":"active","max_concurrent_tasks":1,"model":"gpt","owner_id":null,"skills":[],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}]"#.utf8)
+                )
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadBatchAssigneeOptions()
+
+        XCTAssertEqual(vm.batchAssigneeOptions.map(\.id), ["member:u1", "agent:a1"])
+        XCTAssertEqual(vm.batchAssigneeOptions.map(\.displayName), ["Parker", "Codex"])
+        XCTAssertEqual(vm.batchAssigneeOptions.first?.assigneeId, "u1")
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_batchAssignSelectedIssuesSendsMemberAssigneeAndPatchesRows() async throws {
+        var updateRequestBody: [String: Any] = [:]
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/child-progress"):
+                return Self.childProgressResponse(for: req, progress: [])
+            case ("GET", "/api/issues"):
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+                if status == "todo" {
+                    return Self.issuesResponse(for: req, status: status, total: 1)
+                }
+                return Self.emptyIssuesResponse(for: req)
+            case ("GET", "/api/workspaces/w1/members"):
+                return Self.response(
+                    for: req,
+                    body: Data(#"[{"id":"m1","workspace_id":"w1","user_id":"u1","role":"admin","created_at":"2026-01-01T00:00:00Z","email":"parker@example.com","name":"Parker","avatar_url":null}]"#.utf8)
+                )
+            case ("GET", "/api/agents"):
+                return Self.response(for: req, body: Data("[]".utf8))
+            case ("POST", "/api/issues/batch-update"):
+                updateRequestBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return Self.response(for: req, body: Data(#"{"updated":1}"#.utf8))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        await vm.loadBatchAssigneeOptions()
+        vm.toggleSelection(issueId: "todo-1")
+        await vm.batchAssignSelected(optionId: "member:u1")
+
+        let updates = updateRequestBody["updates"] as? [String: Any]
+        XCTAssertEqual(updates?["assignee_type"] as? String, "member")
+        XCTAssertEqual(updates?["assignee_id"] as? String, "u1")
+        XCTAssertTrue(vm.selectedIssueIds.isEmpty)
+        XCTAssertEqual(vm.loader.items.first?.assigneeType, "member")
+        XCTAssertEqual(vm.loader.items.first?.assigneeId, "u1")
+        XCTAssertNil(vm.lastError)
+    }
+
     func test_batchDeleteSelectedIssues_removesIssuesAndClearsSelection() async throws {
         var deleteRequestBody: [String: Any] = [:]
         let client = makeClient { req in

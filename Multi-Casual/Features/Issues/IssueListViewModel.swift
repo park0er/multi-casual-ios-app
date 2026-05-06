@@ -30,6 +30,8 @@ public final class IssueListViewModel {
     public var lastError: Error?
     public var priorityFilter: IssuePriority?
     public var isSelectionMode = false
+    public var isLoadingBatchAssignees = false
+    public private(set) var batchAssigneeOptions: [IssueAssigneeOption] = []
     public private(set) var selectedIssueIds: Set<String> = []
     public private(set) var sortOption: SortOption = .position
     public private(set) var issuesByStatus: [IssueStatus: [Issue]] = [:]
@@ -138,6 +140,53 @@ public final class IssueListViewModel {
         } catch {
             lastError = error
         }
+    }
+
+    public func loadBatchAssigneeOptions() async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            lastError = UserVisibleError("Pick a workspace before updating Issues.")
+            return
+        }
+        guard !isLoadingBatchAssignees else { return }
+
+        isLoadingBatchAssignees = true
+        defer { isLoadingBatchAssignees = false }
+
+        do {
+            async let members = api.listMembers(workspaceId: workspaceId)
+            async let agents = api.listAgents(workspaceId: workspaceId)
+
+            let loadedMembers = try await members
+            let loadedAgents = try await agents
+            batchAssigneeOptions = loadedMembers.map {
+                IssueAssigneeOption(
+                    id: "member:\($0.userId)",
+                    type: "member",
+                    assigneeId: $0.userId,
+                    displayName: $0.name,
+                    subtitle: $0.email
+                )
+            } + loadedAgents.map {
+                IssueAssigneeOption(
+                    id: "agent:\($0.id)",
+                    type: "agent",
+                    assigneeId: $0.id,
+                    displayName: $0.name,
+                    subtitle: "Agent"
+                )
+            }
+            lastError = nil
+        } catch {
+            lastError = error
+        }
+    }
+
+    public func batchAssignSelected(optionId: String) async {
+        if batchAssigneeOptions.isEmpty {
+            await loadBatchAssigneeOptions()
+        }
+        guard let option = batchAssigneeOptions.first(where: { $0.id == optionId }) else { return }
+        await batchUpdateSelected(assigneeType: option.type, assigneeId: option.assigneeId)
     }
 
     public func batchDeleteSelected() async {
