@@ -732,6 +732,61 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
+    func test_projectMutationEndpointsUseDesktopPaths() async throws {
+        var requests: [(method: String?, path: String, body: [String: Any]?)] = []
+        let projectJSON = """
+        {"id":"p1","workspace_id":"w1","title":"Edited Project","description":"**Docs**",
+         "icon":null,"status":"paused","priority":"high",
+         "lead_type":null,"lead_id":null,"created_at":"2026-01-01T00:00:00Z",
+         "updated_at":"2026-01-01T00:00:00Z","issue_count":0,"done_count":0}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            let body: [String: Any]?
+            let data = MockURLProtocol.bodyData(for: req)
+            if !data.isEmpty {
+                body = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            } else {
+                body = nil
+            }
+            requests.append((req.httpMethod, req.url?.path ?? "", body))
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/projects"),
+                 ("PUT", "/api/projects/p1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, projectJSON)
+            case ("DELETE", "/api/projects/p1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data("{}".utf8))
+            }
+        }
+
+        _ = try await client.createProject(
+            title: "Edited Project",
+            description: "**Docs**",
+            workspaceId: "w1",
+            status: .paused,
+            priority: .high
+        )
+        _ = try await client.updateProject(
+            id: "p1",
+            workspaceId: "w1",
+            title: "Edited Project",
+            description: nil,
+            status: .paused,
+            priority: .high
+        )
+        try await client.deleteProject(id: "p1", workspaceId: "w1")
+
+        XCTAssertEqual(requests.map(\.method), ["POST", "PUT", "DELETE"])
+        XCTAssertEqual(requests.map(\.path), ["/api/projects", "/api/projects/p1", "/api/projects/p1"])
+        XCTAssertEqual(requests[0].body?["title"] as? String, "Edited Project")
+        XCTAssertEqual(requests[0].body?["description"] as? String, "**Docs**")
+        XCTAssertEqual(requests[0].body?["status"] as? String, "paused")
+        XCTAssertEqual(requests[0].body?["priority"] as? String, "high")
+        XCTAssertTrue(requests[1].body?["description"] is NSNull)
+    }
+
     func test_listMembers_decodesWorkspaceMembers() async throws {
         let json = """
         [{"id":"m1","workspace_id":"w1","user_id":"u1","role":"owner",

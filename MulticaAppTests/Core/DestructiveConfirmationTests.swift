@@ -37,4 +37,13 @@ final class DestructiveConfirmationTests: XCTestCase {
         XCTAssertEqual(confirmation.confirmTitle, "Cancel Task")
         XCTAssertEqual(confirmation.cancelTitle, "Keep Running")
     }
+
+    func test_deleteProjectConfirmationNamesProject() {
+        let confirmation = DestructiveConfirmation.deleteProject(name: "Roadmap")
+
+        XCTAssertEqual(confirmation.title, "Delete \"Roadmap\"?")
+        XCTAssertEqual(confirmation.message, "This removes the project from the workspace. Linked issues stay available.")
+        XCTAssertEqual(confirmation.confirmTitle, "Delete")
+        XCTAssertEqual(confirmation.cancelTitle, "Cancel")
+    }
 }

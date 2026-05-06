@@ -245,6 +245,34 @@ public final class APIClient: @unchecked Sendable {
             }
         }
     }
+    private struct CreateProjectRequest: Encodable {
+        let title: String
+        let description: String?
+        let status: ProjectStatus
+        let priority: IssuePriority
+    }
+    private struct UpdateProjectRequest: Encodable {
+        let title: String
+        let description: String?
+        let status: ProjectStatus
+        let priority: IssuePriority
+
+        enum CodingKeys: String, CodingKey {
+            case title, description, status, priority
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(title, forKey: .title)
+            if let description {
+                try container.encode(description, forKey: .description)
+            } else {
+                try container.encodeNil(forKey: .description)
+            }
+            try container.encode(status, forKey: .status)
+            try container.encode(priority, forKey: .priority)
+        }
+    }
     private struct CreateAutopilotTriggerRequest: Encodable {
         let kind: String
         let cronExpression: String?
@@ -947,6 +975,55 @@ public final class APIClient: @unchecked Sendable {
 
     public func getProject(id: String, workspaceId: String? = nil) async throws -> Project {
         try await request("GET", path: "api/projects/\(id)", queryItems: workspaceQuery(workspaceId))
+    }
+
+    public func createProject(
+        title: String,
+        description: String?,
+        workspaceId: String,
+        status: ProjectStatus,
+        priority: IssuePriority
+    ) async throws -> Project {
+        try await request(
+            "POST",
+            path: "api/projects",
+            queryItems: workspaceQuery(workspaceId),
+            body: CreateProjectRequest(
+                title: title,
+                description: description,
+                status: status,
+                priority: priority
+            )
+        )
+    }
+
+    public func updateProject(
+        id: String,
+        workspaceId: String,
+        title: String,
+        description: String?,
+        status: ProjectStatus,
+        priority: IssuePriority
+    ) async throws -> Project {
+        try await request(
+            "PUT",
+            path: "api/projects/\(id)",
+            queryItems: workspaceQuery(workspaceId),
+            body: UpdateProjectRequest(
+                title: title,
+                description: description,
+                status: status,
+                priority: priority
+            )
+        )
+    }
+
+    public func deleteProject(id: String, workspaceId: String) async throws {
+        let _: EmptyResponse = try await request(
+            "DELETE",
+            path: "api/projects/\(id)",
+            queryItems: workspaceQuery(workspaceId)
+        )
     }
 
     public func listProjectResources(projectId: String, workspaceId: String? = nil) async throws -> PageResponse<ProjectResource> {

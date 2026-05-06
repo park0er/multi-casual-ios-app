@@ -440,6 +440,20 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(staticText(in: app, beginsWith: "Issues").waitForExistence(timeout: 20))
     }
 
+    func testProjectCreateSheetOpensWithoutSubmitting() {
+        let app = launchApp(initialTab: "projects")
+
+        XCTAssertTrue(app.navigationBars["Projects"].waitForExistence(timeout: 20))
+        let newProjectButton = app.buttons["ProjectsNewButton"]
+        XCTAssertTrue(newProjectButton.waitForExistence(timeout: 10))
+        newProjectButton.tap()
+
+        XCTAssertTrue(app.navigationBars["New Project"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textFields["ProjectTitleField"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+    }
+
     func testInboxMarksReadAndArchivesWhenMutationTestsEnabled() throws {
         try requireMutationTestsEnabled(reason: "mark a real inbox item read and archive it")
         guard mutationFlagEnabled(

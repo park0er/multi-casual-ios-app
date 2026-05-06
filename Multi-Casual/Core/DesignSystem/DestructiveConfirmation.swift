@@ -54,6 +54,17 @@ public struct DestructiveConfirmation: Equatable, Sendable {
             cancelTitle: "Keep Running"
         )
     }
+
+    public static func deleteProject(name: String) -> DestructiveConfirmation {
+        let projectName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subject = projectName.isEmpty ? "this project" : "\"\(projectName)\""
+        return DestructiveConfirmation(
+            title: "Delete \(subject)?",
+            message: "This removes the project from the workspace. Linked issues stay available.",
+            confirmTitle: "Delete",
+            cancelTitle: "Cancel"
+        )
+    }
 }
 
 #if canImport(SwiftUI)
