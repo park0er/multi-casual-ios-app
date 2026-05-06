@@ -452,6 +452,16 @@ public final class APIClient: @unchecked Sendable {
         enum CodingKeys: String, CodingKey { case labelId = "label_id" }
     }
 
+    private struct IssueSubscriberMutationRequest: Encodable {
+        let userId: String?
+        let userType: String?
+
+        enum CodingKeys: String, CodingKey {
+            case userId = "user_id"
+            case userType = "user_type"
+        }
+    }
+
     public func addComment(issueId: String, content: String, parentId: String? = nil, workspaceId: String? = nil) async throws -> Comment {
         try await request("POST", path: "api/issues/\(issueId)/comments",
                           queryItems: workspaceQuery(workspaceId),
@@ -531,6 +541,26 @@ public final class APIClient: @unchecked Sendable {
 
     public func detachLabel(issueId: String, labelId: String) async throws -> IssueLabelsResponse {
         try await request("DELETE", path: "api/issues/\(issueId)/labels/\(labelId)")
+    }
+
+    public func listIssueSubscribers(issueId: String) async throws -> [IssueSubscriber] {
+        try await request("GET", path: "api/issues/\(issueId)/subscribers")
+    }
+
+    public func subscribeToIssue(issueId: String, userId: String? = nil, userType: String? = nil) async throws {
+        let _: EmptyResponse = try await request(
+            "POST",
+            path: "api/issues/\(issueId)/subscribe",
+            body: IssueSubscriberMutationRequest(userId: userId, userType: userType)
+        )
+    }
+
+    public func unsubscribeFromIssue(issueId: String, userId: String? = nil, userType: String? = nil) async throws {
+        let _: EmptyResponse = try await request(
+            "POST",
+            path: "api/issues/\(issueId)/unsubscribe",
+            body: IssueSubscriberMutationRequest(userId: userId, userType: userType)
+        )
     }
 
     public func listAgentRuns(issueId: String, workspaceId: String? = nil) async throws -> [AgentTask] {

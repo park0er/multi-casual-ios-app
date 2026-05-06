@@ -8,6 +8,7 @@ public struct IssueDetailView: View {
     @State private var viewModel: IssueDetailViewModel?
     @State private var showTranscript = false
     @State private var showEditIssue = false
+    @State private var showSubscribers = false
     @State private var selectedTaskId: String?
 
     public init(issueId: String) { self.issueId = issueId }
@@ -45,6 +46,12 @@ public struct IssueDetailView: View {
                 .presentationDragIndicator(.visible)
             }
         }
+        .sheet(isPresented: $showSubscribers) {
+            if let vm = viewModel {
+                SubscriberManagementView(vm: vm)
+                    .presentationDragIndicator(.visible)
+            }
+        }
         .toolbar {
             if viewModel?.issue != nil {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -70,6 +77,8 @@ public struct IssueDetailView: View {
                         }
                     }
                     if let issue = vm.issue { issueHeader(issue: issue, vm: vm) }
+                    Divider()
+                    subscribersSection(vm: vm, currentUserId: authSession.currentUser?.id)
                     Divider()
                     if vm.didLoadAgentRuns || vm.agentRunsError != nil || vm.isLoadingAgentRuns {
                         agentRunsSection(vm: vm)
@@ -199,6 +208,58 @@ public struct IssueDetailView: View {
         return vm.projectDisplayName ?? String(projectId.prefix(8))
     }
 
+    private func subscribersSection(vm: IssueDetailViewModel, currentUserId: String?) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Subscribers").font(.headline)
+                Spacer()
+                if let currentUserId {
+                    Button {
+                        Task { await vm.toggleSubscriber(userId: currentUserId, userType: "member") }
+                    } label: {
+                        Text(vm.isSubscribed(userId: currentUserId, userType: "member") ? "Unsubscribe" : "Subscribe")
+                            .font(.caption)
+                    }
+                    .disabled(vm.isLoadingSubscribers)
+                    .accessibilityIdentifier("IssueDetailSubscribeButton")
+                }
+                Button {
+                    showSubscribers = true
+                } label: {
+                    Image(systemName: "person.2.badge.gearshape")
+                }
+                .disabled(vm.isLoadingSubscribers)
+                .accessibilityLabel("Manage Subscribers")
+                .accessibilityIdentifier("IssueDetailManageSubscribersButton")
+            }
+
+            if vm.isLoadingSubscribers && !vm.didLoadSubscribers {
+                ProgressView()
+            }
+            if let subscribersError = vm.subscribersError {
+                ErrorMessageRow(message: subscribersError) {
+                    Task { await vm.loadSubscribers() }
+                }
+                .padding(.horizontal, -16)
+            }
+            if vm.didLoadSubscribers && vm.subscribers.isEmpty && vm.subscribersError == nil && !vm.isLoadingSubscribers {
+                Text("No subscribers")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if !vm.subscribers.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(vm.subscribers) { subscriber in
+                            SubscriberChip(subscriber: subscriber, name: vm.displayName(for: subscriber))
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+
     private func agentRunsSection(vm: IssueDetailViewModel) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Agent Activity").font(.headline).padding(.horizontal)
@@ -284,6 +345,138 @@ public struct CommentRowView: View {
                 AttachmentListView(attachments: comment.attachments)
             }
         }.padding(.horizontal).padding(.vertical, 6)
+    }
+}
+
+private struct SubscriberChip: View {
+    let subscriber: IssueSubscriber
+    let name: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: subscriber.userType == "agent" ? "bolt.circle" : "person.circle")
+                .foregroundStyle(.secondary)
+            MarkdownText(name)
+                .font(.caption)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(.secondary.opacity(0.1), in: Capsule())
+    }
+}
+
+private struct SubscriberManagementView: View {
+    @Bindable var vm: IssueDetailViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if vm.subscriberMembers.isEmpty && vm.subscriberAgents.isEmpty {
+                    Section {
+                        if vm.isLoadingSubscribers {
+                            ProgressView()
+                        } else {
+                            Text("No people or agents available")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                if !vm.subscriberMembers.isEmpty {
+                    Section("Members") {
+                        ForEach(uniqueMembers(vm.subscriberMembers)) { member in
+                            SubscriberToggleRow(
+                                title: member.name,
+                                subtitle: member.email,
+                                icon: "person.circle",
+                                isSelected: vm.isSubscribed(userId: member.userId, userType: "member"),
+                                isLoading: vm.isLoadingSubscribers
+                            ) {
+                                Task { await vm.toggleSubscriber(userId: member.userId, userType: "member") }
+                            }
+                        }
+                    }
+                }
+                if !vm.subscriberAgents.isEmpty {
+                    Section("Agents") {
+                        ForEach(vm.subscriberAgents) { agent in
+                            SubscriberToggleRow(
+                                title: agent.name,
+                                subtitle: agent.status.capitalized,
+                                icon: "bolt.circle",
+                                isSelected: vm.isSubscribed(userId: agent.id, userType: "agent"),
+                                isLoading: vm.isLoadingSubscribers
+                            ) {
+                                Task { await vm.toggleSubscriber(userId: agent.id, userType: "agent") }
+                            }
+                        }
+                    }
+                }
+                if let subscribersError = vm.subscribersError {
+                    Section {
+                        ErrorMessageRow(message: subscribersError) {
+                            Task { await vm.loadSubscribers() }
+                        }
+                        .padding(.horizontal, -16)
+                    }
+                }
+            }
+            .navigationTitle("Subscribers")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .task {
+                if !vm.didLoadSubscribers {
+                    await vm.loadSubscribers()
+                }
+            }
+        }
+    }
+
+    private func uniqueMembers(_ members: [WorkspaceMember]) -> [WorkspaceMember] {
+        var seen = Set<String>()
+        return members.filter { member in
+            guard !seen.contains(member.userId) else { return false }
+            seen.insert(member.userId)
+            return true
+        }
+    }
+}
+
+private struct SubscriberToggleRow: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    let isSelected: Bool
+    let isLoading: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 2) {
+                    MarkdownText(title)
+                        .font(.body)
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Color.blue : Color.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isLoading)
     }
 }
 

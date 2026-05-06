@@ -109,6 +109,27 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(issue.labels.first?.color, "#ef4444")
     }
 
+    func test_issueSubscriber_decodesDesktopShape() throws {
+        let json = """
+        {
+            "issue_id": "i1",
+            "user_type": "member",
+            "user_id": "u1",
+            "reason": "manual",
+            "created_at": "2026-01-01T00:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let subscriber = try decoder.decode(IssueSubscriber.self, from: json)
+
+        XCTAssertEqual(subscriber.id, "member:u1")
+        XCTAssertEqual(subscriber.issueId, "i1")
+        XCTAssertEqual(subscriber.userType, "member")
+        XCTAssertEqual(subscriber.userId, "u1")
+        XCTAssertEqual(subscriber.reason, "manual")
+        XCTAssertEqual(subscriber.createdAt, ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z"))
+    }
+
     func test_issueStatus_decodesDesktopStatuses() throws {
         let backlog = try decoder.decode(IssueStatus.self, from: #""backlog""#.data(using: .utf8)!)
         let cancelled = try decoder.decode(IssueStatus.self, from: #""cancelled""#.data(using: .utf8)!)

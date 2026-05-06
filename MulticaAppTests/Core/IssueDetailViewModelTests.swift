@@ -182,6 +182,111 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.agentRunsError)
     }
 
+    func test_loadSubscribers_fetchesDesktopSubscribers() async throws {
+        let client = makeClient { req in
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/subscribers")
+            let json = """
+            [{"issue_id":"i1","user_type":"member","user_id":"u1","reason":"manual",
+              "created_at":"2026-01-01T00:00:00Z"},
+             {"issue_id":"i1","user_type":"agent","user_id":"a1","reason":"assignee",
+              "created_at":"2026-01-02T00:00:00Z"}]
+            """.data(using: .utf8)!
+            return Self.response(for: req, body: json)
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadSubscribers()
+
+        XCTAssertTrue(vm.didLoadSubscribers)
+        XCTAssertEqual(vm.subscribers.map(\.id), ["member:u1", "agent:a1"])
+        XCTAssertNil(vm.subscribersError)
+    }
+
+    func test_loadSubscribers_surfacesEndpointError() async throws {
+        let client = makeClient { req in
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/subscribers")
+            return Self.response(for: req, body: Data(#"{"error":"subscribers unavailable"}"#.utf8), status: 500)
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadSubscribers()
+
+        XCTAssertTrue(vm.didLoadSubscribers)
+        XCTAssertTrue(vm.subscribers.isEmpty)
+        XCTAssertEqual(vm.subscribersError, "subscribers unavailable")
+    }
+
+    func test_toggleSubscriberSubscribesAndRefreshesWhenMissing() async throws {
+        var requests: [String] = []
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/issues/i1/subscribe"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                XCTAssertEqual(body["user_id"] as? String, "u1")
+                XCTAssertEqual(body["user_type"] as? String, "member")
+                return Self.response(for: req, body: Data(), status: 204)
+            case ("GET", "/api/issues/i1/subscribers"):
+                let json = """
+                [{"issue_id":"i1","user_type":"member","user_id":"u1","reason":"manual",
+                  "created_at":"2026-01-01T00:00:00Z"}]
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.toggleSubscriber(userId: "u1", userType: "member")
+
+        XCTAssertEqual(vm.subscribers.map(\.id), ["member:u1"])
+        XCTAssertEqual(requests, [
+            "POST /api/issues/i1/subscribe",
+            "GET /api/issues/i1/subscribers",
+        ])
+        XCTAssertNil(vm.subscribersError)
+    }
+
+    func test_toggleSubscriberUnsubscribesAndRefreshesWhenPresent() async throws {
+        var requests: [String] = []
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/issues/i1/unsubscribe"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                XCTAssertEqual(body["user_id"] as? String, "a1")
+                XCTAssertEqual(body["user_type"] as? String, "agent")
+                return Self.response(for: req, body: Data(), status: 204)
+            case ("GET", "/api/issues/i1/subscribers"):
+                return Self.response(for: req, body: Data("[]".utf8))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+        vm.subscribers = [
+            IssueSubscriber(
+                issueId: "i1",
+                userType: "agent",
+                userId: "a1",
+                reason: "manual",
+                createdAt: ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z")!
+            )
+        ]
+
+        await vm.toggleSubscriber(userId: "a1", userType: "agent")
+
+        XCTAssertTrue(vm.subscribers.isEmpty)
+        XCTAssertEqual(requests, [
+            "POST /api/issues/i1/unsubscribe",
+            "GET /api/issues/i1/subscribers",
+        ])
+        XCTAssertNil(vm.subscribersError)
+    }
+
     func test_loadComments_marksLoadedForEmptyResponse() async throws {
         let client = makeClient { req in
             XCTAssertEqual(req.url?.path, "/api/issues/i1/comments")
@@ -209,6 +314,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                 return Self.response(for: req, body: #"{"projects":[],"total":0}"#.data(using: .utf8)!)
             case "/api/issues/i1/comments":
                 Thread.sleep(forTimeInterval: 2)
+                return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/issues/i1/subscribers":
                 return Self.response(for: req, body: Data("[]".utf8))
             case "/api/issues/i1/task-runs":
                 return Self.response(for: req, body: Data("[]".utf8))

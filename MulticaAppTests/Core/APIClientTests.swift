@@ -869,6 +869,46 @@ final class APIClientTests: XCTestCase {
         ])
     }
 
+    func test_issueSubscriberEndpointsUseDesktopPaths() async throws {
+        var requests: [String] = []
+        var subscribeBody: [String: Any] = [:]
+        var unsubscribeBody: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch req.url?.path {
+            case "/api/issues/i1/subscribers":
+                let body = """
+                [{"issue_id":"i1","user_type":"member","user_id":"u1","reason":"manual",
+                  "created_at":"2026-01-01T00:00:00Z"}]
+                """.data(using: .utf8)!
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+            case "/api/issues/i1/subscribe":
+                subscribeBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            case "/api/issues/i1/unsubscribe":
+                unsubscribeBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            default:
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data())
+            }
+        }
+
+        let subscribers = try await client.listIssueSubscribers(issueId: "i1")
+        try await client.subscribeToIssue(issueId: "i1", userId: "u2", userType: "member")
+        try await client.unsubscribeFromIssue(issueId: "i1", userId: "a1", userType: "agent")
+
+        XCTAssertEqual(subscribers.map(\.id), ["member:u1"])
+        XCTAssertEqual(subscribeBody["user_id"] as? String, "u2")
+        XCTAssertEqual(subscribeBody["user_type"] as? String, "member")
+        XCTAssertEqual(unsubscribeBody["user_id"] as? String, "a1")
+        XCTAssertEqual(unsubscribeBody["user_type"] as? String, "agent")
+        XCTAssertEqual(requests, [
+            "GET /api/issues/i1/subscribers",
+            "POST /api/issues/i1/subscribe",
+            "POST /api/issues/i1/unsubscribe",
+        ])
+    }
+
     private static func agentJSON(id: String, name: String) -> Data {
         """
         {"id":"\(id)","workspace_id":"w1","runtime_id":"r1","name":"\(name)",

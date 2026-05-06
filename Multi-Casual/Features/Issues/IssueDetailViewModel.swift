@@ -8,17 +8,23 @@ public final class IssueDetailViewModel {
     public let workspaceId: String?
     public var issue: Issue?
     public var agentRuns: [AgentTask] = []
+    public var subscribers: [IssueSubscriber] = []
+    public var subscriberMembers: [WorkspaceMember] = []
+    public var subscriberAgents: [Agent] = []
     public let commentLoader = PaginatedLoader<Comment>()
     public var commentDraft = ""
     public var isSubmittingComment = false
     public var isLoadingIssue = false
     public var isLoadingComments = false
     public var isLoadingAgentRuns = false
+    public var isLoadingSubscribers = false
     public var didLoadComments = false
     public var didLoadAgentRuns = false
+    public var didLoadSubscribers = false
     public var error: String?
     public var commentsError: String?
     public var agentRunsError: String?
+    public var subscribersError: String?
     public var metadataError: String?
     public var assigneeDisplayName: String?
     public var projectDisplayName: String?
@@ -40,7 +46,8 @@ public final class IssueDetailViewModel {
         async let issueAndMetadata: Void = loadIssueAndMetadata()
         async let comments: Void = loadComments()
         async let agentRuns: Void = loadAgentRuns()
-        _ = await (issueAndMetadata, comments, agentRuns)
+        async let subscribers: Void = loadSubscribers()
+        _ = await (issueAndMetadata, comments, agentRuns, subscribers)
     }
 
     public func loadIssue() async {
@@ -74,6 +81,8 @@ public final class IssueDetailViewModel {
             let loadedMembers = try await members
             let loadedAgents = try await agents
             let loadedProjects = try await projectsPage
+            subscriberMembers = loadedMembers
+            subscriberAgents = loadedAgents.filter { $0.archivedAt == nil }
 
             if let assigneeId = issue.assigneeId, let assigneeType = issue.assigneeType {
                 switch assigneeType {
@@ -95,6 +104,56 @@ public final class IssueDetailViewModel {
             }
         } catch {
             metadataError = error.localizedDescription
+        }
+    }
+
+    public func loadSubscribers() async {
+        isLoadingSubscribers = true
+        subscribersError = nil
+        defer { isLoadingSubscribers = false }
+        do {
+            subscribers = try await api.listIssueSubscribers(issueId: issueId)
+            didLoadSubscribers = true
+        } catch {
+            subscribers = []
+            didLoadSubscribers = true
+            subscribersError = error.localizedDescription
+        }
+    }
+
+    public func isSubscribed(userId: String, userType: String) -> Bool {
+        subscribers.contains { $0.userId == userId && $0.userType == userType }
+    }
+
+    public func displayName(for subscriber: IssueSubscriber) -> String {
+        switch subscriber.userType {
+        case "member":
+            return subscriberMembers.first { $0.userId == subscriber.userId || $0.id == subscriber.userId }?.name
+                ?? "Member \(subscriber.userId.prefix(8))"
+        case "agent":
+            return subscriberAgents.first { $0.id == subscriber.userId }?.name
+                ?? "Agent \(subscriber.userId.prefix(8))"
+        default:
+            return "\(subscriber.userType.capitalized) \(subscriber.userId.prefix(8))"
+        }
+    }
+
+    public func toggleSubscriber(userId: String, userType: String) async {
+        guard !isLoadingSubscribers else { return }
+        isLoadingSubscribers = true
+        subscribersError = nil
+        let currentlySubscribed = isSubscribed(userId: userId, userType: userType)
+        do {
+            if currentlySubscribed {
+                try await api.unsubscribeFromIssue(issueId: issueId, userId: userId, userType: userType)
+            } else {
+                try await api.subscribeToIssue(issueId: issueId, userId: userId, userType: userType)
+            }
+            isLoadingSubscribers = false
+            await loadSubscribers()
+        } catch {
+            isLoadingSubscribers = false
+            subscribersError = error.localizedDescription
         }
     }
 

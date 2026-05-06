@@ -542,6 +542,32 @@ public struct IssueLabelsResponse: Codable, Sendable {
     public let labels: [IssueLabel]
 }
 
+public struct IssueSubscriber: Codable, Identifiable, Hashable, Sendable {
+    public let issueId: String
+    public let userType: String
+    public let userId: String
+    public let reason: String
+    public let createdAt: Date
+
+    public var id: String { "\(userType):\(userId)" }
+
+    enum CodingKeys: String, CodingKey {
+        case reason
+        case issueId = "issue_id"
+        case userType = "user_type"
+        case userId = "user_id"
+        case createdAt = "created_at"
+    }
+
+    public init(issueId: String, userType: String, userId: String, reason: String, createdAt: Date) {
+        self.issueId = issueId
+        self.userType = userType
+        self.userId = userId
+        self.reason = reason
+        self.createdAt = createdAt
+    }
+}
+
 public struct Issue: Codable, Identifiable, Sendable {
     public let id: String
     public let identifier: String
