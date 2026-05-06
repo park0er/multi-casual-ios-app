@@ -23,6 +23,7 @@ public struct RuntimesView: View {
                             } label: {
                                 RuntimeRow(runtime: runtime)
                             }
+                            .accessibilityIdentifier("RuntimeRow")
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) {
                                     Task { await vm.deleteRuntime(id: runtime.id) }
@@ -172,6 +173,7 @@ private struct RuntimeDetailView: View {
                         }
                     }
                 }
+                .accessibilityIdentifier("RuntimeDetailList")
                 .refreshable { await vm.load() }
             } else {
                 ProgressView()

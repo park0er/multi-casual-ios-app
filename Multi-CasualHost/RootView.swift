@@ -72,21 +72,21 @@ struct RootView: View {
                 .tabItem { Label("Issues", systemImage: "checklist") }
                 .tag(AppTab.issues)
 
-            NavigationStack { IssueListView(scope: .assignedToMe) }
-                .tabItem { Label("My Issues", systemImage: "person.crop.circle.badge.checkmark") }
-                .tag(AppTab.myIssues)
-
             NavigationStack { debugInitialProjectView }
                 .tabItem { Label("Projects", systemImage: "folder") }
                 .tag(AppTab.projects)
 
-            NavigationStack { ChatView() }
-                .tabItem { Label("Chat", systemImage: "message") }
-                .tag(AppTab.chat)
-
             NavigationStack { SettingsView() }
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(AppTab.settings)
+
+            NavigationStack { IssueListView(scope: .assignedToMe) }
+                .tabItem { Label("My Issues", systemImage: "person.crop.circle.badge.checkmark") }
+                .tag(AppTab.myIssues)
+
+            NavigationStack { ChatView() }
+                .tabItem { Label("Chat", systemImage: "message") }
+                .tag(AppTab.chat)
         }
         .onAppear { requestPushPermission() }
     }

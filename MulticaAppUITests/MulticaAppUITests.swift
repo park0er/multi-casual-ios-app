@@ -6,7 +6,7 @@ final class Multi-CasualUITests: XCTestCase {
     private let par73IssueId = "9a808431-341f-4ead-8d8c-055e2e00686e"
     private let projectId = "f96f29f2-abbd-4aae-8962-f44a2c68c3aa"
     private let memberUserId = "4b05a80a-fa79-45e6-8568-f3bf08e7057b"
-    private let memberDisplayName = "XishengGmail"
+    private let memberDisplayName = "ZhaoXishengGmail"
     private let agentDisplayName = "RollieCC"
     private let transcriptTaskId = "9eab0d97-de00-4f90-82a6-d70cbb5161a2"
     private let backendTimeoutMessage = "The server took too long to respond. Please try again."
@@ -45,7 +45,7 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(waitForValue(workspacePicker, timeout: 10) { value in
             value.contains("Current workspace: \(workspaceName)")
         })
-        XCTAssertTrue(app.buttons["Log Out"].exists)
+        XCTAssertTrue(scrollUntilButtonExists("Log Out", app: app, timeout: 10))
         app.buttons["Log Out"].tap()
         XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap()
@@ -85,6 +85,7 @@ final class Multi-CasualUITests: XCTestCase {
         let alternate = try alternateWorkspaceButton(in: app, excluding: initialWorkspace)
         let alternateName = alternate.label
         alternate.tap()
+        returnToSettingsFromWorkspacePicker(in: app)
 
         XCTAssertTrue(waitForValue(workspacePicker, timeout: 10) { value in
             value.contains("Current workspace: \(alternateName)")
@@ -94,6 +95,7 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Workspace"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons[initialWorkspace].waitForExistence(timeout: 10))
         app.buttons[initialWorkspace].tap()
+        returnToSettingsFromWorkspacePicker(in: app)
         XCTAssertTrue(waitForValue(workspacePicker, timeout: 10) { value in
             value.contains("Current workspace: \(initialWorkspace)")
         })
@@ -134,6 +136,7 @@ final class Multi-CasualUITests: XCTestCase {
         let alternate = try alternateWorkspaceButton(in: app, excluding: initialWorkspace)
         let alternateName = alternate.label
         alternate.tap()
+        returnToSettingsFromWorkspacePicker(in: app)
         XCTAssertTrue(waitForValue(workspacePicker, timeout: 10) { value in
             value.contains("Current workspace: \(alternateName)")
         })
@@ -169,6 +172,7 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(relaunchedApp.navigationBars["Workspace"].waitForExistence(timeout: 10))
         XCTAssertTrue(relaunchedApp.buttons[initialWorkspace].waitForExistence(timeout: 10))
         relaunchedApp.buttons[initialWorkspace].tap()
+        returnToSettingsFromWorkspacePicker(in: relaunchedApp)
         XCTAssertTrue(waitForValue(restoredPicker, timeout: 10) { value in
             value.contains("Current workspace: \(initialWorkspace)")
         })
@@ -293,13 +297,13 @@ final class Multi-CasualUITests: XCTestCase {
         app.buttons["Runtimes"].tap()
 
         XCTAssertTrue(app.staticTexts["Runtimes"].waitForExistence(timeout: 20))
-        let firstRuntime = app.cells.firstMatch
+        let firstRuntime = app.buttons["RuntimeRow"].firstMatch
         guard firstRuntime.waitForExistence(timeout: 20) else {
             throw XCTSkip("No runtime row is available for detail smoke coverage.")
         }
         firstRuntime.tap()
 
-        XCTAssertTrue(app.staticTexts["Runtime"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.collectionViews["RuntimeDetailList"].waitForExistence(timeout: 10))
         app.swipeUp()
         XCTAssertTrue(app.staticTexts["Serving Agents"].waitForExistence(timeout: 10))
     }
@@ -308,8 +312,7 @@ final class Multi-CasualUITests: XCTestCase {
         let app = launchStubbedAuthenticatedApp(initialTab: "settings")
 
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
-        XCTAssertTrue(app.buttons["Skills"].waitForExistence(timeout: 10))
-        app.buttons["Skills"].tap()
+        tapSettingsRow("Skills", in: app)
 
         XCTAssertTrue(app.staticTexts["Skills"].waitForExistence(timeout: 20))
         XCTAssertTrue(app.buttons["SkillsNewButton"].waitForExistence(timeout: 10))
@@ -943,10 +946,12 @@ final class Multi-CasualUITests: XCTestCase {
             "Workspace",
             "Settings",
             "Back",
+            "BackButton",
             "Inbox",
             "Issues",
             "My Issues",
             "Projects",
+            "More",
             "tray",
             "checklist",
             "person.crop.circle.badge.checkmark",
@@ -1097,5 +1102,33 @@ final class Multi-CasualUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.5))
         }
         return element.exists
+    }
+
+    private func scrollUntilButtonExists(_ label: String, app: XCUIApplication, timeout: TimeInterval) -> Bool {
+        let element = app.buttons[label]
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.exists { return true }
+            app.swipeUp()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        }
+        return element.exists
+    }
+
+    private func tapSettingsRow(_ label: String, in app: XCUIApplication) {
+        let button = app.buttons[label]
+        XCTAssertTrue(scrollUntilButtonExists(label, app: app, timeout: 10))
+        button.tap()
+    }
+
+    private func returnToSettingsFromWorkspacePicker(in app: XCUIApplication) {
+        if app.staticTexts["Settings"].exists { return }
+        let backButton = app.buttons["BackButton"]
+        if backButton.waitForExistence(timeout: 3) {
+            backButton.tap()
+        } else {
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 10))
     }
 }
