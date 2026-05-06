@@ -63,8 +63,14 @@ public struct IssueEditSheet: View {
                                     MarkdownText(option.displayName).tag(option.id)
                                 }
                             }
-                            .disabled(vm.isLoadingOptions)
                             .accessibilityIdentifier("IssueEditAssigneePicker")
+                            .accessibilityValue(
+                                vm.isLoadingOptions
+                                    ? "Loading assignees"
+                                    : "Assignee options loaded: \(vm.assigneeOptions.count)"
+                            )
+                            .pickerStyle(.navigationLink)
+                            .disabled(vm.isLoadingOptions)
 
                             Picker("Project", selection: Binding(
                                 get: { vm.selectedProjectId },

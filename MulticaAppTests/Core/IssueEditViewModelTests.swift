@@ -74,6 +74,49 @@ final class IssueEditViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_loadOptionsKeepsAssigneeChoicesWhenSecondaryOptionsFail() async throws {
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/workspaces/w1/members":
+                let json = """
+                [{"id":"m1","workspace_id":"w1","user_id":"u1","role":"owner",
+                  "created_at":"2026-01-01T00:00:00Z","name":"Parker",
+                  "email":"p@example.com","avatar_url":null}]
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/agents":
+                let json = """
+                [{"id":"a1","workspace_id":"w1","runtime_id":"r1","name":"Codex",
+                  "description":"","instructions":"","avatar_url":null,"runtime_mode":"cloud",
+                  "runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,
+                  "visibility":"workspace","status":"active","max_concurrent_tasks":1,
+                  "model":"gpt","owner_id":null,"skills":[],"created_at":"2026-01-01T00:00:00Z",
+                  "updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}]
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/projects", "/api/labels":
+                return Self.response(for: req, body: Data(#"{"error":"temporary failure"}"#.utf8), status: 500)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueEditViewModel(
+            issue: issue(assigneeType: nil, assigneeId: nil, projectId: nil),
+            api: client,
+            authSession: makeSession()
+        )
+
+        await vm.loadOptions()
+
+        XCTAssertEqual(vm.assigneeOptions.map(\.id), ["member:u1", "agent:a1"])
+        XCTAssertNil(vm.selectedAssignee)
+        XCTAssertEqual(vm.selectedAssigneeOptionId, IssueEditViewModel.noAssigneeId)
+        XCTAssertEqual(vm.projects.map(\.id), [])
+        XCTAssertEqual(vm.labels.map(\.id), [])
+        XCTAssertEqual(vm.errorMessage, "Some workspace options could not be loaded.")
+    }
+
     func test_submitSyncsIssueLabelsAndReturnsUpdatedLabels() async throws {
         var requests: [(String, String)] = []
         let client = makeClient { req in

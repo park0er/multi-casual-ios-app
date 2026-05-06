@@ -417,7 +417,16 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Edit Issue"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.textFields["IssueEditTitleField"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Assignee"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["IssueEditAssigneePicker"].waitForExistence(timeout: 10))
+        let assigneePicker = app.buttons["IssueEditAssigneePicker"]
+        XCTAssertTrue(assigneePicker.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForValue(assigneePicker, timeout: 30) { value in
+            value.contains("Assignee options loaded:") && !value.contains("Assignee options loaded: 0")
+        })
+        assigneePicker.tap()
+        XCTAssertTrue(app.buttons["Unassigned"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[memberDisplayName].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[agentDisplayName].waitForExistence(timeout: 10))
+        app.buttons["Unassigned"].tap()
         XCTAssertTrue(app.buttons["Cancel"].exists)
         app.buttons["Cancel"].tap()
     }

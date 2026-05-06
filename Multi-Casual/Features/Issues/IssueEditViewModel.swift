@@ -87,16 +87,22 @@ public final class IssueEditViewModel {
         errorMessage = nil
         defer { isLoadingOptions = false }
 
-        do {
-            async let members = api.listMembers(workspaceId: workspaceId)
-            async let agents = api.listAgents(workspaceId: workspaceId)
-            async let labelResponse = api.listLabels()
+        async let membersResult = optionResult { try await api.listMembers(workspaceId: workspaceId) }
+        async let agentsResult = optionResult { try await api.listAgents(workspaceId: workspaceId) }
+        async let projectsResult = optionResult { try await loadAllProjects(workspaceId: workspaceId) }
+        async let labelsResult = optionResult {
+            let response = try await api.listLabels()
+            return response.labels
+        }
 
-            let loadedMembers = try await members
-            let loadedAgents = try await agents
-            let loadedLabels = try await labelResponse.labels
-            let loadedProjects = try await loadAllProjects(workspaceId: workspaceId)
+        let members = await membersResult
+        let agents = await agentsResult
+        let loadedProjects = await projectsResult
+        let loadedLabels = await labelsResult
 
+        var didFail = false
+        switch members {
+        case .success(let loadedMembers):
             assigneeOptions = loadedMembers.map {
                 IssueAssigneeOption(
                     id: "member:\($0.userId)",
@@ -105,7 +111,15 @@ public final class IssueEditViewModel {
                     displayName: $0.name,
                     subtitle: $0.email
                 )
-            } + loadedAgents.map {
+            }
+        case .failure:
+            didFail = true
+            assigneeOptions = []
+        }
+
+        switch agents {
+        case .success(let loadedAgents):
+            assigneeOptions += loadedAgents.map {
                 IssueAssigneeOption(
                     id: "agent:\($0.id)",
                     type: "agent",
@@ -114,17 +128,36 @@ public final class IssueEditViewModel {
                     subtitle: "Agent"
                 )
             }
-            projects = loadedProjects
-            labels = mergeLabels(issueLabels: labels, workspaceLabels: loadedLabels)
+        case .failure:
+            didFail = true
+        }
 
-            if selectedAssigneeOptionId != Self.noAssigneeId && selectedAssignee == nil {
-                selectedAssigneeOptionId = Self.noAssigneeId
-            }
-            if selectedProjectId != Self.noProjectId && selectedProject == nil {
-                selectedProjectId = Self.noProjectId
-            }
-        } catch {
-            errorMessage = error.localizedDescription
+        switch loadedProjects {
+        case .success(let loadedProjects):
+            projects = loadedProjects
+        case .failure:
+            didFail = true
+            projects = []
+        }
+
+        switch loadedLabels {
+        case .success(let loadedLabels):
+            labels = mergeLabels(issueLabels: labels, workspaceLabels: loadedLabels)
+        case .failure:
+            didFail = true
+        }
+
+        if case .success = members, case .success = agents,
+           selectedAssigneeOptionId != Self.noAssigneeId && selectedAssignee == nil {
+            selectedAssigneeOptionId = Self.noAssigneeId
+        }
+        if case .success = loadedProjects,
+           selectedProjectId != Self.noProjectId && selectedProject == nil {
+            selectedProjectId = Self.noProjectId
+        }
+
+        if didFail {
+            errorMessage = "Some workspace options could not be loaded."
         }
     }
 
@@ -193,6 +226,14 @@ public final class IssueEditViewModel {
         }
 
         return allProjects
+    }
+
+    private func optionResult<T>(_ operation: () async throws -> T) async -> Result<T, Error> {
+        do {
+            return .success(try await operation())
+        } catch {
+            return .failure(error)
+        }
     }
 
     private func syncLabels() async throws -> [IssueLabel]? {
