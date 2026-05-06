@@ -126,15 +126,18 @@ public extension View {
         onConfirm: @escaping () -> Void,
         onCancel: @escaping () -> Void = {}
     ) -> some View {
-        alert(
-            confirmation.title,
-            isPresented: isPresented
-        ) {
-            Button(confirmation.confirmTitle, role: .destructive, action: onConfirm)
-            Button(confirmation.cancelTitle, role: .cancel, action: onCancel)
-        } message: {
-            Text(MarkdownRenderer.attributedString(from: confirmation.message))
+        alert(isPresented: isPresented) {
+            Alert(
+                title: markdownAlertText(confirmation.title),
+                message: markdownAlertText(confirmation.message),
+                primaryButton: .destructive(markdownAlertText(confirmation.confirmTitle), action: onConfirm),
+                secondaryButton: .cancel(markdownAlertText(confirmation.cancelTitle), action: onCancel)
+            )
         }
+    }
+
+    private func markdownAlertText(_ markdown: String) -> Text {
+        Text(MarkdownRenderer.attributedString(from: markdown))
     }
 }
 #endif

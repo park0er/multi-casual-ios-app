@@ -279,6 +279,18 @@ final class MarkdownCoverageTests: XCTestCase {
             (
                 "Multi-Casual/Features/Settings/RuntimesView.swift",
                 #"                                Label(vm.isImportingLocalSkill ? "Refreshing Import Status" : "Refresh Import Status", systemImage:"#
+            ),
+            (
+                "Multi-Casual/Core/DesignSystem/DestructiveConfirmation.swift",
+                "            confirmation.title,"
+            ),
+            (
+                "Multi-Casual/Core/DesignSystem/DestructiveConfirmation.swift",
+                "            Button(confirmation.confirmTitle, role: .destructive"
+            ),
+            (
+                "Multi-Casual/Core/DesignSystem/DestructiveConfirmation.swift",
+                "            Button(confirmation.cancelTitle, role: .cancel"
             )
         ]
 
