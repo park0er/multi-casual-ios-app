@@ -1442,6 +1442,30 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
+    public func getRuntimeTaskActivity(id: String, workspaceId: String? = nil) async throws -> [RuntimeHourlyActivity] {
+        try await request(
+            "GET",
+            path: "api/runtimes/\(id)/activity",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func getRuntimeUsageByAgent(id: String, workspaceId: String? = nil, days: Int = 30) async throws -> [RuntimeUsageByAgent] {
+        try await request(
+            "GET",
+            path: "api/runtimes/\(id)/usage/by-agent",
+            queryItems: [.init(name: "days", value: String(days))] + workspaceQuery(workspaceId)
+        )
+    }
+
+    public func getRuntimeUsageByHour(id: String, workspaceId: String? = nil, days: Int = 30) async throws -> [RuntimeUsageByHour] {
+        try await request(
+            "GET",
+            path: "api/runtimes/\(id)/usage/by-hour",
+            queryItems: [.init(name: "days", value: String(days))] + workspaceQuery(workspaceId)
+        )
+    }
+
     public func deleteRuntime(id: String, workspaceId: String? = nil) async throws {
         let _: EmptyResponse = try await request("DELETE", path: "api/runtimes/\(id)", queryItems: workspaceQuery(workspaceId))
     }

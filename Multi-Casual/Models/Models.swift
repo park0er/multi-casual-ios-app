@@ -612,6 +612,73 @@ public struct RuntimeUsageSummary: Sendable, Hashable {
     }
 }
 
+public struct RuntimeHourlyActivity: Codable, Sendable, Hashable, Identifiable {
+    public var id: String { hour }
+    public let hour: String
+    public let queued: Int
+    public let running: Int
+    public let completed: Int
+    public let failed: Int
+    public let cancelled: Int
+
+    public var totalTasks: Int {
+        queued + running + completed + failed + cancelled
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case hour
+        case queued
+        case running
+        case completed
+        case failed
+        case cancelled
+    }
+}
+
+public struct RuntimeUsageByAgent: Codable, Sendable, Hashable, Identifiable {
+    public var id: String { agentId }
+    public let agentId: String
+    public let agentName: String?
+    public let inputTokens: Int
+    public let outputTokens: Int
+    public let cacheReadTokens: Int
+    public let cacheWriteTokens: Int
+
+    public var totalTokens: Int {
+        inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case agentId = "agent_id"
+        case agentName = "agent_name"
+        case inputTokens = "input_tokens"
+        case outputTokens = "output_tokens"
+        case cacheReadTokens = "cache_read_tokens"
+        case cacheWriteTokens = "cache_write_tokens"
+    }
+}
+
+public struct RuntimeUsageByHour: Codable, Sendable, Hashable, Identifiable {
+    public var id: String { hour }
+    public let hour: String
+    public let inputTokens: Int
+    public let outputTokens: Int
+    public let cacheReadTokens: Int
+    public let cacheWriteTokens: Int
+
+    public var totalTokens: Int {
+        inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case hour
+        case inputTokens = "input_tokens"
+        case outputTokens = "output_tokens"
+        case cacheReadTokens = "cache_read_tokens"
+        case cacheWriteTokens = "cache_write_tokens"
+    }
+}
+
 public struct SkillFile: Codable, Identifiable, Sendable, Hashable {
     public let id: String
     public let path: String

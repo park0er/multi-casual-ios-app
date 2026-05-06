@@ -8,6 +8,9 @@ public final class RuntimeDetailViewModel {
     public var ownerName: String?
     public var servingAgents: [Agent] = []
     public var usageSummary: RuntimeUsageSummary?
+    public var activity: [RuntimeHourlyActivity] = []
+    public var usageByAgent: [RuntimeUsageByAgent] = []
+    public var usageByHour: [RuntimeUsageByHour] = []
     public var isLoading = false
     public var errorMessage: String?
 
@@ -43,10 +46,16 @@ public final class RuntimeDetailViewModel {
             async let members = api.listMembers(workspaceId: workspaceId)
             async let agents = api.listAgents(workspaceId: workspaceId, includeArchived: true)
             async let usage = api.getRuntimeUsage(id: runtime.id, workspaceId: workspaceId, days: 30)
+            async let activity = api.getRuntimeTaskActivity(id: runtime.id, workspaceId: workspaceId)
+            async let usageByAgent = api.getRuntimeUsageByAgent(id: runtime.id, workspaceId: workspaceId, days: 30)
+            async let usageByHour = api.getRuntimeUsageByHour(id: runtime.id, workspaceId: workspaceId, days: 30)
 
             let loadedMembers = try await members
             let loadedAgents = try await agents
             let loadedUsage = try await usage
+            let loadedActivity = try await activity
+            let loadedUsageByAgent = try await usageByAgent
+            let loadedUsageByHour = try await usageByHour
 
             ownerName = runtime.ownerId.flatMap { ownerId in
                 loadedMembers.first { $0.userId == ownerId }?.name
@@ -55,6 +64,9 @@ public final class RuntimeDetailViewModel {
                 .filter { $0.runtimeId == runtime.id }
                 .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             usageSummary = RuntimeUsageSummary.summarize(loadedUsage)
+            self.activity = loadedActivity.sorted { $0.hour > $1.hour }
+            self.usageByAgent = loadedUsageByAgent.sorted { $0.totalTokens > $1.totalTokens }
+            self.usageByHour = loadedUsageByHour.sorted { $0.hour > $1.hour }
         } catch {
             errorMessage = error.localizedDescription
         }

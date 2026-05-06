@@ -1798,6 +1798,53 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(usage.first?.totalTokens, 3700)
     }
 
+    func test_runtimeTelemetryEndpointsUseDesktopPaths() async throws {
+        var requests: [String] = []
+        var queries: [String] = []
+        MockURLProtocol.handler = { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            queries.append(req.url?.query ?? "")
+            let body: Data
+            switch req.url?.path {
+            case "/api/runtimes/r1/activity":
+                body = """
+                [{"hour":"2026-01-01T00:00:00Z","queued":1,"running":2,"completed":3,"failed":4,"cancelled":5}]
+                """.data(using: .utf8)!
+            case "/api/runtimes/r1/usage/by-agent":
+                body = """
+                [{"agent_id":"a1","agent_name":"Codex","input_tokens":100,"output_tokens":200,
+                  "cache_read_tokens":30,"cache_write_tokens":40}]
+                """.data(using: .utf8)!
+            case "/api/runtimes/r1/usage/by-hour":
+                body = """
+                [{"hour":"2026-01-01T00:00:00Z","input_tokens":10,"output_tokens":20,
+                  "cache_read_tokens":3,"cache_write_tokens":4}]
+                """.data(using: .utf8)!
+            default:
+                XCTFail("Unexpected request \(req.url?.absoluteString ?? "")")
+                body = Data("{}".utf8)
+            }
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+        }
+
+        let activity = try await client.getRuntimeTaskActivity(id: "r1", workspaceId: "w1")
+        let byAgent = try await client.getRuntimeUsageByAgent(id: "r1", workspaceId: "w1", days: 30)
+        let byHour = try await client.getRuntimeUsageByHour(id: "r1", workspaceId: "w1", days: 30)
+
+        XCTAssertEqual(requests, [
+            "GET /api/runtimes/r1/activity",
+            "GET /api/runtimes/r1/usage/by-agent",
+            "GET /api/runtimes/r1/usage/by-hour",
+        ])
+        XCTAssertTrue(queries.allSatisfy { $0.contains("workspace_id=w1") })
+        XCTAssertTrue(queries[1].contains("days=30"))
+        XCTAssertTrue(queries[2].contains("days=30"))
+        XCTAssertEqual(activity.first?.totalTasks, 15)
+        XCTAssertEqual(byAgent.first?.agentName, "Codex")
+        XCTAssertEqual(byAgent.first?.totalTokens, 370)
+        XCTAssertEqual(byHour.first?.totalTokens, 37)
+    }
+
     func test_skillEndpointsUseDesktopPaths() async throws {
         var requests: [String] = []
         var requestURLs: [URL] = []

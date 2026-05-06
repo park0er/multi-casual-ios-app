@@ -141,6 +141,36 @@ private struct RuntimeDetailView: View {
                         }
                     }
 
+                    if !vm.usageByAgent.isEmpty {
+                        Section("Usage by Agent · 30D") {
+                            ForEach(vm.usageByAgent.prefix(5)) { row in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    MarkdownText(row.agentName ?? row.agentId)
+                                        .font(.body.weight(.medium))
+                                    MarkdownText("\(row.totalTokens.formatted()) tokens")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+
+                    if !vm.usageByHour.isEmpty {
+                        Section("Usage by Hour · 30D") {
+                            ForEach(vm.usageByHour.prefix(5)) { row in
+                                MarkdownLabeledContent(row.hour, value: "\(row.totalTokens.formatted()) tokens")
+                            }
+                        }
+                    }
+
+                    if !vm.activity.isEmpty {
+                        Section("Task Activity") {
+                            ForEach(vm.activity.prefix(5)) { row in
+                                MarkdownLabeledContent(row.hour, value: "\(row.totalTasks.formatted()) tasks")
+                            }
+                        }
+                    }
+
                     Section("Serving Agents") {
                         if vm.isLoading && vm.servingAgents.isEmpty {
                             ProgressView()

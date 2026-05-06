@@ -35,7 +35,7 @@ final class RuntimesViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
-    func test_runtimeDetailLoadsOwnerServingAgentsAndUsageSummary() async throws {
+    func test_runtimeDetailLoadsOwnerServingAgentsUsageAndTelemetry() async throws {
         let client = makeClient { req in
             switch req.url?.path {
             case "/api/workspaces/w1/members":
@@ -46,6 +46,17 @@ final class RuntimesViewModelTests: XCTestCase {
                 XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
                 XCTAssertTrue(req.url?.absoluteString.contains("days=30") ?? false)
                 return Self.response(for: req, body: Self.runtimeUsageJSON())
+            case "/api/runtimes/r1/activity":
+                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+                return Self.response(for: req, body: Self.runtimeActivityJSON())
+            case "/api/runtimes/r1/usage/by-agent":
+                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+                XCTAssertTrue(req.url?.absoluteString.contains("days=30") ?? false)
+                return Self.response(for: req, body: Self.runtimeUsageByAgentJSON())
+            case "/api/runtimes/r1/usage/by-hour":
+                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+                XCTAssertTrue(req.url?.absoluteString.contains("days=30") ?? false)
+                return Self.response(for: req, body: Self.runtimeUsageByHourJSON())
             default:
                 XCTFail("Unexpected request \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 500)
@@ -74,6 +85,10 @@ final class RuntimesViewModelTests: XCTestCase {
         XCTAssertEqual(vm.ownerName, "Parker")
         XCTAssertEqual(vm.servingAgents.map(\.id), ["a1"])
         XCTAssertEqual(vm.usageSummary?.totalTokens, 3_700)
+        XCTAssertEqual(vm.activity.first?.totalTasks, 15)
+        XCTAssertEqual(vm.usageByAgent.first?.agentName, "Codex")
+        XCTAssertEqual(vm.usageByAgent.first?.totalTokens, 370)
+        XCTAssertEqual(vm.usageByHour.first?.totalTokens, 37)
         XCTAssertEqual(vm.cliVersion, "0.2.17")
         XCTAssertNil(vm.errorMessage)
     }
@@ -143,6 +158,26 @@ final class RuntimesViewModelTests: XCTestCase {
         """
         [{"runtime_id":"r1","date":"2026-01-01","provider":"anthropic","model":"claude-sonnet-4",
           "input_tokens":1000,"output_tokens":2000,"cache_read_tokens":300,"cache_write_tokens":400}]
+        """.data(using: .utf8)!
+    }
+
+    private static func runtimeActivityJSON() -> Data {
+        """
+        [{"hour":"2026-01-01T00:00:00Z","queued":1,"running":2,"completed":3,"failed":4,"cancelled":5}]
+        """.data(using: .utf8)!
+    }
+
+    private static func runtimeUsageByAgentJSON() -> Data {
+        """
+        [{"agent_id":"a1","agent_name":"Codex","input_tokens":100,"output_tokens":200,
+          "cache_read_tokens":30,"cache_write_tokens":40}]
+        """.data(using: .utf8)!
+    }
+
+    private static func runtimeUsageByHourJSON() -> Data {
+        """
+        [{"hour":"2026-01-01T00:00:00Z","input_tokens":10,"output_tokens":20,
+          "cache_read_tokens":3,"cache_write_tokens":4}]
         """.data(using: .utf8)!
     }
 }
