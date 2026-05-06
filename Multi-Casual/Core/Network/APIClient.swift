@@ -273,6 +273,15 @@ public final class APIClient: @unchecked Sendable {
             try container.encode(priority, forKey: .priority)
         }
     }
+    private struct CreatePinRequest: Encodable {
+        let itemType: PinnedItemType
+        let itemId: String
+
+        enum CodingKeys: String, CodingKey {
+            case itemType = "item_type"
+            case itemId = "item_id"
+        }
+    }
     private struct CreateAutopilotTriggerRequest: Encodable {
         let kind: String
         let cronExpression: String?
@@ -609,6 +618,35 @@ public final class APIClient: @unchecked Sendable {
 
     public func detachLabel(issueId: String, labelId: String) async throws -> IssueLabelsResponse {
         try await request("DELETE", path: "api/issues/\(issueId)/labels/\(labelId)")
+    }
+
+    public func listPins(workspaceSlug: String? = nil) async throws -> [PinnedItem] {
+        try await request("GET", path: "api/pins", headers: workspaceHeaders(workspaceSlug))
+    }
+
+    public func createPin(
+        itemType: PinnedItemType,
+        itemId: String,
+        workspaceSlug: String? = nil
+    ) async throws -> PinnedItem {
+        try await request(
+            "POST",
+            path: "api/pins",
+            headers: workspaceHeaders(workspaceSlug),
+            body: CreatePinRequest(itemType: itemType, itemId: itemId)
+        )
+    }
+
+    public func deletePin(
+        itemType: PinnedItemType,
+        itemId: String,
+        workspaceSlug: String? = nil
+    ) async throws {
+        let _: EmptyResponse = try await request(
+            "DELETE",
+            path: "api/pins/\(itemType.rawValue)/\(itemId)",
+            headers: workspaceHeaders(workspaceSlug)
+        )
     }
 
     public func listIssueSubscribers(issueId: String) async throws -> [IssueSubscriber] {

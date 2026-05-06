@@ -40,6 +40,48 @@ public struct Workspace: Codable, Identifiable, Sendable {
     }
 }
 
+public enum PinnedItemType: String, Codable, Sendable {
+    case issue
+    case project
+}
+
+public struct PinnedItem: Codable, Identifiable, Sendable {
+    public let id: String
+    public let workspaceId: String
+    public let userId: String
+    public let itemType: PinnedItemType
+    public let itemId: String
+    public let position: Int
+    public let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, position
+        case workspaceId = "workspace_id"
+        case userId = "user_id"
+        case itemType = "item_type"
+        case itemId = "item_id"
+        case createdAt = "created_at"
+    }
+
+    public init(
+        id: String,
+        workspaceId: String,
+        userId: String,
+        itemType: PinnedItemType,
+        itemId: String,
+        position: Int,
+        createdAt: Date
+    ) {
+        self.id = id
+        self.workspaceId = workspaceId
+        self.userId = userId
+        self.itemType = itemType
+        self.itemId = itemId
+        self.position = position
+        self.createdAt = createdAt
+    }
+}
+
 public struct WorkspaceMember: Codable, Identifiable, Sendable {
     public let id: String
     public let workspaceId: String

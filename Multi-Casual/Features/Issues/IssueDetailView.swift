@@ -15,6 +15,7 @@ public struct IssueDetailView: View {
     @State private var showCancelTaskConfirmation = false
     @State private var pendingCancelTask: AgentTask?
     @State private var selectedTaskId: String?
+    @State private var pinViewModel: PinToggleViewModel?
 
     public init(issueId: String) { self.issueId = issueId }
 
@@ -32,7 +33,10 @@ public struct IssueDetailView: View {
                     workspaceId: authSession.currentWorkspace?.id,
                     api: api
                 )
+                let pinVM = PinToggleViewModel(itemType: .issue, itemId: issueId, api: api, authSession: authSession)
+                pinViewModel = pinVM
                 Task {
+                    await pinVM.load()
                     await viewModel?.loadInitialData()
                 }
             }
@@ -71,6 +75,18 @@ public struct IssueDetailView: View {
         .toolbar {
             if viewModel?.issue != nil {
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    if let pinViewModel {
+                        Button {
+                            Task { await pinViewModel.toggle() }
+                        } label: {
+                            Label(
+                                pinViewModel.isPinned ? "Unpin Issue" : "Pin Issue",
+                                systemImage: pinViewModel.isPinned ? "pin.slash" : "pin"
+                            )
+                        }
+                        .disabled(pinViewModel.isLoading)
+                        .accessibilityIdentifier("IssueDetailPinButton")
+                    }
                     Button {
                         showEditIssue = true
                     } label: {

@@ -787,6 +787,46 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(requests[1].body?["description"] is NSNull)
     }
 
+    func test_pinEndpointsUseDesktopPathsAndWorkspaceSlugHeader() async throws {
+        var requests: [(method: String?, path: String, workspaceSlug: String?, body: [String: Any]?)] = []
+        let pinJSON = """
+        {"id":"pin1","workspace_id":"w1","user_id":"u1","item_type":"issue","item_id":"i1",
+         "position":1,"created_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            let body: [String: Any]?
+            let data = MockURLProtocol.bodyData(for: req)
+            if !data.isEmpty {
+                body = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            } else {
+                body = nil
+            }
+            requests.append((req.httpMethod, req.url?.path ?? "", req.value(forHTTPHeaderField: "X-Workspace-Slug"), body))
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/pins"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data("[\(String(data: pinJSON, encoding: .utf8)!)]".utf8))
+            case ("POST", "/api/pins"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, pinJSON)
+            case ("DELETE", "/api/pins/issue/i1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data("{}".utf8))
+            }
+        }
+
+        let pins = try await client.listPins(workspaceSlug: "park0er")
+        _ = try await client.createPin(itemType: .issue, itemId: "i1", workspaceSlug: "park0er")
+        try await client.deletePin(itemType: .issue, itemId: "i1", workspaceSlug: "park0er")
+
+        XCTAssertEqual(pins.first?.itemType, .issue)
+        XCTAssertEqual(requests.map(\.method), ["GET", "POST", "DELETE"])
+        XCTAssertEqual(requests.map(\.path), ["/api/pins", "/api/pins", "/api/pins/issue/i1"])
+        XCTAssertEqual(requests.map(\.workspaceSlug), ["park0er", "park0er", "park0er"])
+        XCTAssertEqual(requests[1].body?["item_type"] as? String, "issue")
+        XCTAssertEqual(requests[1].body?["item_id"] as? String, "i1")
+    }
+
     func test_listMembers_decodesWorkspaceMembers() async throws {
         let json = """
         [{"id":"m1","workspace_id":"w1","user_id":"u1","role":"owner",

@@ -6,6 +6,7 @@ public struct ProjectDetailView: View {
     @Environment(AuthSession.self) private var authSession
     @Environment(APIClient.self) private var api
     @State private var viewModel: ProjectDetailViewModel?
+    @State private var pinViewModel: PinToggleViewModel?
 
     public init(project: Project) { self.project = project }
 
@@ -61,11 +62,30 @@ public struct ProjectDetailView: View {
             }
         }
         .navigationTitle(project.name)
+        .toolbar {
+            if let pinViewModel {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await pinViewModel.toggle() }
+                    } label: {
+                        Label(
+                            pinViewModel.isPinned ? "Unpin Project" : "Pin Project",
+                            systemImage: pinViewModel.isPinned ? "pin.slash" : "pin"
+                        )
+                    }
+                    .disabled(pinViewModel.isLoading)
+                    .accessibilityIdentifier("ProjectDetailPinButton")
+                }
+            }
+        }
         .refreshable { await viewModel?.load() }
         .task {
             if viewModel == nil {
                 let vm = ProjectDetailViewModel(project: project, api: api, authSession: authSession)
+                let pinVM = PinToggleViewModel(itemType: .project, itemId: project.id, api: api, authSession: authSession)
                 viewModel = vm
+                pinViewModel = pinVM
+                await pinVM.load()
                 await vm.load()
             }
         }
