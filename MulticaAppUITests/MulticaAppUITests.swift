@@ -67,6 +67,38 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons[workspaceName].waitForExistence(timeout: 10))
     }
 
+    func testSettingsWorkspacePickerSwitchesToAnotherWorkspaceWhenAvailable() throws {
+        let app = launchApp(initialTab: "settings", useWorkspaceOverride: false)
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        let workspacePicker = app.buttons["SettingsWorkspacePicker"]
+        XCTAssertTrue(workspacePicker.waitForExistence(timeout: 10))
+        let initialValue = waitForWorkspacePickerValue(workspacePicker, timeout: 10)
+        let initialWorkspace = currentWorkspaceName(from: initialValue) ?? workspaceName
+        guard (workspaceOptionCount(from: initialValue) ?? 0) > 1 else {
+            throw XCTSkip("Only one workspace is available for this account.")
+        }
+
+        workspacePicker.tap()
+        XCTAssertTrue(app.navigationBars["Workspace"].waitForExistence(timeout: 10))
+
+        let alternate = try alternateWorkspaceButton(in: app, excluding: initialWorkspace)
+        let alternateName = alternate.label
+        alternate.tap()
+
+        XCTAssertTrue(waitForValue(workspacePicker, timeout: 10) { value in
+            value.contains("Current workspace: \(alternateName)")
+        })
+
+        workspacePicker.tap()
+        XCTAssertTrue(app.navigationBars["Workspace"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[initialWorkspace].waitForExistence(timeout: 10))
+        app.buttons[initialWorkspace].tap()
+        XCTAssertTrue(waitForValue(workspacePicker, timeout: 10) { value in
+            value.contains("Current workspace: \(initialWorkspace)")
+        })
+    }
+
     func testSettingsWorkspaceRestoresAcrossRelaunchWithoutDebugWorkspaceOverride() {
         let app = launchApp(initialTab: "settings")
 
@@ -669,6 +701,58 @@ final class Multi-CasualUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         return element.exists && predicate(String(describing: element.value))
+    }
+
+    private func waitForWorkspacePickerValue(_ element: XCUIElement, timeout: TimeInterval) -> String {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let value = String(describing: element.value)
+            if element.exists && value.contains("Current workspace:") {
+                return value
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return String(describing: element.value)
+    }
+
+    private func currentWorkspaceName(from pickerValue: String) -> String? {
+        guard let range = pickerValue.range(of: "Current workspace: ") else { return nil }
+        let suffix = pickerValue[range.upperBound...]
+        if let end = suffix.range(of: ". Workspace options loaded:") {
+            return String(suffix[..<end.lowerBound])
+        }
+        return String(suffix)
+    }
+
+    private func workspaceOptionCount(from pickerValue: String) -> Int? {
+        guard let range = pickerValue.range(of: "Workspace options loaded: ") else { return nil }
+        let suffix = pickerValue[range.upperBound...]
+        let digits = suffix.prefix(while: { $0.isNumber })
+        return Int(digits)
+    }
+
+    private func alternateWorkspaceButton(in app: XCUIApplication, excluding currentWorkspace: String) throws -> XCUIElement {
+        let ignoredLabels: Set<String> = [
+            "Workspace",
+            "Settings",
+            "Back",
+            "Inbox",
+            "Issues",
+            "Projects",
+            "tray",
+            "checklist",
+            "folder",
+            "gearshape",
+            currentWorkspace
+        ]
+        let buttons = app.buttons.allElementsBoundByIndex.filter { button in
+            let label = button.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !label.isEmpty && !ignoredLabels.contains(label) && button.isHittable
+        }
+        guard let button = buttons.first else {
+            throw XCTSkip("No alternate workspace row is hittable.")
+        }
+        return button
     }
 
     private func firstInboxNotificationCell(in app: XCUIApplication, timeout: TimeInterval = 20) throws -> XCUIElement {
