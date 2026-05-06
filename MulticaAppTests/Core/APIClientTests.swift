@@ -221,6 +221,23 @@ final class APIClientTests: XCTestCase {
         _ = try await client.getIssue(id: "i1")
     }
 
+    func test_registerPushTokenSendsWorkspaceId() async throws {
+        var capturedURL: URL?
+        var body: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+        }
+
+        try await client.registerPushToken("apns-token", workspaceId: "w1")
+
+        XCTAssertEqual(capturedURL?.path, "/api/devices/push-token")
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertEqual(body["token"] as? String, "apns-token")
+        XCTAssertEqual(body["platform"] as? String, "apns")
+    }
+
     func test_createIssue_sendsDesktopCreateFields() async throws {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":"D",
@@ -1162,6 +1179,32 @@ final class APIClientTests: XCTestCase {
             "DELETE /api/skills/s1",
         ])
         XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
+    }
+
+    func test_agentSkillEndpointsUseDesktopPaths() async throws {
+        var requests: [String] = []
+        var body: [String: Any] = [:]
+        let skillJSON = Self.skillJSON(id: "s1", name: "Writer")
+        MockURLProtocol.handler = { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/agents/a1/skills"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data("[\(String(data: skillJSON, encoding: .utf8)!)]".utf8))
+            case ("PUT", "/api/agents/a1/skills"):
+                body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data("{}".utf8))
+            }
+        }
+
+        let skills = try await client.listAgentSkills(agentId: "a1", workspaceId: "w1")
+        try await client.setAgentSkills(agentId: "a1", skillIds: ["s1", "s2"], workspaceId: "w1")
+
+        XCTAssertEqual(skills.map(\.id), ["s1"])
+        XCTAssertEqual(requests, ["GET /api/agents/a1/skills", "PUT /api/agents/a1/skills"])
+        XCTAssertEqual(body["skill_ids"] as? [String], ["s1", "s2"])
     }
 
     func test_autopilotEndpointsUseDesktopPaths() async throws {

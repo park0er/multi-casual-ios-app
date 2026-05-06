@@ -6,6 +6,8 @@ import Observation
 public final class AgentsViewModel {
     public var agents: [Agent] = []
     public var runtimes: [AgentRuntime] = []
+    public var skills: [Skill] = []
+    public var assignedSkillIdsByAgentId: [String: Set<String>] = [:]
     public var isLoading = false
     public var isMutating = false
     public var errorMessage: String?
@@ -46,13 +48,14 @@ public final class AgentsViewModel {
         runtimeId: String,
         visibility: String,
         maxConcurrentTasks: Int,
-        model: String
+        model: String,
+        skillIds: Set<String>? = nil
     ) async -> Agent? {
         guard let workspaceId = authSession.currentWorkspace?.id else {
             errorMessage = "Pick a workspace before managing agents."
             return nil
         }
-        return await mutate {
+        return await mutate(skillIds: skillIds, workspaceId: workspaceId) {
             try await api.createAgent(
                 name: name,
                 description: description,
@@ -73,13 +76,14 @@ public final class AgentsViewModel {
         instructions: String,
         visibility: String,
         maxConcurrentTasks: Int,
-        model: String
+        model: String,
+        skillIds: Set<String>? = nil
     ) async -> Agent? {
         guard let workspaceId = authSession.currentWorkspace?.id else {
             errorMessage = "Pick a workspace before managing agents."
             return nil
         }
-        return await mutate {
+        return await mutate(skillIds: skillIds, workspaceId: workspaceId) {
             try await api.updateAgent(
                 id: id,
                 name: name,
@@ -134,7 +138,29 @@ public final class AgentsViewModel {
         }
     }
 
-    private func mutate(_ operation: () async throws -> Agent) async -> Agent? {
+    public func loadSkillOptions(for agentId: String?) async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before managing agents."
+            return
+        }
+
+        errorMessage = nil
+        do {
+            async let loadedSkills = api.listSkills(workspaceId: workspaceId)
+            if let agentId {
+                async let loadedAssignedSkills = api.listAgentSkills(agentId: agentId, workspaceId: workspaceId)
+                skills = try await loadedSkills.sorted(by: skillSort)
+                let assigned = try await loadedAssignedSkills
+                assignedSkillIdsByAgentId[agentId] = Set(assigned.map(\.id))
+            } else {
+                skills = try await loadedSkills.sorted(by: skillSort)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func mutate(skillIds: Set<String>? = nil, workspaceId: String? = nil, _ operation: () async throws -> Agent) async -> Agent? {
         guard !isMutating else { return nil }
         isMutating = true
         errorMessage = nil
@@ -143,6 +169,11 @@ public final class AgentsViewModel {
 
         do {
             let agent = try await operation()
+            if let skillIds, let workspaceId {
+                let sortedSkillIds = skillIds.sorted()
+                try await api.setAgentSkills(agentId: agent.id, skillIds: sortedSkillIds, workspaceId: workspaceId)
+                assignedSkillIdsByAgentId[agent.id] = Set(sortedSkillIds)
+            }
             upsert(agent)
             return agent
         } catch {
@@ -158,5 +189,9 @@ public final class AgentsViewModel {
             agents.append(agent)
         }
         agents.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func skillSort(_ lhs: Skill, _ rhs: Skill) -> Bool {
+        lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
     }
 }

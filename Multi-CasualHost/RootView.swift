@@ -36,7 +36,8 @@ struct RootView: View {
                 mainTabView
                     .onReceive(NotificationCenter.default.publisher(for: .didRegisterPushToken)) { note in
                         guard let token = note.object as? String else { return }
-                        Task { try? await api.registerPushToken(token) }
+                        let workspaceId = authSession.currentWorkspace?.id
+                        Task { try? await api.registerPushToken(token, workspaceId: workspaceId) }
                     }
             } else {
                 LoginView()
@@ -48,7 +49,8 @@ struct RootView: View {
                 mainTabView
                     .onReceive(NotificationCenter.default.publisher(for: .didRegisterPushToken)) { note in
                         guard let token = note.object as? String else { return }
-                        Task { try? await api.registerPushToken(token) }
+                        let workspaceId = authSession.currentWorkspace?.id
+                        Task { try? await api.registerPushToken(token, workspaceId: workspaceId) }
                     }
             } else {
                 LoginView()

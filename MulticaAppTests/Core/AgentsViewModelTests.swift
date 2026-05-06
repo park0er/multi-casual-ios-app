@@ -78,6 +78,66 @@ final class AgentsViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_loadSkillOptionsFetchesAvailableAndAssignedSkills() async throws {
+        var requests: [String] = []
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch req.url?.path {
+            case "/api/skills":
+                return Self.response(for: req, body: "[\(String(data: Self.skillJSON(id: "s1", name: "Writer"), encoding: .utf8)!),\(String(data: Self.skillJSON(id: "s2", name: "Reviewer"), encoding: .utf8)!)]".data(using: .utf8)!)
+            case "/api/agents/a1/skills":
+                return Self.response(for: req, body: "[\(String(data: Self.skillJSON(id: "s2", name: "Reviewer"), encoding: .utf8)!)]".data(using: .utf8)!)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = AgentsViewModel(api: client, authSession: makeSession())
+
+        await vm.loadSkillOptions(for: "a1")
+
+        XCTAssertEqual(vm.skills.map(\.id), ["s2", "s1"])
+        XCTAssertEqual(vm.assignedSkillIdsByAgentId["a1"], Set(["s2"]))
+        XCTAssertEqual(Set(requests), Set(["GET /api/skills", "GET /api/agents/a1/skills"]))
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_updateAgentSavesSkillAssignments() async throws {
+        var requests: [String] = []
+        var skillBody: [String: Any] = [:]
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("PUT", "/api/agents/a1"):
+                return Self.response(for: req, body: Self.agentJSON(id: "a1", name: "Updated"))
+            case ("PUT", "/api/agents/a1/skills"):
+                skillBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return Self.response(for: req, body: Data(), status: 204)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = AgentsViewModel(api: client, authSession: makeSession())
+
+        let updated = await vm.updateAgent(
+            id: "a1",
+            name: "Updated",
+            description: "D",
+            instructions: "I",
+            visibility: "private",
+            maxConcurrentTasks: 2,
+            model: "gpt-5",
+            skillIds: Set(["s2", "s1"])
+        )
+
+        XCTAssertEqual(updated?.name, "Updated")
+        XCTAssertEqual(vm.assignedSkillIdsByAgentId["a1"], Set(["s1", "s2"]))
+        XCTAssertEqual(skillBody["skill_ids"] as? [String], ["s1", "s2"])
+        XCTAssertEqual(requests, ["PUT /api/agents/a1", "PUT /api/agents/a1/skills"])
+        XCTAssertNil(vm.errorMessage)
+    }
+
     private func makeSession() -> AuthSession {
         let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.agents.test"))
         session.currentWorkspace = workspace
@@ -124,6 +184,14 @@ final class AgentsViewModelTests: XCTestCase {
           "runtime_mode":"cloud","provider":"multica","launch_header":"",
           "status":"online","device_info":"","metadata":{},"owner_id":null,
           "last_seen_at":null,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}]
+        """.data(using: .utf8)!
+    }
+
+    private static func skillJSON(id: String, name: String) -> Data {
+        """
+        {"id":"\(id)","workspace_id":"w1","name":"\(name)","description":"**Useful** skill",
+         "content":"# Skill","config":{},"files":[],"created_by":"u1",
+         "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
         """.data(using: .utf8)!
     }
 }

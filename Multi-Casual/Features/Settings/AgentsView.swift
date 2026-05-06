@@ -196,6 +196,8 @@ private struct AgentFormSheet: View {
     @State private var visibility: String
     @State private var maxConcurrentTasks: Int
     @State private var model: String
+    @State private var selectedSkillIds: Set<String>
+    @State private var isLoadingSkills = false
 
     init(agent: Agent?, viewModel: AgentsViewModel) {
         self.agent = agent
@@ -207,6 +209,7 @@ private struct AgentFormSheet: View {
         _visibility = State(initialValue: agent?.visibility ?? "workspace")
         _maxConcurrentTasks = State(initialValue: agent?.maxConcurrentTasks ?? 1)
         _model = State(initialValue: agent?.model ?? "gpt")
+        _selectedSkillIds = State(initialValue: agent.flatMap { viewModel.assignedSkillIdsByAgentId[$0.id] } ?? [])
     }
 
     var body: some View {
@@ -243,6 +246,28 @@ private struct AgentFormSheet: View {
                     Stepper("Max Tasks: \(maxConcurrentTasks)", value: $maxConcurrentTasks, in: 1...20)
                 }
 
+                Section("Skills") {
+                    if isLoadingSkills {
+                        ProgressView()
+                    } else if viewModel.skills.isEmpty {
+                        MarkdownText("No skills in this workspace.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(viewModel.skills) { skill in
+                            Toggle(isOn: skillSelectionBinding(for: skill.id)) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    MarkdownText(skill.name)
+                                    if !skill.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        MarkdownText(skill.description)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if let errorMessage = viewModel.errorMessage {
                     Section {
                         MarkdownText(errorMessage).font(.caption).foregroundStyle(.red)
@@ -270,6 +295,7 @@ private struct AgentFormSheet: View {
                 }
             }
         }
+        .task { await loadSkills() }
     }
 
     private var canSubmit: Bool {
@@ -294,7 +320,8 @@ private struct AgentFormSheet: View {
                 instructions: trimmedInstructions,
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
-                model: trimmedModel
+                model: trimmedModel,
+                skillIds: selectedSkillIds
             )
         } else {
             saved = await viewModel.createAgent(
@@ -304,13 +331,37 @@ private struct AgentFormSheet: View {
                 runtimeId: runtimeId,
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
-                model: trimmedModel
+                model: trimmedModel,
+                skillIds: selectedSkillIds
             )
         }
 
         if saved != nil {
             dismiss()
         }
+    }
+
+    private func loadSkills() async {
+        guard !isLoadingSkills else { return }
+        isLoadingSkills = true
+        defer { isLoadingSkills = false }
+        await viewModel.loadSkillOptions(for: agent?.id)
+        if let agent {
+            selectedSkillIds = viewModel.assignedSkillIdsByAgentId[agent.id] ?? []
+        }
+    }
+
+    private func skillSelectionBinding(for skillId: String) -> Binding<Bool> {
+        Binding(
+            get: { selectedSkillIds.contains(skillId) },
+            set: { isSelected in
+                if isSelected {
+                    selectedSkillIds.insert(skillId)
+                } else {
+                    selectedSkillIds.remove(skillId)
+                }
+            }
+        )
     }
 }
 #endif

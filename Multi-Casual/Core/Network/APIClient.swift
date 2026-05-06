@@ -209,6 +209,13 @@ public final class APIClient: @unchecked Sendable {
     private struct SkillImportRequest: Encodable {
         let url: String
     }
+    private struct SetAgentSkillsRequest: Encodable {
+        let skillIds: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case skillIds = "skill_ids"
+        }
+    }
     private struct CreateAutopilotRequest: Encodable {
         let title: String
         let description: String?
@@ -394,9 +401,13 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/workspaces")
     }
 
-    public func registerPushToken(_ token: String) async throws {
-        let _: EmptyResponse = try await request("PUT", path: "api/devices/push-token",
-                                                  body: RegisterPushTokenRequest(token: token))
+    public func registerPushToken(_ token: String, workspaceId: String? = nil) async throws {
+        let _: EmptyResponse = try await request(
+            "PUT",
+            path: "api/devices/push-token",
+            queryItems: workspaceQuery(workspaceId),
+            body: RegisterPushTokenRequest(token: token)
+        )
     }
 
     // MARK: - Issues
@@ -1032,6 +1043,20 @@ public final class APIClient: @unchecked Sendable {
 
     public func deleteSkill(id: String, workspaceId: String? = nil) async throws {
         let _: EmptyResponse = try await request("DELETE", path: "api/skills/\(id)", queryItems: workspaceQuery(workspaceId))
+    }
+
+    public func listAgentSkills(agentId: String, workspaceId: String? = nil) async throws -> [Skill] {
+        try await request("GET", path: "api/agents/\(agentId)/skills", queryItems: workspaceQuery(workspaceId))
+    }
+
+    public func setAgentSkills(agentId: String, skillIds: [String], workspaceId: String? = nil) async throws {
+        let sortedSkillIds = skillIds.sorted()
+        let _: EmptyResponse = try await request(
+            "PUT",
+            path: "api/agents/\(agentId)/skills",
+            queryItems: workspaceQuery(workspaceId),
+            body: SetAgentSkillsRequest(skillIds: sortedSkillIds)
+        )
     }
 
     // MARK: - Autopilots
