@@ -680,6 +680,9 @@ public final class APIClient: @unchecked Sendable {
         status: IssueStatus? = nil,
         priority: IssuePriority? = nil,
         projectId: String? = nil,
+        assigneeId: String? = nil,
+        assigneeIds: [String]? = nil,
+        creatorId: String? = nil,
         limit: Int = 50,
         offset: Int = 0
     ) async throws -> PageResponse<Issue> {
@@ -696,6 +699,15 @@ public final class APIClient: @unchecked Sendable {
         }
         if let projectId {
             queryItems.append(.init(name: "project_id", value: projectId))
+        }
+        if let assigneeId {
+            queryItems.append(.init(name: "assignee_id", value: assigneeId))
+        }
+        if let assigneeIds, !assigneeIds.isEmpty {
+            queryItems.append(.init(name: "assignee_ids", value: assigneeIds.joined(separator: ",")))
+        }
+        if let creatorId {
+            queryItems.append(.init(name: "creator_id", value: creatorId))
         }
         return try await request("GET", path: "api/issues", queryItems: queryItems)
     }

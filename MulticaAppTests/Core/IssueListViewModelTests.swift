@@ -113,6 +113,85 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertEqual(vm.childProgressText(for: vm.loader.items[0]), "1/3")
     }
 
+    func test_myIssuesAssignedScopeFiltersByCurrentUserAssignee() async throws {
+        var issueQueries: [[URLQueryItem]] = []
+        let client = makeClient { req in
+            if req.url?.path == "/api/issues/child-progress" {
+                return Self.childProgressResponse(for: req, progress: [])
+            }
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            issueQueries.append(components?.queryItems ?? [])
+            let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+            return Self.issuesResponse(for: req, status: status, total: 0)
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession(), scope: .assignedToMe)
+
+        await vm.loadNext()
+
+        XCTAssertEqual(issueQueries.count, IssueStatus.boardCases.count)
+        XCTAssertTrue(issueQueries.allSatisfy { $0.first(where: { $0.name == "assignee_id" })?.value == "u1" })
+        XCTAssertTrue(issueQueries.allSatisfy { $0.first(where: { $0.name == "creator_id" }) == nil })
+    }
+
+    func test_myIssuesCreatedScopeFiltersByCurrentUserCreator() async throws {
+        var issueQueries: [[URLQueryItem]] = []
+        let client = makeClient { req in
+            if req.url?.path == "/api/issues/child-progress" {
+                return Self.childProgressResponse(for: req, progress: [])
+            }
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            issueQueries.append(components?.queryItems ?? [])
+            let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+            return Self.issuesResponse(for: req, status: status, total: 0)
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession(), scope: .createdByMe)
+
+        await vm.loadNext()
+
+        XCTAssertEqual(issueQueries.count, IssueStatus.boardCases.count)
+        XCTAssertTrue(issueQueries.allSatisfy { $0.first(where: { $0.name == "creator_id" })?.value == "u1" })
+        XCTAssertTrue(issueQueries.allSatisfy { $0.first(where: { $0.name == "assignee_id" }) == nil })
+    }
+
+    func test_myIssuesAgentScopeFiltersByCurrentUsersAgents() async throws {
+        var issueQueries: [[URLQueryItem]] = []
+        var agentRequests = 0
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/agents":
+                agentRequests += 1
+                return Self.response(
+                    for: req,
+                    body: Data("""
+                    [
+                        {"id":"a2","workspace_id":"w1","runtime_id":"r1","name":"Other","description":"","instructions":"","avatar_url":null,"runtime_mode":"cloud","runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,"visibility":"workspace","status":"active","max_concurrent_tasks":1,"model":"gpt","owner_id":"u2","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null},
+                        {"id":"a1","workspace_id":"w1","runtime_id":"r1","name":"Mine","description":"","instructions":"","avatar_url":null,"runtime_mode":"cloud","runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,"visibility":"workspace","status":"active","max_concurrent_tasks":1,"model":"gpt","owner_id":"u1","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null},
+                        {"id":"a3","workspace_id":"w1","runtime_id":"r1","name":"Also Mine","description":"","instructions":"","avatar_url":null,"runtime_mode":"cloud","runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,"visibility":"workspace","status":"active","max_concurrent_tasks":1,"model":"gpt","owner_id":"u1","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}
+                    ]
+                    """.utf8)
+                )
+            case "/api/issues/child-progress":
+                return Self.childProgressResponse(for: req, progress: [])
+            case "/api/issues":
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                issueQueries.append(components?.queryItems ?? [])
+                let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+                return Self.issuesResponse(for: req, status: status, total: 0)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession(), scope: .myAgents)
+
+        await vm.loadNext()
+
+        XCTAssertEqual(agentRequests, 1)
+        XCTAssertEqual(issueQueries.count, IssueStatus.boardCases.count)
+        XCTAssertTrue(issueQueries.allSatisfy { $0.first(where: { $0.name == "assignee_ids" })?.value == "a1,a3" })
+        XCTAssertTrue(issueQueries.allSatisfy { $0.first(where: { $0.name == "assignee_id" }) == nil })
+    }
+
     func test_searchQueryUsesDesktopSearchEndpointAndReplacesIssueBuckets() async throws {
         var requested: [(path: String, query: [URLQueryItem])] = []
         let client = makeClient { req in

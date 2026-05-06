@@ -323,6 +323,28 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Todo"].waitForExistence(timeout: 10))
     }
 
+    func testMyIssuesTabRendersScopesWithoutSubmitting() throws {
+        let app = launchApp(initialTab: "my-issues")
+
+        try waitForWorkspaceResourceState(
+            title: "My Issues",
+            emptyTitle: "No Assigned Issues",
+            timeoutReason: "My Issues endpoint timed out before scope coverage could run.",
+            in: app
+        )
+
+        let scopePicker = app.segmentedControls["MyIssuesScopePicker"]
+        XCTAssertTrue(scopePicker.waitForExistence(timeout: 10))
+        XCTAssertTrue(scopePicker.buttons["Assigned"].exists)
+        XCTAssertTrue(scopePicker.buttons["Created"].exists)
+        XCTAssertTrue(scopePicker.buttons["My Agents"].exists)
+
+        scopePicker.buttons["Created"].tap()
+        XCTAssertTrue(app.staticTexts["My Issues"].waitForExistence(timeout: 10))
+        scopePicker.buttons["My Agents"].tap()
+        XCTAssertTrue(app.staticTexts["My Issues"].waitForExistence(timeout: 10))
+    }
+
     func testIssueListBatchSelectionActionsAreReachableWithoutSubmitting() {
         let app = launchApp(initialTab: "issues")
 
@@ -848,9 +870,11 @@ final class Multi-CasualUITests: XCTestCase {
             "Back",
             "Inbox",
             "Issues",
+            "My Issues",
             "Projects",
             "tray",
             "checklist",
+            "person.crop.circle.badge.checkmark",
             "folder",
             "gearshape",
             currentWorkspace

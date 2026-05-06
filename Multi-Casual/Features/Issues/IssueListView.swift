@@ -7,16 +7,36 @@ public struct IssueListView: View {
     @State private var viewModel: IssueListViewModel?
     @State private var showingBatchDeleteConfirmation = false
     @State private var searchText = ""
+    private let initialScope: IssueListViewModel.Scope
 
-    public init() {}
+    public init(scope: IssueListViewModel.Scope = .all) {
+        self.initialScope = scope
+    }
 
     public var body: some View {
         Group {
             if let vm = viewModel {
-                Group {
-                    switch vm.viewMode {
-                    case .list: listView(vm: vm)
-                    case .board: boardView(vm: vm)
+                VStack(spacing: 0) {
+                    if initialScope.isPersonal {
+                        Picker("My Issues Scope", selection: Binding(
+                            get: { vm.scope },
+                            set: { nextScope in Task { await vm.setScope(nextScope) } }
+                        )) {
+                            Text(IssueListViewModel.Scope.assignedToMe.displayName).tag(IssueListViewModel.Scope.assignedToMe)
+                            Text(IssueListViewModel.Scope.createdByMe.displayName).tag(IssueListViewModel.Scope.createdByMe)
+                            Text(IssueListViewModel.Scope.myAgents.displayName).tag(IssueListViewModel.Scope.myAgents)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                        .accessibilityIdentifier("MyIssuesScopePicker")
+                        Divider()
+                    }
+                    Group {
+                        switch vm.viewMode {
+                        case .list: listView(vm: vm)
+                        case .board: boardView(vm: vm)
+                        }
                     }
                 }
                 .toolbar {
@@ -86,14 +106,15 @@ public struct IssueListView: View {
                         .presentationDragIndicator(.visible)
                 }
                 .refreshable { await vm.refresh() }
-                .searchable(text: $searchText, prompt: "Search issues")
-                .onSubmit(of: .search) {
-                    Task { await vm.setSearchQuery(searchText) }
-                }
-                .onChange(of: searchText) { _, newValue in
-                    guard newValue.isEmpty, !vm.searchQuery.isEmpty else { return }
-                    Task { await vm.setSearchQuery("") }
-                }
+                .issueSearchable(
+                    enabled: initialScope == .all,
+                    text: $searchText,
+                    submit: { Task { await vm.setSearchQuery(searchText) } },
+                    clear: { newValue in
+                        guard newValue.isEmpty, !vm.searchQuery.isEmpty else { return }
+                        Task { await vm.setSearchQuery("") }
+                    }
+                )
                 .safeAreaInset(edge: .bottom) {
                     if vm.isSelectionMode && !vm.selectedIssueIds.isEmpty {
                         IssueBatchActionBar(
@@ -117,10 +138,10 @@ public struct IssueListView: View {
                 }
             } else { ProgressView() }
         }
-        .navigationTitle("Issues")
+        .navigationTitle(initialScope.isPersonal ? "My Issues" : "Issues")
         .onAppear {
             if viewModel == nil {
-                viewModel = IssueListViewModel(api: api, authSession: authSession)
+                viewModel = IssueListViewModel(api: api, authSession: authSession, scope: initialScope)
                 Task { await viewModel?.loadNext() }
                 #if DEBUG
                 if ProcessInfo.processInfo.environment["MULTICA_DEBUG_OPEN_CREATE_SHEET"] == "1" {
@@ -138,7 +159,11 @@ public struct IssueListView: View {
     private func listView(vm: IssueListViewModel) -> some View {
         List {
             if vm.loader.items.isEmpty && !vm.loader.hasMore && !vm.loader.isLoading && vm.lastError == nil {
-                ContentUnavailableView("No Issues", systemImage: "checklist", description: Text("There are no issues in this workspace."))
+                ContentUnavailableView(
+                    vm.scope.emptyTitle,
+                    systemImage: initialScope.isPersonal ? "person.crop.circle.badge.checkmark" : "checklist",
+                    description: Text(vm.scope.emptyDescription)
+                )
             }
             ForEach(vm.loader.items) { issue in
                 if vm.isSelectionMode {
@@ -209,6 +234,25 @@ public struct IssueListView: View {
                 }
                     .padding()
             }
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func issueSearchable(
+        enabled: Bool,
+        text: Binding<String>,
+        submit: @escaping () -> Void,
+        clear: @escaping (String) -> Void
+    ) -> some View {
+        if enabled {
+            self
+                .searchable(text: text, prompt: "Search issues")
+                .onSubmit(of: .search, submit)
+                .onChange(of: text.wrappedValue) { _, newValue in clear(newValue) }
+        } else {
+            self
         }
     }
 }

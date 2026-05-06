@@ -9,12 +9,13 @@ struct RootView: View {
     @State private var selectedTab: AppTab = AppTab.debugInitialTab
 
     enum AppTab: Hashable {
-        case inbox, issues, projects, settings
+        case inbox, issues, myIssues, projects, settings
 
         static var debugInitialTab: AppTab {
             #if DEBUG
             switch ProcessInfo.processInfo.environment["MULTICA_DEBUG_INITIAL_TAB"] {
             case "issues": return .issues
+            case "my-issues": return .myIssues
             case "projects": return .projects
             case "settings": return .settings
             default: return .inbox
@@ -69,6 +70,10 @@ struct RootView: View {
             NavigationStack { debugInitialIssueView }
                 .tabItem { Label("Issues", systemImage: "checklist") }
                 .tag(AppTab.issues)
+
+            NavigationStack { IssueListView(scope: .assignedToMe) }
+                .tabItem { Label("My Issues", systemImage: "person.crop.circle.badge.checkmark") }
+                .tag(AppTab.myIssues)
 
             NavigationStack { debugInitialProjectView }
                 .tabItem { Label("Projects", systemImage: "folder") }
@@ -126,6 +131,7 @@ struct RootView: View {
         switch url.host {
         case "inbox": selectedTab = .inbox
         case "issues": selectedTab = .issues
+        case "my-issues": selectedTab = .myIssues
         default: break
         }
     }

@@ -194,6 +194,36 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(priority, .noPriority)
     }
 
+    func test_agent_decodesOwnerIdForMyIssuesAgentScope() throws {
+        let json = """
+        {
+            "id": "a1",
+            "workspace_id": "w1",
+            "runtime_id": "r1",
+            "name": "Codex",
+            "description": "",
+            "instructions": "",
+            "avatar_url": null,
+            "runtime_mode": "cloud",
+            "runtime_config": {},
+            "custom_env": {},
+            "custom_args": [],
+            "custom_env_redacted": false,
+            "visibility": "workspace",
+            "status": "active",
+            "max_concurrent_tasks": 1,
+            "model": "gpt-5",
+            "owner_id": "u1",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let agent = try decoder.decode(Agent.self, from: json)
+
+        XCTAssertEqual(agent.ownerId, "u1")
+    }
+
     func test_timelineEntry_decodesDesktopActivityAndCommentShapes() throws {
         let json = """
         [{

@@ -187,6 +187,26 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedURL?.absoluteString.contains("priority=urgent") ?? false)
     }
 
+    func test_listIssues_sendsMyIssuesFilterParamsWhenProvided() async throws {
+        let json = """
+        {"issues":[],"has_more":false,"total":0}
+        """.data(using: .utf8)!
+        var capturedQueries: [[URLQueryItem]] = []
+        MockURLProtocol.handler = { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            capturedQueries.append(components?.queryItems ?? [])
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await client.listIssues(workspaceId: "ws1", assigneeId: "u1", limit: 50, offset: 0)
+        _ = try await client.listIssues(workspaceId: "ws1", assigneeIds: ["a2", "a1"], limit: 50, offset: 0)
+        _ = try await client.listIssues(workspaceId: "ws1", creatorId: "u1", limit: 50, offset: 0)
+
+        XCTAssertEqual(capturedQueries[0].first(where: { $0.name == "assignee_id" })?.value, "u1")
+        XCTAssertEqual(capturedQueries[1].first(where: { $0.name == "assignee_ids" })?.value, "a2,a1")
+        XCTAssertEqual(capturedQueries[2].first(where: { $0.name == "creator_id" })?.value, "u1")
+    }
+
     func test_searchIssuesAndProjectsUseDesktopSearchEndpoints() async throws {
         var requests: [(path: String, queryItems: [URLQueryItem])] = []
         MockURLProtocol.handler = { req in

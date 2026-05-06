@@ -393,6 +393,7 @@ public struct Agent: Codable, Identifiable, Sendable {
     public let visibility: String
     public let maxConcurrentTasks: Int
     public let model: String?
+    public let ownerId: String?
     public let archivedAt: String?
 
     enum CodingKeys: String, CodingKey {
@@ -402,6 +403,7 @@ public struct Agent: Codable, Identifiable, Sendable {
         case avatarUrl = "avatar_url"
         case runtimeMode = "runtime_mode"
         case maxConcurrentTasks = "max_concurrent_tasks"
+        case ownerId = "owner_id"
         case archivedAt = "archived_at"
     }
 
@@ -418,6 +420,7 @@ public struct Agent: Codable, Identifiable, Sendable {
         visibility: String,
         maxConcurrentTasks: Int,
         model: String?,
+        ownerId: String? = nil,
         archivedAt: String?
     ) {
         self.id = id
@@ -432,6 +435,7 @@ public struct Agent: Codable, Identifiable, Sendable {
         self.visibility = visibility
         self.maxConcurrentTasks = maxConcurrentTasks
         self.model = model
+        self.ownerId = ownerId
         self.archivedAt = archivedAt
     }
 
@@ -449,6 +453,7 @@ public struct Agent: Codable, Identifiable, Sendable {
         visibility = try c.decodeIfPresent(String.self, forKey: .visibility) ?? "workspace"
         maxConcurrentTasks = try c.decodeIfPresent(Int.self, forKey: .maxConcurrentTasks) ?? 1
         model = try c.decodeIfPresent(String.self, forKey: .model)
+        ownerId = try c.decodeIfPresent(String.self, forKey: .ownerId)
         archivedAt = try c.decodeIfPresent(String.self, forKey: .archivedAt)
     }
 }

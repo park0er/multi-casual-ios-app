@@ -4,6 +4,48 @@ import Observation
 @Observable
 @MainActor
 public final class IssueListViewModel {
+    public enum Scope: String, CaseIterable, Identifiable {
+        case all
+        case assignedToMe
+        case createdByMe
+        case myAgents
+
+        public var id: String { rawValue }
+
+        public var displayName: String {
+            switch self {
+            case .all: return "All"
+            case .assignedToMe: return "Assigned"
+            case .createdByMe: return "Created"
+            case .myAgents: return "My Agents"
+            }
+        }
+
+        public var emptyTitle: String {
+            switch self {
+            case .all: return "No Issues"
+            case .assignedToMe: return "No Assigned Issues"
+            case .createdByMe: return "No Created Issues"
+            case .myAgents: return "No Agent Issues"
+            }
+        }
+
+        public var emptyDescription: String {
+            switch self {
+            case .all:
+                return "There are no issues in this workspace."
+            case .assignedToMe:
+                return "Issues assigned to you will appear here."
+            case .createdByMe:
+                return "Issues you create will appear here."
+            case .myAgents:
+                return "Issues assigned to agents you own will appear here."
+            }
+        }
+
+        public var isPersonal: Bool { self != .all }
+    }
+
     public enum ViewMode { case list, board }
     public enum SortOption: String, CaseIterable {
         case position
@@ -30,6 +72,7 @@ public final class IssueListViewModel {
     public var lastError: Error?
     public var priorityFilter: IssuePriority?
     public var searchQuery = ""
+    public var scope: Scope
     public var isSelectionMode = false
     public var isLoadingBatchAssignees = false
     public private(set) var batchAssigneeOptions: [IssueAssigneeOption] = []
@@ -46,8 +89,17 @@ public final class IssueListViewModel {
     private var isLoading = false
     private var hasLoadedFirstPages = false
 
-    public init(api: APIClient, authSession: AuthSession) {
-        self.api = api; self.authSession = authSession
+    private struct ServerFilter {
+        var assigneeId: String?
+        var assigneeIds: [String]?
+        var creatorId: String?
+        var matchesNothing = false
+    }
+
+    public init(api: APIClient, authSession: AuthSession, scope: Scope = .all) {
+        self.api = api
+        self.authSession = authSession
+        self.scope = scope
     }
 
     public func loadNext() async {
@@ -65,10 +117,18 @@ public final class IssueListViewModel {
                 try await loadFirstPages(workspaceId: wsId)
             } else if let status = nextStatusWithMore() {
                 let offset = offsetsByStatus[status, default: 0]
+                let filter = try await serverFilter(workspaceId: wsId)
+                if filter.matchesNothing {
+                    loader.hasMore = false
+                    return
+                }
                 let page = try await api.listIssues(
                     workspaceId: wsId,
                     status: status,
                     priority: priorityFilter,
+                    assigneeId: filter.assigneeId,
+                    assigneeIds: filter.assigneeIds,
+                    creatorId: filter.creatorId,
                     limit: Self.pageSize,
                     offset: offset
                 )
@@ -89,9 +149,18 @@ public final class IssueListViewModel {
     }
 
     public func setSearchQuery(_ query: String) async {
+        guard scope == .all else { return }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed != searchQuery else { return }
         searchQuery = trimmed
+        resetPagination()
+        await loadNext()
+    }
+
+    public func setScope(_ nextScope: Scope) async {
+        guard nextScope != scope, nextScope != .all else { return }
+        scope = nextScope
+        clearSelection()
         resetPagination()
         await loadNext()
     }
@@ -249,11 +318,20 @@ public final class IssueListViewModel {
 
     private func loadFirstPages(workspaceId: String) async throws {
         resetBuckets()
+        let filter = try await serverFilter(workspaceId: workspaceId)
+        if filter.matchesNothing {
+            hasLoadedFirstPages = true
+            syncFlatIssues()
+            return
+        }
         for status in IssueStatus.boardCases {
             let page = try await api.listIssues(
                 workspaceId: workspaceId,
                 status: status,
                 priority: priorityFilter,
+                assigneeId: filter.assigneeId,
+                assigneeIds: filter.assigneeIds,
+                creatorId: filter.creatorId,
                 limit: Self.pageSize,
                 offset: 0
             )
@@ -262,6 +340,35 @@ public final class IssueListViewModel {
         try await loadChildProgress(workspaceId: workspaceId)
         hasLoadedFirstPages = true
         syncFlatIssues()
+    }
+
+    private func serverFilter(workspaceId: String) async throws -> ServerFilter {
+        switch scope {
+        case .all:
+            return ServerFilter()
+        case .assignedToMe:
+            guard let userId = authSession.currentUser?.id else {
+                throw UserVisibleError("Sign in before opening My Issues.")
+            }
+            return ServerFilter(assigneeId: userId)
+        case .createdByMe:
+            guard let userId = authSession.currentUser?.id else {
+                throw UserVisibleError("Sign in before opening My Issues.")
+            }
+            return ServerFilter(creatorId: userId)
+        case .myAgents:
+            guard let userId = authSession.currentUser?.id else {
+                throw UserVisibleError("Sign in before opening My Issues.")
+            }
+            let agentIds = try await api.listAgents(workspaceId: workspaceId)
+                .filter { $0.ownerId == userId }
+                .map(\.id)
+                .sorted()
+            guard !agentIds.isEmpty else {
+                return ServerFilter(matchesNothing: true)
+            }
+            return ServerFilter(assigneeIds: agentIds)
+        }
     }
 
     private func loadSearchPage(workspaceId: String) async throws {
