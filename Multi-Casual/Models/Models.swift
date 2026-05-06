@@ -679,6 +679,125 @@ public struct RuntimeUsageByHour: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+public struct RuntimeModelInfo: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let name: String
+    public let provider: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, provider
+    }
+
+    public init(id: String, name: String, provider: String? = nil) {
+        self.id = id
+        self.name = name
+        self.provider = provider
+    }
+
+    public init(from decoder: Decoder) throws {
+        if let singleValue = try? decoder.singleValueContainer(),
+           let name = try? singleValue.decode(String.self) {
+            self.init(id: name, name: name)
+            return
+        }
+
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let name = try container.decodeIfPresent(String.self, forKey: .name)
+            ?? container.decodeIfPresent(String.self, forKey: .id)
+            ?? "Unknown Model"
+        self.init(
+            id: try container.decodeIfPresent(String.self, forKey: .id) ?? name,
+            name: name,
+            provider: try container.decodeIfPresent(String.self, forKey: .provider)
+        )
+    }
+}
+
+public struct RuntimeLocalSkillInfo: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let name: String
+    public let path: String?
+    public let description: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, path, description
+    }
+
+    public init(id: String, name: String, path: String? = nil, description: String? = nil) {
+        self.id = id
+        self.name = name
+        self.path = path
+        self.description = description
+    }
+
+    public init(from decoder: Decoder) throws {
+        if let singleValue = try? decoder.singleValueContainer(),
+           let path = try? singleValue.decode(String.self) {
+            let fallbackName = URL(fileURLWithPath: path).lastPathComponent
+            self.init(id: path, name: fallbackName.isEmpty ? path : fallbackName, path: path)
+            return
+        }
+
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let path = try container.decodeIfPresent(String.self, forKey: .path)
+        let name = try container.decodeIfPresent(String.self, forKey: .name)
+            ?? path.map { URL(fileURLWithPath: $0).lastPathComponent }
+            ?? "Unknown Skill"
+        self.init(
+            id: try container.decodeIfPresent(String.self, forKey: .id) ?? path ?? name,
+            name: name,
+            path: path,
+            description: try container.decodeIfPresent(String.self, forKey: .description)
+        )
+    }
+}
+
+public struct RuntimeModelListRequest: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let runtimeId: String?
+    public let status: String
+    public let models: [RuntimeModelInfo]
+    public let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case runtimeId = "runtime_id"
+        case status, models, error
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        runtimeId = try container.decodeIfPresent(String.self, forKey: .runtimeId)
+        status = try container.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
+        models = try container.decodeIfPresent([RuntimeModelInfo].self, forKey: .models) ?? []
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+    }
+}
+
+public struct RuntimeLocalSkillListRequest: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let runtimeId: String?
+    public let status: String
+    public let skills: [RuntimeLocalSkillInfo]
+    public let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case runtimeId = "runtime_id"
+        case status, skills, error
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        runtimeId = try container.decodeIfPresent(String.self, forKey: .runtimeId)
+        status = try container.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
+        skills = try container.decodeIfPresent([RuntimeLocalSkillInfo].self, forKey: .skills) ?? []
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+    }
+}
+
 public struct SkillFile: Codable, Identifiable, Sendable, Hashable {
     public let id: String
     public let path: String

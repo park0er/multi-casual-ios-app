@@ -1845,6 +1845,59 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(byHour.first?.totalTokens, 37)
     }
 
+    func test_runtimeModelAndLocalSkillRequestEndpointsUseDesktopPaths() async throws {
+        var requests: [String] = []
+        var queries: [String] = []
+        MockURLProtocol.handler = { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            queries.append(req.url?.query ?? "")
+            let body: Data
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/runtimes/r1/models"):
+                body = """
+                {"id":"models-1","runtime_id":"r1","status":"completed",
+                 "models":[{"id":"m1","name":"gpt-5.1","provider":"openai"}]}
+                """.data(using: .utf8)!
+            case ("GET", "/api/runtimes/r1/models/models-1"):
+                body = """
+                {"id":"models-1","runtime_id":"r1","status":"completed",
+                 "models":[{"id":"m1","name":"gpt-5.1","provider":"openai"}]}
+                """.data(using: .utf8)!
+            case ("POST", "/api/runtimes/r1/local-skills"):
+                body = """
+                {"id":"skills-1","runtime_id":"r1","status":"completed",
+                 "skills":[{"id":"s1","name":"Writer","path":"/skills/writer"}]}
+                """.data(using: .utf8)!
+            case ("GET", "/api/runtimes/r1/local-skills/skills-1"):
+                body = """
+                {"id":"skills-1","runtime_id":"r1","status":"completed",
+                 "skills":[{"id":"s1","name":"Writer","path":"/skills/writer"}]}
+                """.data(using: .utf8)!
+            default:
+                XCTFail("Unexpected request \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                body = Data("{}".utf8)
+            }
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+        }
+
+        let modelRequest = try await client.initiateListRuntimeModels(id: "r1", workspaceId: "w1")
+        let modelResult = try await client.getRuntimeModelListResult(id: "r1", requestId: "models-1", workspaceId: "w1")
+        let skillRequest = try await client.initiateListRuntimeLocalSkills(id: "r1", workspaceId: "w1")
+        let skillResult = try await client.getRuntimeLocalSkillListResult(id: "r1", requestId: "skills-1", workspaceId: "w1")
+
+        XCTAssertEqual(requests, [
+            "POST /api/runtimes/r1/models",
+            "GET /api/runtimes/r1/models/models-1",
+            "POST /api/runtimes/r1/local-skills",
+            "GET /api/runtimes/r1/local-skills/skills-1",
+        ])
+        XCTAssertTrue(queries.allSatisfy { $0.contains("workspace_id=w1") })
+        XCTAssertEqual(modelRequest.models.map(\.name), ["gpt-5.1"])
+        XCTAssertEqual(modelResult.status, "completed")
+        XCTAssertEqual(skillRequest.skills.map(\.name), ["Writer"])
+        XCTAssertEqual(skillResult.status, "completed")
+    }
+
     func test_skillEndpointsUseDesktopPaths() async throws {
         var requests: [String] = []
         var requestURLs: [URL] = []

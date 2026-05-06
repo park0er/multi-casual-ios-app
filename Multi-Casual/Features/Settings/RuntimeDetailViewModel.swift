@@ -11,7 +11,11 @@ public final class RuntimeDetailViewModel {
     public var activity: [RuntimeHourlyActivity] = []
     public var usageByAgent: [RuntimeUsageByAgent] = []
     public var usageByHour: [RuntimeUsageByHour] = []
+    public var modelList: RuntimeModelListRequest?
+    public var localSkillList: RuntimeLocalSkillListRequest?
     public var isLoading = false
+    public var isRefreshingModels = false
+    public var isRefreshingLocalSkills = false
     public var errorMessage: String?
 
     private let api: APIClient
@@ -72,6 +76,32 @@ public final class RuntimeDetailViewModel {
         }
     }
 
+    public func refreshModels() async {
+        guard let workspaceId = resolvedWorkspaceId(action: "refreshing runtime models") else { return }
+        isRefreshingModels = true
+        errorMessage = nil
+        defer { isRefreshingModels = false }
+
+        do {
+            modelList = try await api.initiateListRuntimeModels(id: runtime.id, workspaceId: workspaceId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func refreshLocalSkills() async {
+        guard let workspaceId = resolvedWorkspaceId(action: "refreshing runtime local skills") else { return }
+        isRefreshingLocalSkills = true
+        errorMessage = nil
+        defer { isRefreshingLocalSkills = false }
+
+        do {
+            localSkillList = try await api.initiateListRuntimeLocalSkills(id: runtime.id, workspaceId: workspaceId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func stringMetadata(_ key: String) -> String? {
         guard let value = runtime.metadata[key]?.displayString,
               !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -79,5 +109,14 @@ public final class RuntimeDetailViewModel {
             return nil
         }
         return value
+    }
+
+    private func resolvedWorkspaceId(action: String) -> String? {
+        let workspaceId = authSession.currentWorkspace?.id ?? runtime.workspaceId
+        guard !workspaceId.isEmpty else {
+            errorMessage = "Pick a workspace before \(action)."
+            return nil
+        }
+        return workspaceId
     }
 }

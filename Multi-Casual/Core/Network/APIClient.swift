@@ -1466,6 +1466,38 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
+    public func initiateListRuntimeModels(id: String, workspaceId: String? = nil) async throws -> RuntimeModelListRequest {
+        try await request(
+            "POST",
+            path: "api/runtimes/\(id)/models",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func getRuntimeModelListResult(id: String, requestId: String, workspaceId: String? = nil) async throws -> RuntimeModelListRequest {
+        try await request(
+            "GET",
+            path: "api/runtimes/\(id)/models/\(requestId)",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func initiateListRuntimeLocalSkills(id: String, workspaceId: String? = nil) async throws -> RuntimeLocalSkillListRequest {
+        try await request(
+            "POST",
+            path: "api/runtimes/\(id)/local-skills",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func getRuntimeLocalSkillListResult(id: String, requestId: String, workspaceId: String? = nil) async throws -> RuntimeLocalSkillListRequest {
+        try await request(
+            "GET",
+            path: "api/runtimes/\(id)/local-skills/\(requestId)",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
     public func deleteRuntime(id: String, workspaceId: String? = nil) async throws {
         let _: EmptyResponse = try await request("DELETE", path: "api/runtimes/\(id)", queryItems: workspaceQuery(workspaceId))
     }

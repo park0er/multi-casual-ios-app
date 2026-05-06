@@ -171,6 +171,62 @@ private struct RuntimeDetailView: View {
                         }
                     }
 
+                    Section("Runtime Capabilities") {
+                        Button {
+                            Task { await vm.refreshModels() }
+                        } label: {
+                            Label(vm.isRefreshingModels ? "Refreshing Models" : "Refresh Models", systemImage: "cpu")
+                        }
+                        .disabled(vm.isRefreshingModels)
+
+                        if let modelList = vm.modelList {
+                            MarkdownLabeledContent("Model Request", value: modelList.status.capitalized)
+                            if modelList.models.isEmpty {
+                                MarkdownText("No models returned.")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(modelList.models.prefix(8)) { model in
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        MarkdownText(model.name)
+                                            .font(.body.weight(.medium))
+                                        if let provider = model.provider, !provider.isEmpty {
+                                            MarkdownText(provider)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Button {
+                            Task { await vm.refreshLocalSkills() }
+                        } label: {
+                            Label(vm.isRefreshingLocalSkills ? "Refreshing Local Skills" : "Refresh Local Skills", systemImage: "wand.and.stars")
+                        }
+                        .disabled(vm.isRefreshingLocalSkills)
+
+                        if let localSkillList = vm.localSkillList {
+                            MarkdownLabeledContent("Local Skills Request", value: localSkillList.status.capitalized)
+                            if localSkillList.skills.isEmpty {
+                                MarkdownText("No local skills returned.")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(localSkillList.skills.prefix(8)) { skill in
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        MarkdownText(skill.name)
+                                            .font(.body.weight(.medium))
+                                        if let path = skill.path, !path.isEmpty {
+                                            MarkdownText(path)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Section("Serving Agents") {
                         if vm.isLoading && vm.servingAgents.isEmpty {
                             ProgressView()

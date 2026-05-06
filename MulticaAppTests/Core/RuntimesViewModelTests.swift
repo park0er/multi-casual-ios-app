@@ -93,6 +93,35 @@ final class RuntimesViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_runtimeDetailCanRequestModelsAndLocalSkillsOnDemand() async throws {
+        var requests: [String] = []
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/runtimes/r1/models"):
+                return Self.response(for: req, body: Self.runtimeModelsJSON())
+            case ("POST", "/api/runtimes/r1/local-skills"):
+                return Self.response(for: req, body: Self.runtimeLocalSkillsJSON())
+            default:
+                XCTFail("Unexpected request \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 500)
+            }
+        }
+        let runtime = AgentRuntime(id: "r1", workspaceId: "w1", name: "MacBook", runtimeMode: "local", provider: "claude", status: "online")
+        let vm = RuntimeDetailViewModel(runtime: runtime, api: client, authSession: makeSession())
+
+        await vm.refreshModels()
+        await vm.refreshLocalSkills()
+
+        XCTAssertEqual(requests, [
+            "POST /api/runtimes/r1/models",
+            "POST /api/runtimes/r1/local-skills",
+        ])
+        XCTAssertEqual(vm.modelList?.models.map(\.name), ["gpt-5.1"])
+        XCTAssertEqual(vm.localSkillList?.skills.map(\.name), ["Writer"])
+        XCTAssertNil(vm.errorMessage)
+    }
+
     private func makeSession() -> AuthSession {
         let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.runtimes.test"))
         session.currentWorkspace = workspace
@@ -178,6 +207,20 @@ final class RuntimesViewModelTests: XCTestCase {
         """
         [{"hour":"2026-01-01T00:00:00Z","input_tokens":10,"output_tokens":20,
           "cache_read_tokens":3,"cache_write_tokens":4}]
+        """.data(using: .utf8)!
+    }
+
+    private static func runtimeModelsJSON() -> Data {
+        """
+        {"id":"models-1","runtime_id":"r1","status":"completed",
+         "models":[{"id":"m1","name":"gpt-5.1","provider":"openai"}]}
+        """.data(using: .utf8)!
+    }
+
+    private static func runtimeLocalSkillsJSON() -> Data {
+        """
+        {"id":"skills-1","runtime_id":"r1","status":"completed",
+         "skills":[{"id":"s1","name":"Writer","path":"/skills/writer"}]}
         """.data(using: .utf8)!
     }
 }
