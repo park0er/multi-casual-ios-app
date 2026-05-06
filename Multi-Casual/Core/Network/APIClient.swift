@@ -28,6 +28,7 @@ public final class APIClient: @unchecked Sendable {
     private let baseURL: URL
     private let requestTimeoutNanoseconds: UInt64
     private var tokenProvider: @Sendable () -> String?
+    private var workspaceSlugProvider: @Sendable () async -> String?
 
     /// Shared decoder — ISO8601 dates, single allocation across all requests.
     private static let decoder: JSONDecoder = {
@@ -58,7 +59,8 @@ public final class APIClient: @unchecked Sendable {
         baseURL: URL = URL(string: "https://api.multica.ai")!,
         requestTimeout: TimeInterval = 15,
         token: String? = nil,
-        tokenProvider: (@Sendable () -> String?)? = nil
+        tokenProvider: (@Sendable () -> String?)? = nil,
+        workspaceSlugProvider: (@Sendable () async -> String?)? = nil
     ) {
         self.session = session
         self.baseURL = baseURL
@@ -68,12 +70,14 @@ public final class APIClient: @unchecked Sendable {
         } else {
             self.tokenProvider = tokenProvider ?? { nil }
         }
+        self.workspaceSlugProvider = workspaceSlugProvider ?? { nil }
     }
 
     /// Reconfigure the token provider after initial construction.
     /// Used by the app root to wire the environment-injected APIClient to AuthSession.
     public func configure(authSession: AuthSession) {
         self.tokenProvider = { authSession.token() }
+        self.workspaceSlugProvider = { await MainActor.run { authSession.currentWorkspace?.slug } }
     }
 
     // MARK: - Core request
@@ -106,6 +110,9 @@ public final class APIClient: @unchecked Sendable {
         req.setValue(ProcessInfo.processInfo.operatingSystemVersionString, forHTTPHeaderField: "X-Client-OS")
         if let token = tokenProvider() {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let workspaceSlug = await workspaceSlugProvider(), !workspaceSlug.isEmpty {
+            req.setValue(workspaceSlug, forHTTPHeaderField: "X-Workspace-Slug")
         }
         for (field, value) in headers where !value.isEmpty {
             req.setValue(value, forHTTPHeaderField: field)

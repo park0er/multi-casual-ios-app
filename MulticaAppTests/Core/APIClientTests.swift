@@ -201,6 +201,26 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
+    func test_configuredClientSendsCurrentWorkspaceSlugHeader() async throws {
+        let json = """
+        {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
+         "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+         "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+         "updated_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+        let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.api-client.test"))
+        session.currentWorkspace = Workspace(id: "w1", name: "park0er", slug: "park0er", issuePrefix: "PAR")
+
+        client.configure(authSession: session)
+
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await client.getIssue(id: "i1")
+    }
+
     func test_createIssue_sendsDesktopCreateFields() async throws {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":"D",
