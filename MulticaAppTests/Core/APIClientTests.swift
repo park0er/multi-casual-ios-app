@@ -183,6 +183,38 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(capturedURL?.absoluteString.contains("priority=urgent") ?? false)
     }
 
+    func test_searchIssuesAndProjectsUseDesktopSearchEndpoints() async throws {
+        var requests: [(path: String, queryItems: [URLQueryItem])] = []
+        MockURLProtocol.handler = { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            requests.append((req.url?.path ?? "", components?.queryItems ?? []))
+            switch req.url?.path {
+            case "/api/issues/search":
+                let json = #"{"issues":[],"has_more":false,"total":0}"#.data(using: .utf8)!
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+            case "/api/projects/search":
+                let json = #"{"projects":[],"has_more":false,"total":0}"#.data(using: .utf8)!
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data())
+            }
+        }
+
+        _ = try await client.searchIssues(workspaceId: "w1", query: "markdown issue", limit: 25, offset: 5, includeClosed: true)
+        _ = try await client.searchProjects(workspaceId: "w1", query: "mobile app", limit: 10, offset: 0)
+
+        XCTAssertEqual(requests.map(\.path), ["/api/issues/search", "/api/projects/search"])
+        XCTAssertEqual(requests[0].queryItems.first(where: { $0.name == "q" })?.value, "markdown issue")
+        XCTAssertEqual(requests[0].queryItems.first(where: { $0.name == "workspace_id" })?.value, "w1")
+        XCTAssertEqual(requests[0].queryItems.first(where: { $0.name == "limit" })?.value, "25")
+        XCTAssertEqual(requests[0].queryItems.first(where: { $0.name == "offset" })?.value, "5")
+        XCTAssertEqual(requests[0].queryItems.first(where: { $0.name == "include_closed" })?.value, "true")
+        XCTAssertEqual(requests[1].queryItems.first(where: { $0.name == "q" })?.value, "mobile app")
+        XCTAssertEqual(requests[1].queryItems.first(where: { $0.name == "workspace_id" })?.value, "w1")
+        XCTAssertEqual(requests[1].queryItems.first(where: { $0.name == "limit" })?.value, "10")
+    }
+
     func test_getIssue_sendsWorkspaceIdParamWhenProvided() async throws {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
@@ -451,16 +483,16 @@ final class APIClientTests: XCTestCase {
         MockURLProtocol.handler = { req in
             capturedURL = req.url
             XCTAssertEqual(req.url?.path, "/api/inbox")
-            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.url?.query, "workspace_id=w1")
             XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let page = try await client.listInbox(workspaceSlug: "park0er")
+        let page = try await client.listInbox(workspaceId: "w1", workspaceSlug: "park0er")
 
         XCTAssertEqual(page.items.count, 1)
         XCTAssertEqual(page.items.first?.issueTitle, "PAR-73 updated")
-        XCTAssertNil(capturedURL?.query)
+        XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
     }
 
     func test_markInboxRead_usesDesktopReadEndpoint() async throws {
@@ -476,15 +508,15 @@ final class APIClientTests: XCTestCase {
             capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/inbox/n1/read")
-            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.url?.query, "workspace_id=w1")
             XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let item = try await client.markInboxRead(id: "n1", workspaceSlug: "park0er")
+        let item = try await client.markInboxRead(id: "n1", workspaceId: "w1", workspaceSlug: "park0er")
 
         XCTAssertTrue(item.read)
-        XCTAssertNil(capturedURL?.query)
+        XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
     }
 
     func test_archiveInbox_usesDesktopArchiveEndpoint() async throws {
@@ -500,15 +532,15 @@ final class APIClientTests: XCTestCase {
             capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/inbox/n1/archive")
-            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.url?.query, "workspace_id=w1")
             XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let item = try await client.archiveInbox(id: "n1", workspaceSlug: "park0er")
+        let item = try await client.archiveInbox(id: "n1", workspaceId: "w1", workspaceSlug: "park0er")
 
         XCTAssertTrue(item.archived)
-        XCTAssertNil(capturedURL?.query)
+        XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
     }
 
     func test_markAllInboxRead_usesDesktopBulkEndpoint() async throws {
@@ -518,15 +550,15 @@ final class APIClientTests: XCTestCase {
             capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/inbox/mark-all-read")
-            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.url?.query, "workspace_id=w1")
             XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let response = try await client.markAllInboxRead(workspaceSlug: "park0er")
+        let response = try await client.markAllInboxRead(workspaceId: "w1", workspaceSlug: "park0er")
 
         XCTAssertEqual(response.count, 3)
-        XCTAssertNil(capturedURL?.query)
+        XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
     }
 
     func test_archiveAllInbox_usesDesktopBulkEndpoint() async throws {
@@ -536,15 +568,15 @@ final class APIClientTests: XCTestCase {
             capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/inbox/archive-all")
-            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.url?.query, "workspace_id=w1")
             XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let response = try await client.archiveAllInbox(workspaceSlug: "park0er")
+        let response = try await client.archiveAllInbox(workspaceId: "w1", workspaceSlug: "park0er")
 
         XCTAssertEqual(response.count, 3)
-        XCTAssertNil(capturedURL?.query)
+        XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
     }
 
     func test_archiveAllReadInbox_usesDesktopBulkEndpoint() async throws {
@@ -554,15 +586,15 @@ final class APIClientTests: XCTestCase {
             capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/inbox/archive-all-read")
-            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.url?.query, "workspace_id=w1")
             XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let response = try await client.archiveAllReadInbox(workspaceSlug: "park0er")
+        let response = try await client.archiveAllReadInbox(workspaceId: "w1", workspaceSlug: "park0er")
 
         XCTAssertEqual(response.count, 2)
-        XCTAssertNil(capturedURL?.query)
+        XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
     }
 
     func test_archiveCompletedInbox_usesDesktopBulkEndpoint() async throws {
@@ -572,15 +604,15 @@ final class APIClientTests: XCTestCase {
             capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/inbox/archive-completed")
-            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.url?.query, "workspace_id=w1")
             XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let response = try await client.archiveCompletedInbox(workspaceSlug: "park0er")
+        let response = try await client.archiveCompletedInbox(workspaceId: "w1", workspaceSlug: "park0er")
 
         XCTAssertEqual(response.count, 1)
-        XCTAssertNil(capturedURL?.query)
+        XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
     }
 
     func test_listComments_decodesBareArrayResponse() async throws {
@@ -1073,8 +1105,8 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(requests[1].body?["lead_id"] is NSNull)
     }
 
-    func test_pinEndpointsUseDesktopPathsAndWorkspaceSlugHeader() async throws {
-        var requests: [(method: String?, path: String, workspaceSlug: String?, body: [String: Any]?)] = []
+    func test_pinEndpointsUseDesktopPathsAndWorkspaceScope() async throws {
+        var requests: [(method: String?, path: String, query: String?, workspaceSlug: String?, body: [String: Any]?)] = []
         let pinJSON = """
         {"id":"pin1","workspace_id":"w1","user_id":"u1","item_type":"issue","item_id":"i1",
          "position":1,"created_at":"2026-01-01T00:00:00Z"}
@@ -1087,7 +1119,7 @@ final class APIClientTests: XCTestCase {
             } else {
                 body = nil
             }
-            requests.append((req.httpMethod, req.url?.path ?? "", req.value(forHTTPHeaderField: "X-Workspace-Slug"), body))
+            requests.append((req.httpMethod, req.url?.path ?? "", req.url?.query, req.value(forHTTPHeaderField: "X-Workspace-Slug"), body))
             switch (req.httpMethod, req.url?.path) {
             case ("GET", "/api/pins"):
                 return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data("[\(String(data: pinJSON, encoding: .utf8)!)]".utf8))
@@ -1101,13 +1133,14 @@ final class APIClientTests: XCTestCase {
             }
         }
 
-        let pins = try await client.listPins(workspaceSlug: "park0er")
-        _ = try await client.createPin(itemType: .issue, itemId: "i1", workspaceSlug: "park0er")
-        try await client.deletePin(itemType: .issue, itemId: "i1", workspaceSlug: "park0er")
+        let pins = try await client.listPins(workspaceId: "w1", workspaceSlug: "park0er")
+        _ = try await client.createPin(itemType: .issue, itemId: "i1", workspaceId: "w1", workspaceSlug: "park0er")
+        try await client.deletePin(itemType: .issue, itemId: "i1", workspaceId: "w1", workspaceSlug: "park0er")
 
         XCTAssertEqual(pins.first?.itemType, .issue)
         XCTAssertEqual(requests.map(\.method), ["GET", "POST", "DELETE"])
         XCTAssertEqual(requests.map(\.path), ["/api/pins", "/api/pins", "/api/pins/issue/i1"])
+        XCTAssertEqual(requests.map(\.query), ["workspace_id=w1", "workspace_id=w1", "workspace_id=w1"])
         XCTAssertEqual(requests.map(\.workspaceSlug), ["park0er", "park0er", "park0er"])
         XCTAssertEqual(requests[1].body?["item_type"] as? String, "issue")
         XCTAssertEqual(requests[1].body?["item_id"] as? String, "i1")

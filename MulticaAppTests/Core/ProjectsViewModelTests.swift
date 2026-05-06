@@ -125,6 +125,39 @@ final class ProjectsViewModelTests: XCTestCase {
         XCTAssertNil(vm.lastError)
     }
 
+    func test_searchQueryUsesDesktopSearchEndpointAndReplacesProjects() async throws {
+        var requested: [(path: String, query: [URLQueryItem])] = []
+        let client = makeClient { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            requested.append((req.url?.path ?? "", components?.queryItems ?? []))
+            switch req.url?.path {
+            case "/api/projects/search":
+                let json = """
+                {"projects":[{"id":"p1","workspace_id":"w1","title":"Mobile App","description":null,
+                 "icon":"📱","status":"active","priority":"high",
+                 "lead_type":null,"lead_id":null,"created_at":"2026-01-01T00:00:00Z",
+                 "updated_at":"2026-01-01T00:00:00Z","issue_count":2,"done_count":1}],
+                 "has_more":false,"total":1}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = ProjectsViewModel(api: client, authSession: makeSession())
+
+        await vm.setSearchQuery("Mobile")
+
+        XCTAssertEqual(vm.searchQuery, "Mobile")
+        XCTAssertEqual(vm.loader.items.map(\.name), ["Mobile App"])
+        XCTAssertFalse(vm.loader.hasMore)
+        XCTAssertEqual(requested.first?.path, "/api/projects/search")
+        XCTAssertEqual(requested.first?.query.first(where: { $0.name == "q" })?.value, "Mobile")
+        XCTAssertEqual(requested.first?.query.first(where: { $0.name == "workspace_id" })?.value, "w1")
+        XCTAssertNil(vm.lastError)
+    }
+
     private func makeClient() -> APIClient {
         makeClient { req in
             XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")

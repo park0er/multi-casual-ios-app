@@ -5,9 +5,9 @@ import XCTest
 @MainActor
 final class PinToggleViewModelTests: XCTestCase {
     func test_loadAndTogglePinKeepsStateInSync() async throws {
-        var requests: [(method: String?, path: String, workspaceSlug: String?)] = []
+        var requests: [(method: String?, path: String, query: String?, workspaceSlug: String?)] = []
         let client = makeClient { req in
-            requests.append((req.httpMethod, req.url?.path ?? "", req.value(forHTTPHeaderField: "X-Workspace-Slug")))
+            requests.append((req.httpMethod, req.url?.path ?? "", req.url?.query, req.value(forHTTPHeaderField: "X-Workspace-Slug")))
             switch (req.httpMethod, req.url?.path) {
             case ("GET", "/api/pins"):
                 return Self.response(for: req, body: Self.pinsJSON(itemId: "i1"))
@@ -34,6 +34,7 @@ final class PinToggleViewModelTests: XCTestCase {
 
         XCTAssertEqual(requests.map(\.method), ["GET", "DELETE", "POST"])
         XCTAssertEqual(requests.map(\.path), ["/api/pins", "/api/pins/issue/i1", "/api/pins"])
+        XCTAssertEqual(requests.map(\.query), ["workspace_id=w1", "workspace_id=w1", "workspace_id=w1"])
         XCTAssertEqual(requests.map(\.workspaceSlug), ["park0er", "park0er", "park0er"])
     }
 

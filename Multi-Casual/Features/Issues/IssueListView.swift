@@ -6,6 +6,7 @@ public struct IssueListView: View {
     @Environment(APIClient.self) private var api
     @State private var viewModel: IssueListViewModel?
     @State private var showingBatchDeleteConfirmation = false
+    @State private var searchText = ""
 
     public init() {}
 
@@ -85,6 +86,14 @@ public struct IssueListView: View {
                         .presentationDragIndicator(.visible)
                 }
                 .refreshable { await vm.refresh() }
+                .searchable(text: $searchText, prompt: "Search issues")
+                .onSubmit(of: .search) {
+                    Task { await vm.setSearchQuery(searchText) }
+                }
+                .onChange(of: searchText) { _, newValue in
+                    guard newValue.isEmpty, !vm.searchQuery.isEmpty else { return }
+                    Task { await vm.setSearchQuery("") }
+                }
                 .safeAreaInset(edge: .bottom) {
                     if vm.isSelectionMode && !vm.selectedIssueIds.isEmpty {
                         IssueBatchActionBar(

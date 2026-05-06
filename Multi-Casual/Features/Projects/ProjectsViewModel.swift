@@ -8,6 +8,7 @@ public final class ProjectsViewModel {
     public var lastError: Error?
     public var isMutating = false
     public var isLoadingProjectOptions = false
+    public var searchQuery = ""
     public var projectLeadOptions: [IssueAssigneeOption] = []
     public var workspaceRepoURLs: [String] = []
     private let api: APIClient
@@ -23,8 +24,12 @@ public final class ProjectsViewModel {
             return
         }
         do {
-            try await loader.loadNext { [api, wsId] offset in
-                try await api.listProjects(workspaceId: wsId, limit: 50, offset: offset)
+            try await loader.loadNext { [api, wsId, searchQuery] offset in
+                if searchQuery.isEmpty {
+                    try await api.listProjects(workspaceId: wsId, limit: 50, offset: offset)
+                } else {
+                    try await api.searchProjects(workspaceId: wsId, query: searchQuery, limit: 50, offset: offset)
+                }
             }
             lastError = nil
         } catch {
@@ -33,6 +38,13 @@ public final class ProjectsViewModel {
     }
 
     public func refresh() async { loader.reset(); await loadNext() }
+
+    public func setSearchQuery(_ query: String) async {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != searchQuery else { return }
+        searchQuery = trimmed
+        await refresh()
+    }
 
     public func loadProjectOptions() async {
         guard let workspaceId = authSession.currentWorkspace?.id else {

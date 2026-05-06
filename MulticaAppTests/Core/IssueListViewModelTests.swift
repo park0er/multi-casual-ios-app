@@ -113,6 +113,44 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertEqual(vm.childProgressText(for: vm.loader.items[0]), "1/3")
     }
 
+    func test_searchQueryUsesDesktopSearchEndpointAndReplacesIssueBuckets() async throws {
+        var requested: [(path: String, query: [URLQueryItem])] = []
+        let client = makeClient { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            requested.append((req.url?.path ?? "", components?.queryItems ?? []))
+            switch req.url?.path {
+            case "/api/issues/search":
+                let json = """
+                {"issues":[{"id":"i1","identifier":"PAR-1","number":1,
+                 "title":"Search hit","description":null,"status":"in_review","priority":"high",
+                 "assignee_id":null,"assignee_type":null,"project_id":null,"workspace_id":"w1",
+                 "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-02T00:00:00Z"}],
+                 "has_more":false,"total":1}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/issues/child-progress":
+                return Self.childProgressResponse(for: req, progress: [])
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.setSearchQuery("Search hit")
+
+        XCTAssertEqual(vm.searchQuery, "Search hit")
+        XCTAssertEqual(vm.loader.items.map(\.id), ["i1"])
+        XCTAssertEqual(vm.issuesByStatus[.inReview]?.map(\.id), ["i1"])
+        XCTAssertFalse(vm.loader.hasMore)
+        XCTAssertEqual(requested.first?.path, "/api/issues/search")
+        XCTAssertEqual(requested.first?.query.first(where: { $0.name == "q" })?.value, "Search hit")
+        XCTAssertEqual(requested.first?.query.first(where: { $0.name == "workspace_id" })?.value, "w1")
+        XCTAssertFalse(requested.first?.query.contains(where: { $0.name == "status" }) ?? true)
+        XCTAssertTrue(requested.map(\.path).contains("/api/issues/child-progress"))
+        XCTAssertNil(vm.lastError)
+    }
+
     func test_setSortOption_sortsLoadedIssuesByPriority() async throws {
         let client = makeClient { req in
             if req.url?.path == "/api/issues/child-progress" {

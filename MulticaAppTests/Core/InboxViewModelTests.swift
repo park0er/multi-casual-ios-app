@@ -7,11 +7,11 @@ final class InboxViewModelTests: XCTestCase {
         let client = makeClient { req in
             switch req.url?.path {
             case "/api/inbox":
-                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.url?.query, "workspace_id=w1")
                 XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Self.inboxItemJSON(read: false, archived: false))
             case "/api/inbox/n1/read":
-                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.url?.query, "workspace_id=w1")
                 XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Self.singleInboxItemJSON(read: true, archived: false))
             default:
@@ -33,11 +33,11 @@ final class InboxViewModelTests: XCTestCase {
         let client = makeClient { req in
             switch req.url?.path {
             case "/api/inbox":
-                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.url?.query, "workspace_id=w1")
                 XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Self.inboxItemJSON(read: false, archived: false))
             case "/api/inbox/n1/archive":
-                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.url?.query, "workspace_id=w1")
                 XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Self.singleInboxItemJSON(read: false, archived: true))
             default:
@@ -210,7 +210,7 @@ final class InboxViewModelTests: XCTestCase {
                 return Self.response(for: req, body: body)
             case "/api/inbox/mark-all-read":
                 didCallMarkAll = true
-                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.url?.query, "workspace_id=w1")
                 XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Data(#"{"count":2}"#.utf8))
             default:
@@ -243,7 +243,7 @@ final class InboxViewModelTests: XCTestCase {
                 return Self.response(for: req, body: body)
             case "/api/inbox/archive-all":
                 didCallArchiveAll = true
-                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.url?.query, "workspace_id=w1")
                 XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Data(#"{"count":2}"#.utf8))
             default:
@@ -274,7 +274,7 @@ final class InboxViewModelTests: XCTestCase {
                 ])
                 return Self.response(for: req, body: body)
             case "/api/inbox/archive-all-read":
-                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.url?.query, "workspace_id=w1")
                 XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Data(#"{"count":1}"#.utf8))
             default:
@@ -303,7 +303,7 @@ final class InboxViewModelTests: XCTestCase {
                 ])
                 return Self.response(for: req, body: body)
             case "/api/inbox/archive-completed":
-                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.url?.query, "workspace_id=w1")
                 XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Data(#"{"count":1}"#.utf8))
             default:

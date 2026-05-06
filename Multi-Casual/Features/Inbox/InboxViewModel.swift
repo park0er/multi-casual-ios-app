@@ -55,7 +55,7 @@ public final class InboxViewModel {
         do {
             try await loader.loadNext { [api, workspace] offset in
                 _ = offset
-                return try await api.listInbox(workspaceSlug: workspace.slug)
+                return try await api.listInbox(workspaceId: workspace.id, workspaceSlug: workspace.slug)
             }
             loader.items = Self.deduplicateInboxItems(loader.items)
             lastError = nil
@@ -73,7 +73,7 @@ public final class InboxViewModel {
             return
         }
         do {
-            let updated = try await api.markInboxRead(id: id, workspaceSlug: workspace.slug)
+            let updated = try await api.markInboxRead(id: id, workspaceId: workspace.id, workspaceSlug: workspace.slug)
             if let index = loader.items.firstIndex(where: { $0.id == id }) {
                 loader.items[index] = updated
             }
@@ -90,7 +90,7 @@ public final class InboxViewModel {
             return
         }
         do {
-            _ = try await api.markAllInboxRead(workspaceSlug: workspace.slug)
+            _ = try await api.markAllInboxRead(workspaceId: workspace.id, workspaceSlug: workspace.slug)
             loader.items = loader.items.map(Self.markedRead)
             updateUnreadCount()
             lastError = nil
@@ -141,7 +141,7 @@ public final class InboxViewModel {
             return
         }
         do {
-            _ = try await api.archiveInbox(id: id, workspaceSlug: workspace.slug)
+            _ = try await api.archiveInbox(id: id, workspaceId: workspace.id, workspaceSlug: workspace.slug)
             loader.items.removeAll { $0.id == id }
             updateUnreadCount()
             lastError = nil
@@ -158,13 +158,13 @@ public final class InboxViewModel {
         do {
             switch action {
             case .all:
-                _ = try await api.archiveAllInbox(workspaceSlug: workspace.slug)
+                _ = try await api.archiveAllInbox(workspaceId: workspace.id, workspaceSlug: workspace.slug)
                 loader.items.removeAll()
             case .read:
-                _ = try await api.archiveAllReadInbox(workspaceSlug: workspace.slug)
+                _ = try await api.archiveAllReadInbox(workspaceId: workspace.id, workspaceSlug: workspace.slug)
                 loader.items.removeAll { $0.read }
             case .completed:
-                _ = try await api.archiveCompletedInbox(workspaceSlug: workspace.slug)
+                _ = try await api.archiveCompletedInbox(workspaceId: workspace.id, workspaceSlug: workspace.slug)
                 loader.items.removeAll { $0.issueStatus == .done }
             }
             updateUnreadCount()

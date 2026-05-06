@@ -9,6 +9,7 @@ public struct ProjectsView: View {
     @State private var editingProject: Project?
     @State private var pendingDeleteProject: Project?
     @State private var showDeleteProjectConfirmation = false
+    @State private var searchText = ""
 
     public init() {}
 
@@ -65,7 +66,16 @@ public struct ProjectsView: View {
                         }
                     }
                 }
-                .listStyle(.plain).refreshable { await vm.refresh() }
+                .listStyle(.plain)
+                .refreshable { await vm.refresh() }
+                .searchable(text: $searchText, prompt: "Search projects")
+                .onSubmit(of: .search) {
+                    Task { await vm.setSearchQuery(searchText) }
+                }
+                .onChange(of: searchText) { _, newValue in
+                    guard newValue.isEmpty, !vm.searchQuery.isEmpty else { return }
+                    Task { await vm.setSearchQuery("") }
+                }
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {

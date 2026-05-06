@@ -29,6 +29,7 @@ public final class IssueListViewModel {
     public var showCreateSheet = false
     public var lastError: Error?
     public var priorityFilter: IssuePriority?
+    public var searchQuery = ""
     public var isSelectionMode = false
     public var isLoadingBatchAssignees = false
     public private(set) var batchAssigneeOptions: [IssueAssigneeOption] = []
@@ -58,7 +59,9 @@ public final class IssueListViewModel {
         do {
             isLoading = true
             defer { isLoading = false }
-            if !hasLoadedFirstPages {
+            if !searchQuery.isEmpty {
+                try await loadSearchPage(workspaceId: wsId)
+            } else if !hasLoadedFirstPages {
                 try await loadFirstPages(workspaceId: wsId)
             } else if let status = nextStatusWithMore() {
                 let offset = offsetsByStatus[status, default: 0]
@@ -81,6 +84,14 @@ public final class IssueListViewModel {
     }
 
     public func refresh() async {
+        resetPagination()
+        await loadNext()
+    }
+
+    public func setSearchQuery(_ query: String) async {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != searchQuery else { return }
+        searchQuery = trimmed
         resetPagination()
         await loadNext()
     }
@@ -253,6 +264,19 @@ public final class IssueListViewModel {
         syncFlatIssues()
     }
 
+    private func loadSearchPage(workspaceId: String) async throws {
+        try await loader.loadNext { [api, workspaceId, searchQuery] offset in
+            try await api.searchIssues(
+                workspaceId: workspaceId,
+                query: searchQuery,
+                limit: Self.pageSize,
+                offset: offset
+            )
+        }
+        rebuildBucketsFromLoadedItems()
+        try await loadChildProgress(workspaceId: workspaceId)
+    }
+
     private func loadChildProgress(workspaceId: String) async throws {
         let response = try await api.getChildIssueProgress(workspaceId: workspaceId)
         childProgressByParentIssueId = Dictionary(
@@ -405,6 +429,15 @@ public final class IssueListViewModel {
         offsetsByStatus = [:]
         totalsByStatus = [:]
         pageHasMoreByStatus = [:]
+    }
+
+    private func rebuildBucketsFromLoadedItems() {
+        resetBuckets()
+        for issue in loader.items where IssueStatus.boardCases.contains(issue.status) {
+            issuesByStatus[issue.status, default: []].append(issue)
+        }
+        resetPaginationCountsFromBuckets()
+        loader.items = sorted(loader.items)
     }
 }
 

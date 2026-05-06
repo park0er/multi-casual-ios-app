@@ -643,6 +643,25 @@ public final class APIClient: @unchecked Sendable {
         return try await request("GET", path: "api/issues", queryItems: queryItems)
     }
 
+    public func searchIssues(
+        workspaceId: String,
+        query: String,
+        limit: Int = 50,
+        offset: Int = 0,
+        includeClosed: Bool = false
+    ) async throws -> PageResponse<Issue> {
+        var queryItems: [URLQueryItem] = [
+            .init(name: "q", value: query),
+            .init(name: "workspace_id", value: workspaceId),
+            .init(name: "limit", value: "\(limit)"),
+            .init(name: "offset", value: "\(offset)"),
+        ]
+        if includeClosed {
+            queryItems.append(.init(name: "include_closed", value: "true"))
+        }
+        return try await request("GET", path: "api/issues/search", queryItems: queryItems)
+    }
+
     public func getIssue(id: String, workspaceId: String? = nil) async throws -> Issue {
         try await request("GET", path: "api/issues/\(id)", queryItems: workspaceQuery(workspaceId))
     }
@@ -872,18 +891,25 @@ public final class APIClient: @unchecked Sendable {
         try await request("DELETE", path: "api/issues/\(issueId)/labels/\(labelId)", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func listPins(workspaceSlug: String? = nil) async throws -> [PinnedItem] {
-        try await request("GET", path: "api/pins", headers: workspaceHeaders(workspaceSlug))
+    public func listPins(workspaceId: String? = nil, workspaceSlug: String? = nil) async throws -> [PinnedItem] {
+        try await request(
+            "GET",
+            path: "api/pins",
+            queryItems: workspaceQuery(workspaceId),
+            headers: workspaceHeaders(workspaceSlug)
+        )
     }
 
     public func createPin(
         itemType: PinnedItemType,
         itemId: String,
+        workspaceId: String? = nil,
         workspaceSlug: String? = nil
     ) async throws -> PinnedItem {
         try await request(
             "POST",
             path: "api/pins",
+            queryItems: workspaceQuery(workspaceId),
             headers: workspaceHeaders(workspaceSlug),
             body: CreatePinRequest(itemType: itemType, itemId: itemId)
         )
@@ -892,11 +918,13 @@ public final class APIClient: @unchecked Sendable {
     public func deletePin(
         itemType: PinnedItemType,
         itemId: String,
+        workspaceId: String? = nil,
         workspaceSlug: String? = nil
     ) async throws {
         let _: EmptyResponse = try await request(
             "DELETE",
             path: "api/pins/\(itemType.rawValue)/\(itemId)",
+            queryItems: workspaceQuery(workspaceId),
             headers: workspaceHeaders(workspaceSlug)
         )
     }
@@ -1339,32 +1367,67 @@ public final class APIClient: @unchecked Sendable {
 
     // MARK: - Inbox
 
-    public func listInbox(workspaceSlug: String? = nil) async throws -> PageResponse<InboxItem> {
-        try await request("GET", path: "api/inbox", headers: workspaceHeaders(workspaceSlug))
+    public func listInbox(workspaceId: String? = nil, workspaceSlug: String? = nil) async throws -> PageResponse<InboxItem> {
+        try await request(
+            "GET",
+            path: "api/inbox",
+            queryItems: workspaceQuery(workspaceId),
+            headers: workspaceHeaders(workspaceSlug)
+        )
     }
 
-    public func markInboxRead(id: String, workspaceSlug: String? = nil) async throws -> InboxItem {
-        try await request("POST", path: "api/inbox/\(id)/read", headers: workspaceHeaders(workspaceSlug))
+    public func markInboxRead(id: String, workspaceId: String? = nil, workspaceSlug: String? = nil) async throws -> InboxItem {
+        try await request(
+            "POST",
+            path: "api/inbox/\(id)/read",
+            queryItems: workspaceQuery(workspaceId),
+            headers: workspaceHeaders(workspaceSlug)
+        )
     }
 
-    public func archiveInbox(id: String, workspaceSlug: String? = nil) async throws -> InboxItem {
-        try await request("POST", path: "api/inbox/\(id)/archive", headers: workspaceHeaders(workspaceSlug))
+    public func archiveInbox(id: String, workspaceId: String? = nil, workspaceSlug: String? = nil) async throws -> InboxItem {
+        try await request(
+            "POST",
+            path: "api/inbox/\(id)/archive",
+            queryItems: workspaceQuery(workspaceId),
+            headers: workspaceHeaders(workspaceSlug)
+        )
     }
 
-    public func markAllInboxRead(workspaceSlug: String? = nil) async throws -> CountResponse {
-        try await request("POST", path: "api/inbox/mark-all-read", headers: workspaceHeaders(workspaceSlug))
+    public func markAllInboxRead(workspaceId: String? = nil, workspaceSlug: String? = nil) async throws -> CountResponse {
+        try await request(
+            "POST",
+            path: "api/inbox/mark-all-read",
+            queryItems: workspaceQuery(workspaceId),
+            headers: workspaceHeaders(workspaceSlug)
+        )
     }
 
-    public func archiveAllInbox(workspaceSlug: String? = nil) async throws -> CountResponse {
-        try await request("POST", path: "api/inbox/archive-all", headers: workspaceHeaders(workspaceSlug))
+    public func archiveAllInbox(workspaceId: String? = nil, workspaceSlug: String? = nil) async throws -> CountResponse {
+        try await request(
+            "POST",
+            path: "api/inbox/archive-all",
+            queryItems: workspaceQuery(workspaceId),
+            headers: workspaceHeaders(workspaceSlug)
+        )
     }
 
-    public func archiveAllReadInbox(workspaceSlug: String? = nil) async throws -> CountResponse {
-        try await request("POST", path: "api/inbox/archive-all-read", headers: workspaceHeaders(workspaceSlug))
+    public func archiveAllReadInbox(workspaceId: String? = nil, workspaceSlug: String? = nil) async throws -> CountResponse {
+        try await request(
+            "POST",
+            path: "api/inbox/archive-all-read",
+            queryItems: workspaceQuery(workspaceId),
+            headers: workspaceHeaders(workspaceSlug)
+        )
     }
 
-    public func archiveCompletedInbox(workspaceSlug: String? = nil) async throws -> CountResponse {
-        try await request("POST", path: "api/inbox/archive-completed", headers: workspaceHeaders(workspaceSlug))
+    public func archiveCompletedInbox(workspaceId: String? = nil, workspaceSlug: String? = nil) async throws -> CountResponse {
+        try await request(
+            "POST",
+            path: "api/inbox/archive-completed",
+            queryItems: workspaceQuery(workspaceId),
+            headers: workspaceHeaders(workspaceSlug)
+        )
     }
 
     // MARK: - Projects
@@ -1375,6 +1438,26 @@ public final class APIClient: @unchecked Sendable {
             .init(name: "limit", value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
         ])
+        return page.inferringHasMore(fromOffset: offset)
+    }
+
+    public func searchProjects(
+        workspaceId: String,
+        query: String,
+        limit: Int = 50,
+        offset: Int = 0,
+        includeClosed: Bool = false
+    ) async throws -> PageResponse<Project> {
+        var queryItems: [URLQueryItem] = [
+            .init(name: "q", value: query),
+            .init(name: "workspace_id", value: workspaceId),
+            .init(name: "limit", value: "\(limit)"),
+            .init(name: "offset", value: "\(offset)"),
+        ]
+        if includeClosed {
+            queryItems.append(.init(name: "include_closed", value: "true"))
+        }
+        let page: PageResponse<Project> = try await request("GET", path: "api/projects/search", queryItems: queryItems)
         return page.inferringHasMore(fromOffset: offset)
     }
 

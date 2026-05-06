@@ -21,7 +21,7 @@ public final class PinToggleViewModel {
     }
 
     public func load() async {
-        guard let workspaceSlug = authSession.currentWorkspace?.slug else {
+        guard let workspace = authSession.currentWorkspace else {
             errorMessage = "Pick a workspace before loading pins."
             return
         }
@@ -31,7 +31,7 @@ public final class PinToggleViewModel {
         defer { isLoading = false }
 
         do {
-            let pins = try await api.listPins(workspaceSlug: workspaceSlug)
+            let pins = try await api.listPins(workspaceId: workspace.id, workspaceSlug: workspace.slug)
             isPinned = pins.contains { $0.itemType == itemType && $0.itemId == itemId }
         } catch {
             errorMessage = error.localizedDescription
@@ -40,7 +40,7 @@ public final class PinToggleViewModel {
 
     public func toggle() async {
         guard !isLoading else { return }
-        guard let workspaceSlug = authSession.currentWorkspace?.slug else {
+        guard let workspace = authSession.currentWorkspace else {
             errorMessage = "Pick a workspace before changing pins."
             return
         }
@@ -51,10 +51,10 @@ public final class PinToggleViewModel {
 
         do {
             if isPinned {
-                try await api.deletePin(itemType: itemType, itemId: itemId, workspaceSlug: workspaceSlug)
+                try await api.deletePin(itemType: itemType, itemId: itemId, workspaceId: workspace.id, workspaceSlug: workspace.slug)
                 isPinned = false
             } else {
-                _ = try await api.createPin(itemType: itemType, itemId: itemId, workspaceSlug: workspaceSlug)
+                _ = try await api.createPin(itemType: itemType, itemId: itemId, workspaceId: workspace.id, workspaceSlug: workspace.slug)
                 isPinned = true
             }
         } catch {
