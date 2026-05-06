@@ -1,4 +1,3 @@
-#if canImport(SwiftUI) && canImport(UIKit)
 import Foundation
 import Observation
 
@@ -78,4 +77,3 @@ public final class LoginViewModel {
         }
     }
 }
-#endif
