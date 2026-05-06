@@ -72,6 +72,28 @@ public struct DestructiveConfirmation: Equatable, Sendable {
         )
     }
 
+    public static func archiveAgent(name: String) -> DestructiveConfirmation {
+        let agentName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subject = agentName.isEmpty ? "this agent" : "\"\(agentName)\""
+        return DestructiveConfirmation(
+            title: "Archive agent \(subject)?",
+            message: "The agent will be hidden from active workflows and can be restored later.",
+            confirmTitle: "Archive",
+            cancelTitle: "Cancel"
+        )
+    }
+
+    public static func cancelAgentTasks(name: String) -> DestructiveConfirmation {
+        let agentName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subject = agentName.isEmpty ? "this agent" : "\"\(agentName)\""
+        return DestructiveConfirmation(
+            title: "Cancel active tasks for \(subject)?",
+            message: "All currently running tasks for this agent will be cancelled. Existing messages and history stay available.",
+            confirmTitle: "Cancel Tasks",
+            cancelTitle: "Keep Running"
+        )
+    }
+
     public static func deleteProject(name: String) -> DestructiveConfirmation {
         let projectName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let subject = projectName.isEmpty ? "this project" : "\"\(projectName)\""

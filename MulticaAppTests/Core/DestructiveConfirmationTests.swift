@@ -56,6 +56,24 @@ final class DestructiveConfirmationTests: XCTestCase {
         XCTAssertEqual(confirmation.cancelTitle, "Keep Running")
     }
 
+    func test_archiveAgentConfirmationNamesAgent() {
+        let confirmation = DestructiveConfirmation.archiveAgent(name: "RollieCC")
+
+        XCTAssertEqual(confirmation.title, "Archive agent \"RollieCC\"?")
+        XCTAssertEqual(confirmation.message, "The agent will be hidden from active workflows and can be restored later.")
+        XCTAssertEqual(confirmation.confirmTitle, "Archive")
+        XCTAssertEqual(confirmation.cancelTitle, "Cancel")
+    }
+
+    func test_cancelAgentTasksConfirmationNamesAgent() {
+        let confirmation = DestructiveConfirmation.cancelAgentTasks(name: "RollieCC")
+
+        XCTAssertEqual(confirmation.title, "Cancel active tasks for \"RollieCC\"?")
+        XCTAssertEqual(confirmation.message, "All currently running tasks for this agent will be cancelled. Existing messages and history stay available.")
+        XCTAssertEqual(confirmation.confirmTitle, "Cancel Tasks")
+        XCTAssertEqual(confirmation.cancelTitle, "Keep Running")
+    }
+
     func test_deleteProjectConfirmationNamesProject() {
         let confirmation = DestructiveConfirmation.deleteProject(name: "Roadmap")
 

@@ -131,6 +131,28 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons["AgentsNewButton"].waitForExistence(timeout: 10))
     }
 
+    func testSettingsAgentCancelTasksRequiresConfirmation() throws {
+        let app = launchApp(initialTab: "settings")
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Agents"].waitForExistence(timeout: 10))
+        app.buttons["Agents"].tap()
+
+        XCTAssertTrue(app.staticTexts["Agents"].waitForExistence(timeout: 20))
+        let firstAgent = app.cells.firstMatch
+        guard firstAgent.waitForExistence(timeout: 20) else {
+            throw XCTSkip("No agent row is available to test destructive confirmation.")
+        }
+
+        revealLeadingActions(on: firstAgent)
+        XCTAssertTrue(app.buttons["Cancel Tasks"].waitForExistence(timeout: 5))
+        app.buttons["Cancel Tasks"].tap()
+        XCTAssertTrue(staticText(in: app, contains: "Cancel active tasks for").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Keep Running"].waitForExistence(timeout: 5))
+        app.buttons["Keep Running"].tap()
+        XCTAssertTrue(app.staticTexts["Agents"].waitForExistence(timeout: 5))
+    }
+
     func testSettingsAutopilotsScreenRenders() {
         let app = launchStubbedAuthenticatedApp(initialTab: "settings")
 
@@ -643,6 +665,10 @@ final class Multi-CasualUITests: XCTestCase {
 
     private func staticText(in app: XCUIApplication, beginsWith prefix: String) -> XCUIElement {
         app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", prefix)).firstMatch
+    }
+
+    private func staticText(in app: XCUIApplication, contains text: String) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
     private func requireMutationTestsEnabled(reason: String) throws {

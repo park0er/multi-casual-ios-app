@@ -7,6 +7,8 @@ public struct AgentsView: View {
     @State private var viewModel: AgentsViewModel?
     @State private var showCreateSheet = false
     @State private var editingAgent: Agent?
+    @State private var pendingArchiveAgent: Agent?
+    @State private var pendingCancelTasksAgent: Agent?
 
     public init() {}
 
@@ -29,7 +31,7 @@ public struct AgentsView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 if agent.archivedAt == nil {
                                     Button(role: .destructive) {
-                                        Task { await vm.archiveAgent(id: agent.id) }
+                                        pendingArchiveAgent = agent
                                     } label: {
                                         Label("Archive", systemImage: "archivebox")
                                     }
@@ -44,7 +46,7 @@ public struct AgentsView: View {
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 Button {
-                                    Task { _ = await vm.cancelAgentTasks(id: agent.id) }
+                                    pendingCancelTasksAgent = agent
                                 } label: {
                                     Label("Cancel Tasks", systemImage: "xmark.circle")
                                 }
@@ -87,6 +89,30 @@ public struct AgentsView: View {
                     AgentFormSheet(agent: agent, viewModel: vm)
                         .presentationDragIndicator(.visible)
                 }
+                .destructiveConfirmation(
+                    DestructiveConfirmation.archiveAgent(name: pendingArchiveAgent?.name ?? ""),
+                    isPresented: archiveConfirmationBinding
+                ) {
+                    guard let agent = pendingArchiveAgent else { return }
+                    Task {
+                        await vm.archiveAgent(id: agent.id)
+                        pendingArchiveAgent = nil
+                    }
+                } onCancel: {
+                    pendingArchiveAgent = nil
+                }
+                .destructiveConfirmation(
+                    DestructiveConfirmation.cancelAgentTasks(name: pendingCancelTasksAgent?.name ?? ""),
+                    isPresented: cancelTasksConfirmationBinding
+                ) {
+                    guard let agent = pendingCancelTasksAgent else { return }
+                    Task {
+                        _ = await vm.cancelAgentTasks(id: agent.id)
+                        pendingCancelTasksAgent = nil
+                    }
+                } onCancel: {
+                    pendingCancelTasksAgent = nil
+                }
             } else {
                 ProgressView()
             }
@@ -103,6 +129,20 @@ public struct AgentsView: View {
             guard let viewModel else { return }
             Task { await viewModel.load() }
         }
+    }
+
+    private var archiveConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { pendingArchiveAgent != nil },
+            set: { if !$0 { pendingArchiveAgent = nil } }
+        )
+    }
+
+    private var cancelTasksConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { pendingCancelTasksAgent != nil },
+            set: { if !$0 { pendingCancelTasksAgent = nil } }
+        )
     }
 }
 
