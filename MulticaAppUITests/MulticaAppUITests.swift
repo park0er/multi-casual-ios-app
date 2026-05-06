@@ -226,6 +226,33 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(firstNotification.waitForExistence(timeout: 5))
     }
 
+    func testInboxMarkAllReadToolbarStateWithoutSubmitting() {
+        let app = launchApp(initialTab: "inbox")
+
+        XCTAssertTrue(app.staticTexts["Inbox"].waitForExistence(timeout: 20))
+        let markAllReadButton = app.buttons["InboxMarkAllReadButton"]
+        XCTAssertTrue(markAllReadButton.waitForExistence(timeout: 10))
+
+        let deadline = Date().addingTimeInterval(20)
+        while Date() < deadline {
+            if app.staticTexts[backendTimeoutMessage].exists || app.staticTexts["No Inbox Items"].exists {
+                XCTAssertFalse(markAllReadButton.isEnabled)
+                return
+            }
+            if app.staticTexts["Unread"].exists {
+                XCTAssertTrue(markAllReadButton.isEnabled)
+                return
+            }
+            if app.staticTexts["Read"].exists {
+                XCTAssertFalse(markAllReadButton.isEnabled)
+                return
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+
+        XCTFail("Timed out waiting for Inbox toolbar state.")
+    }
+
     func testIssueDetailRendersMetadataCommentsAndInput() throws {
         let app = launchApp(initialTab: "issues", issueId: par73IssueId)
 
