@@ -20,8 +20,10 @@ public final class IssueDetailViewModel {
     public let commentLoader = PaginatedLoader<Comment>()
     public var commentDraft = ""
     public var commentAttachments: [Attachment] = []
+    public var replyAttachments: [String: [Attachment]] = [:]
     public var isSubmittingComment = false
     public var isUploadingCommentAttachment = false
+    public var uploadingReplyAttachmentIds: Set<String> = []
     public var isLoadingIssue = false
     public var isLoadingComments = false
     public var isLoadingAgentRuns = false
@@ -482,10 +484,41 @@ public final class IssueDetailViewModel {
         }
     }
 
+    public func uploadReplyAttachment(parentId: String, filename: String, data: Data, contentType: String) async -> Bool {
+        guard !data.isEmpty else {
+            error = "Attachment is empty."
+            return false
+        }
+        guard !uploadingReplyAttachmentIds.contains(parentId) else { return false }
+
+        uploadingReplyAttachmentIds.insert(parentId)
+        error = nil
+        defer { uploadingReplyAttachmentIds.remove(parentId) }
+
+        do {
+            let attachment = try await api.uploadFile(
+                filename: filename,
+                data: data,
+                contentType: contentType,
+                issueId: issueId,
+                workspaceId: effectiveWorkspaceId
+            )
+            replyAttachments[parentId, default: []].append(attachment)
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
     public func submitReply(parentId: String, content: String) async -> Bool {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
-        return await submitComment(content: trimmed, parentId: parentId)
+        let didSubmit = await submitComment(content: trimmed, parentId: parentId)
+        if didSubmit {
+            replyAttachments[parentId] = []
+        }
+        return didSubmit
     }
 
     public func updateComment(commentId: String, content: String) async -> Bool {
@@ -526,7 +559,7 @@ public final class IssueDetailViewModel {
                 issueId: issueId,
                 content: content,
                 parentId: parentId,
-                attachmentIds: parentId == nil ? commentAttachments.map(\.id) : nil,
+                attachmentIds: attachmentIds(forParentId: parentId),
                 workspaceId: effectiveWorkspaceId
             )
             commentLoader.items.append(comment)
@@ -554,6 +587,11 @@ public final class IssueDetailViewModel {
             }
         }
         return ids
+    }
+
+    private func attachmentIds(forParentId parentId: String?) -> [String]? {
+        let attachments = parentId.flatMap { replyAttachments[$0] } ?? commentAttachments
+        return attachments.isEmpty ? nil : attachments.map(\.id)
     }
 
     public func updateStatus(_ status: IssueStatus) async {

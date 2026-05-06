@@ -183,6 +183,8 @@ public struct IssueDetailView: View {
                         CommentRowView(
                             comment: comment,
                             currentUserId: authSession.currentUser?.id,
+                            replyAttachments: vm.replyAttachments[comment.id] ?? [],
+                            isUploadingReplyAttachment: vm.uploadingReplyAttachmentIds.contains(comment.id),
                             onReply: { parentId, content in
                                 await vm.submitReply(parentId: parentId, content: content)
                             },
@@ -191,6 +193,14 @@ public struct IssueDetailView: View {
                             },
                             onDelete: { commentId in
                                 await vm.deleteComment(commentId: commentId)
+                            },
+                            onUploadReplyAttachment: { parentId, payload in
+                                await vm.uploadReplyAttachment(
+                                    parentId: parentId,
+                                    filename: payload.filename,
+                                    data: payload.data,
+                                    contentType: payload.contentType
+                                )
                             },
                             onToggleReaction: { emoji in
                                 Task {
@@ -707,9 +717,12 @@ private struct ErrorMessageRow: View {
 public struct CommentRowView: View {
     public let comment: Comment
     let currentUserId: String?
+    let replyAttachments: [Attachment]
+    let isUploadingReplyAttachment: Bool
     let onReply: (String, String) async -> Bool
     let onEdit: (String, String) async -> Bool
     let onDelete: (String) async -> Bool
+    let onUploadReplyAttachment: (String, AttachmentPayload) async -> Bool
     let onToggleReaction: (String) -> Void
 
     @State private var isEditing = false
@@ -718,20 +731,28 @@ public struct CommentRowView: View {
     @State private var replyDraft = ""
     @State private var isSaving = false
     @State private var showDeleteConfirmation = false
+    @State private var showReplyAttachmentImporter = false
+    @State private var replyAttachmentError: String?
 
     public init(
         comment: Comment,
         currentUserId: String? = nil,
+        replyAttachments: [Attachment] = [],
+        isUploadingReplyAttachment: Bool = false,
         onReply: @escaping (String, String) async -> Bool = { _, _ in false },
         onEdit: @escaping (String, String) async -> Bool = { _, _ in false },
         onDelete: @escaping (String) async -> Bool = { _ in false },
+        onUploadReplyAttachment: @escaping (String, AttachmentPayload) async -> Bool = { _, _ in false },
         onToggleReaction: @escaping (String) -> Void = { _ in }
     ) {
         self.comment = comment
         self.currentUserId = currentUserId
+        self.replyAttachments = replyAttachments
+        self.isUploadingReplyAttachment = isUploadingReplyAttachment
         self.onReply = onReply
         self.onEdit = onEdit
         self.onDelete = onDelete
+        self.onUploadReplyAttachment = onUploadReplyAttachment
         self.onToggleReaction = onToggleReaction
     }
 
@@ -811,12 +832,35 @@ public struct CommentRowView: View {
             ReactionBarView(badges: commentReactionBadges(comment.reactions), onToggle: onToggleReaction)
             if isReplying {
                 VStack(alignment: .trailing, spacing: 8) {
+                    if !replyAttachments.isEmpty {
+                        AttachmentListView(attachments: replyAttachments)
+                    }
+                    if let replyAttachmentError {
+                        MarkdownText(replyAttachmentError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                     TextEditor(text: $replyDraft)
                         .frame(minHeight: 72)
                         .padding(8)
                         .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                         .accessibilityIdentifier("CommentReplyEditor")
                     HStack(spacing: 8) {
+                        Button {
+                            showReplyAttachmentImporter = true
+                        } label: {
+                            if isUploadingReplyAttachment {
+                                ProgressView()
+                            } else {
+                                Label("Add Attachment", systemImage: "paperclip")
+                            }
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(isSaving || isUploadingReplyAttachment)
+                        .accessibilityIdentifier("CommentReplyAddAttachmentButton")
+
+                        Spacer()
+
                         Button("Cancel") {
                             replyDraft = ""
                             isReplying = false
@@ -833,11 +877,18 @@ public struct CommentRowView: View {
                             }
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(isSaving || replyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(isSaving || isUploadingReplyAttachment || replyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
             }
         }.padding(.horizontal).padding(.vertical, 6)
+            .fileImporter(
+                isPresented: $showReplyAttachmentImporter,
+                allowedContentTypes: [.item],
+                allowsMultipleSelection: false
+            ) { result in
+                handleReplyAttachmentImport(result)
+            }
             .alert("Delete Comment", isPresented: $showDeleteConfirmation) {
                 Button("Delete", role: .destructive) {
                     Task {
@@ -877,6 +928,22 @@ public struct CommentRowView: View {
         if submitted {
             replyDraft = ""
             isReplying = false
+        }
+    }
+
+    private func handleReplyAttachmentImport(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            let payload = try AttachmentImport.payload(from: url)
+            replyAttachmentError = nil
+            Task {
+                let uploaded = await onUploadReplyAttachment(comment.id, payload)
+                if !uploaded {
+                    replyAttachmentError = "Upload failed."
+                }
+            }
+        } catch {
+            replyAttachmentError = error.localizedDescription
         }
     }
 
