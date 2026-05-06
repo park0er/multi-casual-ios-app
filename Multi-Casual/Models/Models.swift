@@ -715,40 +715,92 @@ public struct RuntimeModelInfo: Codable, Sendable, Hashable, Identifiable {
 
 public struct RuntimeLocalSkillInfo: Codable, Sendable, Hashable, Identifiable {
     public let id: String
+    public let key: String
     public let name: String
     public let path: String?
     public let description: String?
+    public let provider: String?
+    public let fileCount: Int?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, path, description
+        case id, key, name, path, description, provider
+        case sourcePath = "source_path"
+        case fileCount = "file_count"
     }
 
-    public init(id: String, name: String, path: String? = nil, description: String? = nil) {
+    public init(
+        id: String,
+        key: String? = nil,
+        name: String,
+        path: String? = nil,
+        description: String? = nil,
+        provider: String? = nil,
+        fileCount: Int? = nil
+    ) {
         self.id = id
+        self.key = key ?? id
         self.name = name
         self.path = path
         self.description = description
+        self.provider = provider
+        self.fileCount = fileCount
     }
 
     public init(from decoder: Decoder) throws {
         if let singleValue = try? decoder.singleValueContainer(),
            let path = try? singleValue.decode(String.self) {
             let fallbackName = URL(fileURLWithPath: path).lastPathComponent
-            self.init(id: path, name: fallbackName.isEmpty ? path : fallbackName, path: path)
+            self.init(id: path, key: path, name: fallbackName.isEmpty ? path : fallbackName, path: path)
             return
         }
 
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let path = try container.decodeIfPresent(String.self, forKey: .path)
+            ?? container.decodeIfPresent(String.self, forKey: .sourcePath)
+        let key = try container.decodeIfPresent(String.self, forKey: .key)
         let name = try container.decodeIfPresent(String.self, forKey: .name)
             ?? path.map { URL(fileURLWithPath: $0).lastPathComponent }
+            ?? key
             ?? "Unknown Skill"
         self.init(
-            id: try container.decodeIfPresent(String.self, forKey: .id) ?? path ?? name,
+            id: try container.decodeIfPresent(String.self, forKey: .id) ?? key ?? path ?? name,
+            key: key,
             name: name,
             path: path,
-            description: try container.decodeIfPresent(String.self, forKey: .description)
+            description: try container.decodeIfPresent(String.self, forKey: .description),
+            provider: try container.decodeIfPresent(String.self, forKey: .provider),
+            fileCount: try container.decodeIfPresent(Int.self, forKey: .fileCount)
         )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(key, forKey: .key)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(path, forKey: .path)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encodeIfPresent(provider, forKey: .provider)
+        try container.encodeIfPresent(fileCount, forKey: .fileCount)
+    }
+}
+
+public struct RuntimeUpdate: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let runtimeId: String?
+    public let status: String
+    public let targetVersion: String
+    public let output: String?
+    public let error: String?
+    public let createdAt: Date?
+    public let updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, status, output, error
+        case runtimeId = "runtime_id"
+        case targetVersion = "target_version"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
 }
 
@@ -757,12 +809,13 @@ public struct RuntimeModelListRequest: Codable, Sendable, Hashable, Identifiable
     public let runtimeId: String?
     public let status: String
     public let models: [RuntimeModelInfo]
+    public let supported: Bool?
     public let error: String?
 
     enum CodingKeys: String, CodingKey {
         case id
         case runtimeId = "runtime_id"
-        case status, models, error
+        case status, models, supported, error
     }
 
     public init(from decoder: Decoder) throws {
@@ -771,6 +824,7 @@ public struct RuntimeModelListRequest: Codable, Sendable, Hashable, Identifiable
         runtimeId = try container.decodeIfPresent(String.self, forKey: .runtimeId)
         status = try container.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
         models = try container.decodeIfPresent([RuntimeModelInfo].self, forKey: .models) ?? []
+        supported = try container.decodeIfPresent(Bool.self, forKey: .supported)
         error = try container.decodeIfPresent(String.self, forKey: .error)
     }
 }
@@ -780,12 +834,13 @@ public struct RuntimeLocalSkillListRequest: Codable, Sendable, Hashable, Identif
     public let runtimeId: String?
     public let status: String
     public let skills: [RuntimeLocalSkillInfo]
+    public let supported: Bool?
     public let error: String?
 
     enum CodingKeys: String, CodingKey {
         case id
         case runtimeId = "runtime_id"
-        case status, skills, error
+        case status, skills, supported, error
     }
 
     public init(from decoder: Decoder) throws {
@@ -794,7 +849,29 @@ public struct RuntimeLocalSkillListRequest: Codable, Sendable, Hashable, Identif
         runtimeId = try container.decodeIfPresent(String.self, forKey: .runtimeId)
         status = try container.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
         skills = try container.decodeIfPresent([RuntimeLocalSkillInfo].self, forKey: .skills) ?? []
+        supported = try container.decodeIfPresent(Bool.self, forKey: .supported)
         error = try container.decodeIfPresent(String.self, forKey: .error)
+    }
+}
+
+public struct RuntimeLocalSkillImportRequest: Codable, Sendable, Identifiable {
+    public let id: String
+    public let runtimeId: String?
+    public let skillKey: String
+    public let name: String?
+    public let description: String?
+    public let status: String
+    public let skill: Skill?
+    public let error: String?
+    public let createdAt: Date?
+    public let updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, status, skill, error
+        case runtimeId = "runtime_id"
+        case skillKey = "skill_key"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
 }
 

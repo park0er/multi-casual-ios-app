@@ -13,9 +13,13 @@ public final class RuntimeDetailViewModel {
     public var usageByHour: [RuntimeUsageByHour] = []
     public var modelList: RuntimeModelListRequest?
     public var localSkillList: RuntimeLocalSkillListRequest?
+    public var updateRequest: RuntimeUpdate?
+    public var localSkillImport: RuntimeLocalSkillImportRequest?
     public var isLoading = false
     public var isRefreshingModels = false
     public var isRefreshingLocalSkills = false
+    public var isUpdatingRuntime = false
+    public var isImportingLocalSkill = false
     public var errorMessage: String?
 
     private let api: APIClient
@@ -102,6 +106,77 @@ public final class RuntimeDetailViewModel {
         }
     }
 
+    public func startUpdate(targetVersion: String) async {
+        let targetVersion = targetVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !targetVersion.isEmpty else {
+            errorMessage = "Enter a target version before updating the runtime."
+            return
+        }
+        guard let workspaceId = resolvedWorkspaceId(action: "updating this runtime") else { return }
+        isUpdatingRuntime = true
+        errorMessage = nil
+        defer { isUpdatingRuntime = false }
+
+        do {
+            updateRequest = try await api.initiateRuntimeUpdate(id: runtime.id, targetVersion: targetVersion, workspaceId: workspaceId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func refreshUpdateResult() async {
+        guard let updateId = updateRequest?.id else { return }
+        guard let workspaceId = resolvedWorkspaceId(action: "checking runtime update status") else { return }
+        isUpdatingRuntime = true
+        errorMessage = nil
+        defer { isUpdatingRuntime = false }
+
+        do {
+            updateRequest = try await api.getRuntimeUpdateResult(id: runtime.id, updateId: updateId, workspaceId: workspaceId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func importLocalSkill(skillKey: String, name: String, description: String?) async {
+        let skillKey = skillKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !skillKey.isEmpty, !name.isEmpty else {
+            errorMessage = "Choose a local skill before importing."
+            return
+        }
+        guard let workspaceId = resolvedWorkspaceId(action: "importing a runtime local skill") else { return }
+        isImportingLocalSkill = true
+        errorMessage = nil
+        defer { isImportingLocalSkill = false }
+
+        do {
+            localSkillImport = try await api.initiateImportRuntimeLocalSkill(
+                id: runtime.id,
+                skillKey: skillKey,
+                name: name,
+                description: description?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+                workspaceId: workspaceId
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func refreshLocalSkillImportResult() async {
+        guard let requestId = localSkillImport?.id else { return }
+        guard let workspaceId = resolvedWorkspaceId(action: "checking local skill import status") else { return }
+        isImportingLocalSkill = true
+        errorMessage = nil
+        defer { isImportingLocalSkill = false }
+
+        do {
+            localSkillImport = try await api.getRuntimeLocalSkillImportResult(id: runtime.id, requestId: requestId, workspaceId: workspaceId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func stringMetadata(_ key: String) -> String? {
         guard let value = runtime.metadata[key]?.displayString,
               !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -118,5 +193,11 @@ public final class RuntimeDetailViewModel {
             return nil
         }
         return workspaceId
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

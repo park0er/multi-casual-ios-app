@@ -122,6 +122,35 @@ final class RuntimesViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_runtimeDetailCanStartUpdateAndImportLocalSkill() async throws {
+        var requests: [String] = []
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/runtimes/r1/update"):
+                return Self.response(for: req, body: Self.runtimeUpdateJSON())
+            case ("POST", "/api/runtimes/r1/local-skills/import"):
+                return Self.response(for: req, body: Self.runtimeLocalSkillImportJSON())
+            default:
+                XCTFail("Unexpected request \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 500)
+            }
+        }
+        let runtime = AgentRuntime(id: "r1", workspaceId: "w1", name: "MacBook", runtimeMode: "local", provider: "claude", status: "online")
+        let vm = RuntimeDetailViewModel(runtime: runtime, api: client, authSession: makeSession())
+
+        await vm.startUpdate(targetVersion: "v1.2.3")
+        await vm.importLocalSkill(skillKey: "review-helper", name: "Review Helper", description: "Review pull requests")
+
+        XCTAssertEqual(requests, [
+            "POST /api/runtimes/r1/update",
+            "POST /api/runtimes/r1/local-skills/import",
+        ])
+        XCTAssertEqual(vm.updateRequest?.targetVersion, "v1.2.3")
+        XCTAssertEqual(vm.localSkillImport?.skillKey, "review-helper")
+        XCTAssertNil(vm.errorMessage)
+    }
+
     private func makeSession() -> AuthSession {
         let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.runtimes.test"))
         session.currentWorkspace = workspace
@@ -221,6 +250,23 @@ final class RuntimesViewModelTests: XCTestCase {
         """
         {"id":"skills-1","runtime_id":"r1","status":"completed",
          "skills":[{"id":"s1","name":"Writer","path":"/skills/writer"}]}
+        """.data(using: .utf8)!
+    }
+
+    private static func runtimeUpdateJSON() -> Data {
+        """
+        {"id":"update-1","runtime_id":"r1","status":"pending",
+         "target_version":"v1.2.3","created_at":"2026-01-01T00:00:00Z",
+         "updated_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+    }
+
+    private static func runtimeLocalSkillImportJSON() -> Data {
+        """
+        {"id":"import-1","runtime_id":"r1","skill_key":"review-helper",
+         "name":"Review Helper","description":"Review pull requests",
+         "status":"pending","created_at":"2026-01-01T00:00:00Z",
+         "updated_at":"2026-01-01T00:00:00Z"}
         """.data(using: .utf8)!
     }
 }

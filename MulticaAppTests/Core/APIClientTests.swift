@@ -1898,6 +1898,85 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(skillResult.status, "completed")
     }
 
+    func test_runtimeUpdateAndLocalSkillImportEndpointsUseDesktopPaths() async throws {
+        var requests: [String] = []
+        var queries: [String] = []
+        var bodies: [[String: Any]] = []
+        MockURLProtocol.handler = { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            queries.append(req.url?.query ?? "")
+            let bodyData = MockURLProtocol.bodyData(for: req)
+            if !bodyData.isEmpty,
+               let object = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any] {
+                bodies.append(object)
+            }
+            let body: Data
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/runtimes/r1/update"):
+                body = """
+                {"id":"update-1","runtime_id":"r1","status":"pending",
+                 "target_version":"v1.2.3","created_at":"2026-01-01T00:00:00Z",
+                 "updated_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+            case ("GET", "/api/runtimes/r1/update/update-1"):
+                body = """
+                {"id":"update-1","runtime_id":"r1","status":"completed",
+                 "target_version":"v1.2.3","output":"Updated",
+                 "created_at":"2026-01-01T00:00:00Z",
+                 "updated_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+            case ("POST", "/api/runtimes/r1/local-skills/import"):
+                body = """
+                {"id":"import-1","runtime_id":"r1","skill_key":"review-helper",
+                 "name":"Review Helper","description":"Review pull requests",
+                 "status":"pending","created_at":"2026-01-01T00:00:00Z",
+                 "updated_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+            case ("GET", "/api/runtimes/r1/local-skills/import/import-1"):
+                body = """
+                {"id":"import-1","runtime_id":"r1","skill_key":"review-helper",
+                 "name":"Review Helper","description":"Review pull requests",
+                 "status":"completed","skill":{"id":"s1","workspace_id":"w1",
+                 "name":"Review Helper","description":"Review pull requests",
+                 "content":"# Review Helper","config":{},"files":[],
+                 "created_by":"u1","created_at":"2026-01-01T00:00:00Z",
+                 "updated_at":"2026-01-01T00:00:00Z"},
+                 "created_at":"2026-01-01T00:00:00Z",
+                 "updated_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+            default:
+                XCTFail("Unexpected request \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                body = Data("{}".utf8)
+            }
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+        }
+
+        let update = try await client.initiateRuntimeUpdate(id: "r1", targetVersion: "v1.2.3", workspaceId: "w1")
+        let updateResult = try await client.getRuntimeUpdateResult(id: "r1", updateId: "update-1", workspaceId: "w1")
+        let skillImport = try await client.initiateImportRuntimeLocalSkill(
+            id: "r1",
+            skillKey: "review-helper",
+            name: "Review Helper",
+            description: "Review pull requests",
+            workspaceId: "w1"
+        )
+        let skillImportResult = try await client.getRuntimeLocalSkillImportResult(id: "r1", requestId: "import-1", workspaceId: "w1")
+
+        XCTAssertEqual(requests, [
+            "POST /api/runtimes/r1/update",
+            "GET /api/runtimes/r1/update/update-1",
+            "POST /api/runtimes/r1/local-skills/import",
+            "GET /api/runtimes/r1/local-skills/import/import-1",
+        ])
+        XCTAssertTrue(queries.allSatisfy { $0.contains("workspace_id=w1") })
+        XCTAssertEqual(bodies.first?["target_version"] as? String, "v1.2.3")
+        XCTAssertEqual(bodies.last?["skill_key"] as? String, "review-helper")
+        XCTAssertEqual(update.targetVersion, "v1.2.3")
+        XCTAssertEqual(updateResult.output, "Updated")
+        XCTAssertEqual(skillImport.skillKey, "review-helper")
+        XCTAssertEqual(skillImportResult.skill?.name, "Review Helper")
+    }
+
     func test_skillEndpointsUseDesktopPaths() async throws {
         var requests: [String] = []
         var requestURLs: [URL] = []

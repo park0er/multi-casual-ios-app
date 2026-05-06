@@ -488,6 +488,23 @@ public final class APIClient: @unchecked Sendable {
             case cronExpression = "cron_expression"
         }
     }
+    private struct RuntimeUpdateRequest: Encodable {
+        let targetVersion: String
+
+        enum CodingKeys: String, CodingKey {
+            case targetVersion = "target_version"
+        }
+    }
+    private struct RuntimeLocalSkillImportRequestBody: Encodable {
+        let skillKey: String
+        let name: String?
+        let description: String?
+
+        enum CodingKeys: String, CodingKey {
+            case skillKey = "skill_key"
+            case name, description
+        }
+    }
 
     public struct AgentCancelResponse: Codable, Sendable {
         public let count: Int
@@ -1466,6 +1483,23 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
+    public func initiateRuntimeUpdate(id: String, targetVersion: String, workspaceId: String? = nil) async throws -> RuntimeUpdate {
+        try await request(
+            "POST",
+            path: "api/runtimes/\(id)/update",
+            queryItems: workspaceQuery(workspaceId),
+            body: RuntimeUpdateRequest(targetVersion: targetVersion)
+        )
+    }
+
+    public func getRuntimeUpdateResult(id: String, updateId: String, workspaceId: String? = nil) async throws -> RuntimeUpdate {
+        try await request(
+            "GET",
+            path: "api/runtimes/\(id)/update/\(updateId)",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
     public func initiateListRuntimeModels(id: String, workspaceId: String? = nil) async throws -> RuntimeModelListRequest {
         try await request(
             "POST",
@@ -1494,6 +1528,29 @@ public final class APIClient: @unchecked Sendable {
         try await request(
             "GET",
             path: "api/runtimes/\(id)/local-skills/\(requestId)",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func initiateImportRuntimeLocalSkill(
+        id: String,
+        skillKey: String,
+        name: String?,
+        description: String?,
+        workspaceId: String? = nil
+    ) async throws -> RuntimeLocalSkillImportRequest {
+        try await request(
+            "POST",
+            path: "api/runtimes/\(id)/local-skills/import",
+            queryItems: workspaceQuery(workspaceId),
+            body: RuntimeLocalSkillImportRequestBody(skillKey: skillKey, name: name, description: description)
+        )
+    }
+
+    public func getRuntimeLocalSkillImportResult(id: String, requestId: String, workspaceId: String? = nil) async throws -> RuntimeLocalSkillImportRequest {
+        try await request(
+            "GET",
+            path: "api/runtimes/\(id)/local-skills/import/\(requestId)",
             queryItems: workspaceQuery(workspaceId)
         )
     }

@@ -97,6 +97,7 @@ private struct RuntimeDetailView: View {
     @Environment(APIClient.self) private var api
     @Environment(AuthSession.self) private var authSession
     @State private var viewModel: RuntimeDetailViewModel?
+    @State private var updateTargetVersion = ""
 
     var body: some View {
         Group {
@@ -171,6 +172,33 @@ private struct RuntimeDetailView: View {
                         }
                     }
 
+                    Section("Runtime Update") {
+                        TextField("Target version", text: $updateTargetVersion)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("RuntimeUpdateTargetField")
+
+                        Button {
+                            Task { await vm.startUpdate(targetVersion: updateTargetVersion) }
+                        } label: {
+                            Label(vm.isUpdatingRuntime ? "Updating Runtime" : "Update Runtime", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .disabled(vm.isUpdatingRuntime || updateTargetVersion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .accessibilityIdentifier("RuntimeUpdateButton")
+
+                        if let update = vm.updateRequest {
+                            RuntimeUpdateStatusView(update: update)
+
+                            Button {
+                                Task { await vm.refreshUpdateResult() }
+                            } label: {
+                                Label(vm.isUpdatingRuntime ? "Refreshing Update Status" : "Refresh Update Status", systemImage: "arrow.clockwise")
+                            }
+                            .disabled(vm.isUpdatingRuntime)
+                            .accessibilityIdentifier("RuntimeRefreshUpdateStatusButton")
+                        }
+                    }
+
                     Section("Runtime Capabilities") {
                         Button {
                             Task { await vm.refreshModels() }
@@ -181,6 +209,13 @@ private struct RuntimeDetailView: View {
 
                         if let modelList = vm.modelList {
                             MarkdownLabeledContent("Model Request", value: modelList.status.capitalized)
+                            if let supported = modelList.supported {
+                                MarkdownLabeledContent("Models Supported", value: supported ? "Yes" : "No")
+                            }
+                            if let error = modelList.error, !error.isEmpty {
+                                MarkdownText(error)
+                                    .foregroundStyle(.red)
+                            }
                             if modelList.models.isEmpty {
                                 MarkdownText("No models returned.")
                                     .foregroundStyle(.secondary)
@@ -208,22 +243,41 @@ private struct RuntimeDetailView: View {
 
                         if let localSkillList = vm.localSkillList {
                             MarkdownLabeledContent("Local Skills Request", value: localSkillList.status.capitalized)
+                            if let supported = localSkillList.supported {
+                                MarkdownLabeledContent("Local Skills Supported", value: supported ? "Yes" : "No")
+                            }
+                            if let error = localSkillList.error, !error.isEmpty {
+                                MarkdownText(error)
+                                    .foregroundStyle(.red)
+                            }
                             if localSkillList.skills.isEmpty {
                                 MarkdownText("No local skills returned.")
                                     .foregroundStyle(.secondary)
                             } else {
                                 ForEach(localSkillList.skills.prefix(8)) { skill in
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        MarkdownText(skill.name)
-                                            .font(.body.weight(.medium))
-                                        if let path = skill.path, !path.isEmpty {
-                                            MarkdownText(path)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
+                                    RuntimeLocalSkillRow(skill: skill, isImporting: vm.isImportingLocalSkill) {
+                                        Task {
+                                            await vm.importLocalSkill(
+                                                skillKey: skill.key,
+                                                name: skill.name,
+                                                description: skill.description
+                                            )
                                         }
                                     }
                                 }
                             }
+                        }
+
+                        if let localSkillImport = vm.localSkillImport {
+                            RuntimeLocalSkillImportStatusView(request: localSkillImport)
+
+                            Button {
+                                Task { await vm.refreshLocalSkillImportResult() }
+                            } label: {
+                                Label(vm.isImportingLocalSkill ? "Refreshing Import Status" : "Refresh Import Status", systemImage: "arrow.clockwise")
+                            }
+                            .disabled(vm.isImportingLocalSkill)
+                            .accessibilityIdentifier("RuntimeRefreshLocalSkillImportButton")
                         }
                     }
 
@@ -312,6 +366,101 @@ private struct RuntimeDetailView: View {
     private func shortDaemonId(_ id: String) -> String {
         guard id.count > 10 else { return id }
         return "\(id.prefix(6))..\(id.suffix(2))"
+    }
+}
+
+private struct RuntimeUpdateStatusView: View {
+    let update: RuntimeUpdate
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            MarkdownLabeledContent("Update Status", value: update.status.capitalized)
+            MarkdownLabeledContent("Target Version", value: update.targetVersion)
+            if let output = update.output, !output.isEmpty {
+                MarkdownText(output)
+                    .font(.caption)
+            }
+            if let error = update.error, !error.isEmpty {
+                MarkdownText(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            if let updatedAt = update.updatedAt {
+                MarkdownText("Updated \(updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct RuntimeLocalSkillRow: View {
+    let skill: RuntimeLocalSkillInfo
+    let isImporting: Bool
+    let importAction: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    MarkdownText(skill.name)
+                        .font(.body.weight(.medium))
+                    if let description = skill.description, !description.isEmpty {
+                        MarkdownText(description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 12)
+                Button(action: importAction) {
+                    Label("Import", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(.borderless)
+                .disabled(isImporting || skill.key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("RuntimeImportLocalSkillButton")
+            }
+
+            if let provider = skill.provider, !provider.isEmpty {
+                MarkdownLabeledContent("Provider", value: provider)
+                    .font(.caption)
+            }
+            if let fileCount = skill.fileCount {
+                MarkdownLabeledContent("Files", value: fileCount.formatted())
+                    .font(.caption)
+            }
+            if let path = skill.path, !path.isEmpty {
+                MarkdownText(path)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct RuntimeLocalSkillImportStatusView: View {
+    let request: RuntimeLocalSkillImportRequest
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            MarkdownLabeledContent("Import Status", value: request.status.capitalized)
+            MarkdownLabeledContent("Skill Key", value: request.skillKey)
+            if let name = request.name, !name.isEmpty {
+                MarkdownLabeledContent("Name", value: name)
+            }
+            if let importedSkill = request.skill {
+                MarkdownLabeledContent("Created Skill", value: importedSkill.name)
+            }
+            if let error = request.error, !error.isEmpty {
+                MarkdownText(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            if let updatedAt = request.updatedAt {
+                MarkdownText("Updated \(updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 #endif
