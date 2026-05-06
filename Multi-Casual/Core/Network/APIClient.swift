@@ -309,6 +309,9 @@ public final class APIClient: @unchecked Sendable {
             }
         }
     }
+    private struct UpdateNotificationPreferencesRequest: Encodable {
+        let preferences: NotificationPreferences
+    }
     private struct CreateProjectRequest: Encodable {
         let title: String
         let description: String?
@@ -1364,6 +1367,28 @@ public final class APIClient: @unchecked Sendable {
             "DELETE",
             path: "api/autopilots/\(autopilotId)/triggers/\(triggerId)",
             queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    // MARK: - Notification Preferences
+
+    public func getNotificationPreferences(workspaceId: String? = nil) async throws -> NotificationPreferenceResponse {
+        try await request(
+            "GET",
+            path: "api/notification-preferences",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func updateNotificationPreferences(
+        _ preferences: NotificationPreferences,
+        workspaceId: String? = nil
+    ) async throws -> NotificationPreferenceResponse {
+        try await request(
+            "PUT",
+            path: "api/notification-preferences",
+            queryItems: workspaceQuery(workspaceId),
+            body: UpdateNotificationPreferencesRequest(preferences: preferences)
         )
     }
 

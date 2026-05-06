@@ -643,6 +643,40 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
     }
 
+    func test_notificationPreferenceEndpointsUseDesktopShape() async throws {
+        var requests: [(method: String, path: String, body: [String: Any]?)] = []
+        MockURLProtocol.handler = { req in
+            let requestBody = MockURLProtocol.bodyData(for: req)
+            let body = requestBody.isEmpty
+                ? nil
+                : (try? JSONSerialization.jsonObject(with: requestBody) as? [String: Any])
+            requests.append((req.httpMethod ?? "", req.url?.path ?? "", body))
+            let json = """
+            {"workspace_id":"w1","preferences":{"comments":"muted","agent_activity":"all"}}
+            """.data(using: .utf8)!
+            return (
+                HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                json
+            )
+        }
+
+        let loaded = try await client.getNotificationPreferences(workspaceId: "w1")
+        let updated = try await client.updateNotificationPreferences(
+            NotificationPreferences(comments: .muted, agentActivity: .all),
+            workspaceId: "w1"
+        )
+
+        XCTAssertEqual(loaded.workspaceId, "w1")
+        XCTAssertEqual(loaded.preferences.comments, .muted)
+        XCTAssertEqual(updated.preferences.agentActivity, .all)
+        XCTAssertEqual(requests.map { "\($0.method) \($0.path)" }, [
+            "GET /api/notification-preferences",
+            "PUT /api/notification-preferences",
+        ])
+        XCTAssertEqual((requests[1].body?["preferences"] as? [String: String])?["comments"], "muted")
+        XCTAssertEqual((requests[1].body?["preferences"] as? [String: String])?["agent_activity"], "all")
+    }
+
     func test_listComments_decodesBareArrayResponse() async throws {
         let json = """
         [{"id":"c1","content":"Hi","author_id":"u1","author_type":"member",

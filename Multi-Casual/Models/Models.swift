@@ -205,6 +205,128 @@ public struct Invitation: Codable, Identifiable, Sendable {
     }
 }
 
+// MARK: - Notification Preferences
+
+public enum NotificationPreferenceGroup: String, Codable, CaseIterable, Identifiable, Sendable {
+    case assignments
+    case statusChanges = "status_changes"
+    case comments
+    case updates
+    case agentActivity = "agent_activity"
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .assignments:
+            "Assignments"
+        case .statusChanges:
+            "Status Changes"
+        case .comments:
+            "Comments & Mentions"
+        case .updates:
+            "Priority & Due Date"
+        case .agentActivity:
+            "Agent Activity"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .assignments:
+            "When you are assigned or unassigned from an issue"
+        case .statusChanges:
+            "When an issue you follow changes status"
+        case .comments:
+            "New comments on followed issues and mentions"
+        case .updates:
+            "When priority or due date changes on followed issues"
+        case .agentActivity:
+            "When an agent task completes or fails"
+        }
+    }
+}
+
+public enum NotificationPreferenceValue: String, Codable, Sendable {
+    case all
+    case muted
+}
+
+public struct NotificationPreferences: Codable, Equatable, Sendable {
+    public var assignments: NotificationPreferenceValue?
+    public var statusChanges: NotificationPreferenceValue?
+    public var comments: NotificationPreferenceValue?
+    public var updates: NotificationPreferenceValue?
+    public var agentActivity: NotificationPreferenceValue?
+
+    enum CodingKeys: String, CodingKey {
+        case assignments
+        case statusChanges = "status_changes"
+        case comments
+        case updates
+        case agentActivity = "agent_activity"
+    }
+
+    public init(
+        assignments: NotificationPreferenceValue? = nil,
+        statusChanges: NotificationPreferenceValue? = nil,
+        comments: NotificationPreferenceValue? = nil,
+        updates: NotificationPreferenceValue? = nil,
+        agentActivity: NotificationPreferenceValue? = nil
+    ) {
+        self.assignments = assignments
+        self.statusChanges = statusChanges
+        self.comments = comments
+        self.updates = updates
+        self.agentActivity = agentActivity
+    }
+
+    public func value(for group: NotificationPreferenceGroup) -> NotificationPreferenceValue {
+        switch group {
+        case .assignments:
+            assignments ?? .all
+        case .statusChanges:
+            statusChanges ?? .all
+        case .comments:
+            comments ?? .all
+        case .updates:
+            updates ?? .all
+        case .agentActivity:
+            agentActivity ?? .all
+        }
+    }
+
+    public mutating func set(_ group: NotificationPreferenceGroup, to value: NotificationPreferenceValue?) {
+        switch group {
+        case .assignments:
+            assignments = value
+        case .statusChanges:
+            statusChanges = value
+        case .comments:
+            comments = value
+        case .updates:
+            updates = value
+        case .agentActivity:
+            agentActivity = value
+        }
+    }
+}
+
+public struct NotificationPreferenceResponse: Codable, Sendable {
+    public let workspaceId: String
+    public let preferences: NotificationPreferences
+
+    enum CodingKeys: String, CodingKey {
+        case workspaceId = "workspace_id"
+        case preferences
+    }
+
+    public init(workspaceId: String, preferences: NotificationPreferences) {
+        self.workspaceId = workspaceId
+        self.preferences = preferences
+    }
+}
+
 public struct Agent: Codable, Identifiable, Sendable {
     public let id: String
     public let workspaceId: String
