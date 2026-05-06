@@ -374,6 +374,103 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.error)
     }
 
+    func test_submitReplySendsParentIdAndAppendsReply() async throws {
+        var submittedParentId: String?
+        var submittedContent: String?
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/issues/i1/comments"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                submittedParentId = body["parent_id"] as? String
+                submittedContent = body["content"] as? String
+                let json = """
+                {"id":"r1","content":"Reply **markdown**","author_id":"u1","author_type":"member",
+                 "parent_id":"c1","issue_id":"i1","created_at":"2026-01-02T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("GET", "/api/issues/i1"):
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-02T00:00:00Z"))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        let didSubmit = await vm.submitReply(parentId: "c1", content: " \nReply **markdown** ")
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(submittedParentId, "c1")
+        XCTAssertEqual(submittedContent, "Reply **markdown**")
+        XCTAssertEqual(vm.commentLoader.items.map(\.id), ["r1"])
+        XCTAssertNil(vm.error)
+    }
+
+    func test_updateCommentReplacesExistingComment() async throws {
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("PUT", "/api/comments/c1"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                XCTAssertEqual(body["content"] as? String, "Updated **markdown**")
+                let json = """
+                {"id":"c1","content":"Updated **markdown**","author_id":"u1","author_type":"member",
+                 "parent_id":null,"issue_id":"i1","created_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+        vm.commentLoader.items = [
+            Comment(
+                id: "c1",
+                content: "Original",
+                authorId: "u1",
+                authorType: "member",
+                parentId: nil,
+                issueId: "i1",
+                createdAt: ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z")!
+            )
+        ]
+
+        let didUpdate = await vm.updateComment(commentId: "c1", content: " Updated **markdown** ")
+
+        XCTAssertTrue(didUpdate)
+        XCTAssertEqual(vm.commentLoader.items.first?.content, "Updated **markdown**")
+        XCTAssertNil(vm.error)
+    }
+
+    func test_deleteCommentRemovesCommentAndNestedReplies() async throws {
+        var deletedPath: String?
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("DELETE", "/api/comments/c1"):
+                deletedPath = req.url?.path
+                return Self.response(for: req, body: Data(), status: 204)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let date = ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z")!
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+        vm.commentLoader.items = [
+            Comment(id: "c1", content: "Parent", authorId: "u1", authorType: "member", parentId: nil, issueId: "i1", createdAt: date),
+            Comment(id: "r1", content: "Reply", authorId: "u2", authorType: "member", parentId: "c1", issueId: "i1", createdAt: date),
+            Comment(id: "r2", content: "Nested", authorId: "u3", authorType: "member", parentId: "r1", issueId: "i1", createdAt: date),
+            Comment(id: "c2", content: "Sibling", authorId: "u4", authorType: "member", parentId: nil, issueId: "i1", createdAt: date),
+        ]
+
+        let didDelete = await vm.deleteComment(commentId: "c1")
+
+        XCTAssertTrue(didDelete)
+        XCTAssertEqual(deletedPath, "/api/comments/c1")
+        XCTAssertEqual(vm.commentLoader.items.map(\.id), ["c2"])
+        XCTAssertNil(vm.error)
+    }
+
     func test_loadComments_marksLoadedForEmptyResponse() async throws {
         let client = makeClient { req in
             XCTAssertEqual(req.url?.path, "/api/issues/i1/comments")

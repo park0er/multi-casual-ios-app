@@ -442,6 +442,10 @@ public final class APIClient: @unchecked Sendable {
         enum CodingKeys: String, CodingKey { case content, type; case parentId = "parent_id" }
     }
 
+    private struct UpdateCommentRequest: Encodable {
+        let content: String
+    }
+
     private struct LabelMutationRequest: Encodable {
         let name: String
         let color: String
@@ -470,6 +474,18 @@ public final class APIClient: @unchecked Sendable {
         try await request("POST", path: "api/issues/\(issueId)/comments",
                           queryItems: workspaceQuery(workspaceId),
                           body: AddCommentRequest(content: content, type: "comment", parentId: parentId))
+    }
+
+    public func updateComment(commentId: String, content: String) async throws -> Comment {
+        try await request(
+            "PUT",
+            path: "api/comments/\(commentId)",
+            body: UpdateCommentRequest(content: content)
+        )
+    }
+
+    public func deleteComment(commentId: String) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/comments/\(commentId)")
     }
 
     public func updateIssue(

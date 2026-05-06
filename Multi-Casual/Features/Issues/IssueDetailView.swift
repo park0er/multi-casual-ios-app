@@ -97,15 +97,28 @@ public struct IssueDetailView: View {
                             .padding(.horizontal)
                     }
                     ForEach(vm.commentLoader.items) { comment in
-                        CommentRowView(comment: comment, currentUserId: authSession.currentUser?.id) { emoji in
-                            Task {
-                                await vm.toggleCommentReaction(
-                                    commentId: comment.id,
-                                    emoji: emoji,
-                                    currentUserId: authSession.currentUser?.id
-                                )
+                        CommentRowView(
+                            comment: comment,
+                            currentUserId: authSession.currentUser?.id,
+                            onReply: { parentId, content in
+                                await vm.submitReply(parentId: parentId, content: content)
+                            },
+                            onEdit: { commentId, content in
+                                await vm.updateComment(commentId: commentId, content: content)
+                            },
+                            onDelete: { commentId in
+                                await vm.deleteComment(commentId: commentId)
+                            },
+                            onToggleReaction: { emoji in
+                                Task {
+                                    await vm.toggleCommentReaction(
+                                        commentId: comment.id,
+                                        emoji: emoji,
+                                        currentUserId: authSession.currentUser?.id
+                                    )
+                                }
                             }
-                        }
+                        )
                     }
                     if vm.commentLoader.hasMore { ProgressView().onAppear {
                         Task { await vm.loadMoreComments() }
@@ -359,32 +372,177 @@ private struct ErrorMessageRow: View {
 public struct CommentRowView: View {
     public let comment: Comment
     let currentUserId: String?
+    let onReply: (String, String) async -> Bool
+    let onEdit: (String, String) async -> Bool
+    let onDelete: (String) async -> Bool
     let onToggleReaction: (String) -> Void
+
+    @State private var isEditing = false
+    @State private var editDraft = ""
+    @State private var isReplying = false
+    @State private var replyDraft = ""
+    @State private var isSaving = false
+    @State private var showDeleteConfirmation = false
 
     public init(
         comment: Comment,
         currentUserId: String? = nil,
+        onReply: @escaping (String, String) async -> Bool = { _, _ in false },
+        onEdit: @escaping (String, String) async -> Bool = { _, _ in false },
+        onDelete: @escaping (String) async -> Bool = { _ in false },
         onToggleReaction: @escaping (String) -> Void = { _ in }
     ) {
         self.comment = comment
         self.currentUserId = currentUserId
+        self.onReply = onReply
+        self.onEdit = onEdit
+        self.onDelete = onDelete
         self.onToggleReaction = onToggleReaction
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: comment.authorType == "agent" ? "bolt.circle" : "person.circle")
                 Text(comment.authorType == "agent" ? "Agent" : "Member").font(.caption.bold())
                 Spacer()
                 Text(iso8601DateOnlyFormatter.string(from: comment.createdAt)).font(.caption2).foregroundStyle(.secondary)
+                if currentUserId != nil {
+                    Menu {
+                        Button {
+                            replyDraft = ""
+                            isReplying.toggle()
+                        } label: {
+                            Label("Reply", systemImage: "arrowshape.turn.up.left")
+                        }
+
+                        if canEdit {
+                            Button {
+                                editDraft = comment.content
+                                isEditing = true
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                        }
+
+                        if canDelete {
+                            Button(role: .destructive) {
+                                showDeleteConfirmation = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityLabel("Comment Actions")
+                }
             }
-            MarkdownText(comment.content).font(.body)
+            if isEditing {
+                VStack(alignment: .trailing, spacing: 8) {
+                    TextEditor(text: $editDraft)
+                        .frame(minHeight: 88)
+                        .padding(8)
+                        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                        .accessibilityIdentifier("CommentEditEditor")
+                    HStack(spacing: 8) {
+                        Button("Cancel") {
+                            editDraft = ""
+                            isEditing = false
+                        }
+                        .buttonStyle(.borderless)
+
+                        Button {
+                            Task { await saveEdit() }
+                        } label: {
+                            if isSaving {
+                                ProgressView()
+                            } else {
+                                Text("Save")
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isSaving || editDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            } else {
+                MarkdownText(comment.content).font(.body)
+            }
             if !comment.attachments.isEmpty {
                 AttachmentListView(attachments: comment.attachments)
             }
             ReactionBarView(badges: commentReactionBadges(comment.reactions), onToggle: onToggleReaction)
+            if isReplying {
+                VStack(alignment: .trailing, spacing: 8) {
+                    TextEditor(text: $replyDraft)
+                        .frame(minHeight: 72)
+                        .padding(8)
+                        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                        .accessibilityIdentifier("CommentReplyEditor")
+                    HStack(spacing: 8) {
+                        Button("Cancel") {
+                            replyDraft = ""
+                            isReplying = false
+                        }
+                        .buttonStyle(.borderless)
+
+                        Button {
+                            Task { await submitReply() }
+                        } label: {
+                            if isSaving {
+                                ProgressView()
+                            } else {
+                                Text("Reply")
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isSaving || replyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
         }.padding(.horizontal).padding(.vertical, 6)
+            .alert("Delete Comment", isPresented: $showDeleteConfirmation) {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        isSaving = true
+                        _ = await onDelete(comment.id)
+                        isSaving = false
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This comment and its replies will be deleted.")
+            }
+    }
+
+    private var canEdit: Bool {
+        comment.authorType == "member" && comment.authorId == currentUserId
+    }
+
+    private var canDelete: Bool {
+        comment.authorId == currentUserId
+    }
+
+    private func saveEdit() async {
+        isSaving = true
+        defer { isSaving = false }
+        let saved = await onEdit(comment.id, editDraft)
+        if saved {
+            editDraft = ""
+            isEditing = false
+        }
+    }
+
+    private func submitReply() async {
+        isSaving = true
+        defer { isSaving = false }
+        let submitted = await onReply(comment.id, replyDraft)
+        if submitted {
+            replyDraft = ""
+            isReplying = false
+        }
     }
 
     private func commentReactionBadges(_ reactions: [Reaction]) -> [ReactionBadge] {

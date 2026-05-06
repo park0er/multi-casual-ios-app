@@ -245,14 +245,76 @@ public final class IssueDetailViewModel {
     public func submitComment() async {
         let content = commentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else { return }
+        guard await submitComment(content: content, parentId: nil) else { return }
+        commentDraft = ""
+    }
+
+    public func submitReply(parentId: String, content: String) async -> Bool {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        return await submitComment(content: trimmed, parentId: parentId)
+    }
+
+    public func updateComment(commentId: String, content: String) async -> Bool {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        error = nil
+        do {
+            let updated = try await api.updateComment(commentId: commentId, content: trimmed)
+            if let index = commentLoader.items.firstIndex(where: { $0.id == commentId }) {
+                commentLoader.items[index] = updated
+            }
+            await DataStore.shared.invalidateIssue(issueId)
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
+    public func deleteComment(commentId: String) async -> Bool {
+        error = nil
+        do {
+            try await api.deleteComment(commentId: commentId)
+            let removedIds = descendantCommentIds(of: commentId).union([commentId])
+            commentLoader.items.removeAll { removedIds.contains($0.id) }
+            await DataStore.shared.invalidateIssue(issueId)
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
+    private func submitComment(content: String, parentId: String?) async -> Bool {
         isSubmittingComment = true; defer { isSubmittingComment = false }
         do {
-            let comment = try await api.addComment(issueId: issueId, content: content, workspaceId: workspaceId)
-            commentDraft = ""
+            let comment = try await api.addComment(issueId: issueId, content: content, parentId: parentId, workspaceId: workspaceId)
             commentLoader.items.append(comment)
             await loadIssue()
             await DataStore.shared.invalidateIssue(issueId)
-        } catch { self.error = error.localizedDescription }
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
+    private func descendantCommentIds(of commentId: String) -> Set<String> {
+        var ids = Set<String>()
+        var changed = true
+        while changed {
+            changed = false
+            for comment in commentLoader.items {
+                guard let parentId = comment.parentId,
+                      (parentId == commentId || ids.contains(parentId)),
+                      !ids.contains(comment.id)
+                else { continue }
+                ids.insert(comment.id)
+                changed = true
+            }
+        }
+        return ids
     }
 
     public func updateStatus(_ status: IssueStatus) async {

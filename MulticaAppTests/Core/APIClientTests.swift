@@ -956,6 +956,37 @@ final class APIClientTests: XCTestCase {
         ])
     }
 
+    func test_commentMutationEndpointsUseDesktopPaths() async throws {
+        var requests: [String] = []
+        var updateBody: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("PUT", "/api/comments/c1"):
+                updateBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                let body = """
+                {"id":"c1","content":"Updated **markdown**","author_id":"u1","author_type":"member",
+                 "parent_id":null,"issue_id":"i1","created_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+            case ("DELETE", "/api/comments/c1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            default:
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data())
+            }
+        }
+
+        let comment = try await client.updateComment(commentId: "c1", content: "Updated **markdown**")
+        try await client.deleteComment(commentId: "c1")
+
+        XCTAssertEqual(comment.content, "Updated **markdown**")
+        XCTAssertEqual(updateBody["content"] as? String, "Updated **markdown**")
+        XCTAssertEqual(requests, [
+            "PUT /api/comments/c1",
+            "DELETE /api/comments/c1",
+        ])
+    }
+
     private static func agentJSON(id: String, name: String) -> Data {
         """
         {"id":"\(id)","workspace_id":"w1","runtime_id":"r1","name":"\(name)",
