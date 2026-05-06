@@ -416,6 +416,57 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(body["priority"] as? String, "urgent")
     }
 
+    func test_updateIssueDetails_sendsEditableFieldsAndNulls() async throws {
+        let json = """
+        {"id":"i1","identifier":"PAR-1","number":1,"title":"Updated","description":null,
+         "status":"blocked","priority":"high","assignee_id":null,"assignee_type":null,
+         "project_id":null,"due_date":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+         "updated_at":"2026-01-02T00:00:00Z"}
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        var body: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.httpMethod, "PUT")
+            XCTAssertEqual(req.url?.path, "/api/issues/i1")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let issue = try await client.updateIssueDetails(
+            id: "i1",
+            workspaceId: "w1",
+            title: "Updated",
+            description: nil,
+            status: .blocked,
+            priority: .high,
+            assigneeType: nil,
+            assigneeId: nil,
+            projectId: nil,
+            dueDate: nil
+        )
+
+        XCTAssertEqual(issue.title, "Updated")
+        XCTAssertNil(issue.description)
+        XCTAssertNil(issue.assigneeId)
+        XCTAssertNil(issue.projectId)
+        XCTAssertNil(issue.dueDate)
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertEqual(body["title"] as? String, "Updated")
+        XCTAssertTrue(body.keys.contains("description"))
+        XCTAssertTrue(body["description"] is NSNull)
+        XCTAssertEqual(body["status"] as? String, "blocked")
+        XCTAssertEqual(body["priority"] as? String, "high")
+        XCTAssertTrue(body.keys.contains("assignee_type"))
+        XCTAssertTrue(body["assignee_type"] is NSNull)
+        XCTAssertTrue(body.keys.contains("assignee_id"))
+        XCTAssertTrue(body["assignee_id"] is NSNull)
+        XCTAssertTrue(body.keys.contains("project_id"))
+        XCTAssertTrue(body["project_id"] is NSNull)
+        XCTAssertTrue(body.keys.contains("due_date"))
+        XCTAssertTrue(body["due_date"] is NSNull)
+    }
+
     func test_listAgentRuns_decodesBareArrayResponse() async throws {
         let json = """
         [{
@@ -577,6 +628,106 @@ final class APIClientTests: XCTestCase {
 
         XCTAssertEqual(agents.first?.name, "Codex")
         XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+    }
+
+    func test_listAgents_canIncludeArchivedAgents() async throws {
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/agents")
+            XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+            XCTAssertTrue(req.url?.absoluteString.contains("include_archived=true") ?? false)
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data("[]".utf8))
+        }
+
+        let agents = try await client.listAgents(workspaceId: "w1", includeArchived: true)
+
+        XCTAssertTrue(agents.isEmpty)
+    }
+
+    func test_createAgent_sendsDesktopFields() async throws {
+        var body: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/agents")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            let json = Self.agentJSON(id: "a1", name: "Codex")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let agent = try await client.createAgent(
+            name: "Codex",
+            description: "Helps with code",
+            instructions: "Be concise",
+            runtimeId: "r1",
+            visibility: "workspace",
+            maxConcurrentTasks: 2,
+            model: "gpt-5"
+        )
+
+        XCTAssertEqual(agent.name, "Codex")
+        XCTAssertEqual(body["name"] as? String, "Codex")
+        XCTAssertEqual(body["description"] as? String, "Helps with code")
+        XCTAssertEqual(body["instructions"] as? String, "Be concise")
+        XCTAssertEqual(body["runtime_id"] as? String, "r1")
+        XCTAssertEqual(body["visibility"] as? String, "workspace")
+        XCTAssertEqual(body["max_concurrent_tasks"] as? Int, 2)
+        XCTAssertEqual(body["model"] as? String, "gpt-5")
+    }
+
+    func test_updateArchiveRestoreAndCancelAgentUseDesktopEndpoints() async throws {
+        var requests: [(String, String)] = []
+        MockURLProtocol.handler = { req in
+            requests.append((req.httpMethod ?? "", req.url?.path ?? ""))
+            let body: Data
+            if req.url?.path == "/api/agents/a1/cancel-tasks" {
+                body = #"{"cancelled":2}"#.data(using: .utf8)!
+            } else {
+                body = Self.agentJSON(id: "a1", name: "Updated")
+            }
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+        }
+
+        _ = try await client.updateAgent(id: "a1", name: "Updated", description: "", instructions: "", visibility: "private", maxConcurrentTasks: 1, model: "gpt-5")
+        _ = try await client.archiveAgent(id: "a1")
+        _ = try await client.restoreAgent(id: "a1")
+        let cancelled = try await client.cancelAgentTasks(id: "a1")
+
+        XCTAssertEqual(requests.map { "\($0.0) \($0.1)" }, [
+            "PUT /api/agents/a1",
+            "POST /api/agents/a1/archive",
+            "POST /api/agents/a1/restore",
+            "POST /api/agents/a1/cancel-tasks",
+        ])
+        XCTAssertEqual(cancelled.count, 2)
+    }
+
+    func test_listRuntimes_decodesWorkspaceRuntimes() async throws {
+        let json = """
+        [{"id":"r1","workspace_id":"w1","daemon_id":null,"name":"MacBook",
+          "runtime_mode":"cloud","provider":"multica","launch_header":"",
+          "status":"online","device_info":"","metadata":{},"owner_id":null,
+          "last_seen_at":null,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}]
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/runtimes")
+            XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let runtimes = try await client.listRuntimes(workspaceId: "w1")
+
+        XCTAssertEqual(runtimes.first?.name, "MacBook")
+        XCTAssertEqual(runtimes.first?.status, "online")
+    }
+
+    private static func agentJSON(id: String, name: String) -> Data {
+        """
+        {"id":"\(id)","workspace_id":"w1","runtime_id":"r1","name":"\(name)",
+          "description":"","instructions":"","avatar_url":null,"runtime_mode":"cloud",
+          "runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,
+          "visibility":"workspace","status":"idle","max_concurrent_tasks":1,
+          "model":"gpt","owner_id":null,"skills":[],"created_at":"2026-01-01T00:00:00Z",
+          "updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}
+        """.data(using: .utf8)!
     }
 
     func test_sendCode_usesAuthSendCodePath() async throws {

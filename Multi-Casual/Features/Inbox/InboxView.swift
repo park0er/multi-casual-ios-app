@@ -119,13 +119,13 @@ private struct InboxRow: View {
                             Circle().stroke(Color.secondary.opacity(0.35), lineWidth: 1)
                         }
                     }
-                Text(item.issueTitle)
+                MarkdownText(item.issueTitle)
                     .fontWeight(item.read ? .regular : .semibold)
                     .lineLimit(2)
             }
 
             if let body = item.body?.trimmingCharacters(in: .whitespacesAndNewlines), !body.isEmpty {
-                Text(body)
+                MarkdownText(body)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)

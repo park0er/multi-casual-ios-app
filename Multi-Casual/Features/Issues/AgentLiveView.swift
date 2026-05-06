@@ -99,7 +99,7 @@ public struct TimelineRowView: View {
     public var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: icon).font(.caption).foregroundStyle(iconColor).frame(width: 16)
-            Text(item.summary).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            MarkdownText(item.summary).font(.caption).foregroundStyle(.secondary).lineLimit(2)
         }.padding(.vertical, 2)
     }
 

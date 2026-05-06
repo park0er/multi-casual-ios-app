@@ -88,6 +88,17 @@ final class Multi-CasualUITests: XCTestCase {
         })
     }
 
+    func testSettingsAgentsScreenRenders() {
+        let app = launchApp(initialTab: "settings")
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Agents"].waitForExistence(timeout: 10))
+        app.buttons["Agents"].tap()
+
+        XCTAssertTrue(app.staticTexts["Agents"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["AgentsNewButton"].waitForExistence(timeout: 10))
+    }
+
     func testCreateIssueSheetRendersRequiredFields() {
         let app = launchApp(initialTab: "issues", openCreateSheet: true)
 
@@ -269,6 +280,26 @@ final class Multi-CasualUITests: XCTestCase {
         commentField.typeText("UI draft")
         XCTAssertTrue(commentField.value.debugDescription.contains("UI draft"))
         XCTAssertTrue(app.buttons["IssueDetailCommentSendButton"].isEnabled)
+    }
+
+    func testIssueDetailEditSheetRendersAssignableFields() throws {
+        let app = launchApp(initialTab: "issues", issueId: par73IssueId)
+
+        try waitForElementOrBackendTimeout(
+            app.staticTexts["PAR-73"],
+            in: app,
+            timeout: 20,
+            reason: "Issue detail endpoint timed out before edit sheet coverage could run."
+        )
+        XCTAssertTrue(app.buttons["IssueDetailEditButton"].waitForExistence(timeout: 10))
+        app.buttons["IssueDetailEditButton"].tap()
+
+        XCTAssertTrue(app.navigationBars["Edit Issue"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textFields["IssueEditTitleField"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Assignee"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["IssueEditAssigneePicker"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Cancel"].exists)
+        app.buttons["Cancel"].tap()
     }
 
     func testIssueDetailLongCommentsScrollKeepsComposerReachable() {

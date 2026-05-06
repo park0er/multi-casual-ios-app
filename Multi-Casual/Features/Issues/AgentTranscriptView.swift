@@ -37,7 +37,7 @@ public struct AgentTranscriptView: View {
                                 Spacer()
                                 Text("#\(item.id)").font(.caption2).foregroundStyle(.tertiary)
                             }
-                            Text(item.summary).font(.system(.caption, design: .monospaced))
+                            MarkdownText(item.summary).font(.system(.caption, design: .monospaced))
                         }.padding(.vertical, 2)
                         }.listStyle(.plain)
                     }

@@ -15,7 +15,7 @@ public struct ProjectDetailView: View {
                 List {
                     Section("Details") {
                         if let desc = vm.project.description {
-                            Text(desc).foregroundStyle(.secondary)
+                            MarkdownText(desc).foregroundStyle(.secondary)
                         }
                         LabeledContent("Status", value: vm.project.status.displayName)
                         LabeledContent("Priority", value: vm.project.priority.displayName)
@@ -81,7 +81,7 @@ private struct ProjectResourceRow: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 2) {
-                Text(resource.displayTitle)
+                MarkdownText(resource.displayTitle)
                     .font(.body)
                     .lineLimit(1)
                 Text(resource.resourceType)

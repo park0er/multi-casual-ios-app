@@ -183,6 +183,14 @@ public final class APIClient: @unchecked Sendable {
         let platform: String = "apns"
     }
 
+    public struct AgentCancelResponse: Codable, Sendable {
+        public let count: Int
+
+        enum CodingKeys: String, CodingKey {
+            case count = "cancelled"
+        }
+    }
+
     public func sendCode(email: String) async throws {
         let _: EmptyResponse = try await request("POST", path: "auth/send-code",
                                                   body: SendCodeRequest(email: email))
@@ -234,6 +242,49 @@ public final class APIClient: @unchecked Sendable {
     private struct UpdateIssueRequest: Encodable {
         let status: IssueStatus?
         let priority: IssuePriority?
+    }
+
+    private struct UpdateIssueDetailsRequest: Encodable {
+        let title: String
+        let description: String?
+        let status: IssueStatus
+        let priority: IssuePriority
+        let assigneeType: String?
+        let assigneeId: String?
+        let projectId: String?
+        let dueDate: String?
+
+        enum CodingKeys: String, CodingKey {
+            case title, description, status, priority
+            case assigneeType = "assignee_type"
+            case assigneeId = "assignee_id"
+            case projectId = "project_id"
+            case dueDate = "due_date"
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(title, forKey: .title)
+            try encodeNullable(description, to: &container, forKey: .description)
+            try container.encode(status, forKey: .status)
+            try container.encode(priority, forKey: .priority)
+            try encodeNullable(assigneeType, to: &container, forKey: .assigneeType)
+            try encodeNullable(assigneeId, to: &container, forKey: .assigneeId)
+            try encodeNullable(projectId, to: &container, forKey: .projectId)
+            try encodeNullable(dueDate, to: &container, forKey: .dueDate)
+        }
+
+        private func encodeNullable<Value: Encodable>(
+            _ value: Value?,
+            to container: inout KeyedEncodingContainer<CodingKeys>,
+            forKey key: CodingKeys
+        ) throws {
+            if let value {
+                try container.encode(value, forKey: key)
+            } else {
+                try container.encodeNil(forKey: key)
+            }
+        }
     }
 
     public func listIssues(
@@ -326,6 +377,35 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
+    public func updateIssueDetails(
+        id: String,
+        workspaceId: String? = nil,
+        title: String,
+        description: String?,
+        status: IssueStatus,
+        priority: IssuePriority,
+        assigneeType: String?,
+        assigneeId: String?,
+        projectId: String?,
+        dueDate: String?
+    ) async throws -> Issue {
+        try await request(
+            "PUT",
+            path: "api/issues/\(id)",
+            queryItems: workspaceQuery(workspaceId),
+            body: UpdateIssueDetailsRequest(
+                title: title,
+                description: description,
+                status: status,
+                priority: priority,
+                assigneeType: assigneeType,
+                assigneeId: assigneeId,
+                projectId: projectId,
+                dueDate: dueDate
+            )
+        )
+    }
+
     public func listAgentRuns(issueId: String, workspaceId: String? = nil) async throws -> [AgentTask] {
         try await request("GET", path: "api/issues/\(issueId)/task-runs", queryItems: workspaceQuery(workspaceId))
     }
@@ -340,8 +420,92 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/workspaces/\(workspaceId)/members")
     }
 
-    public func listAgents(workspaceId: String) async throws -> [Agent] {
-        try await request("GET", path: "api/agents", queryItems: workspaceQuery(workspaceId))
+    private struct AgentMutationRequest: Encodable {
+        let name: String
+        let description: String
+        let instructions: String
+        let runtimeId: String?
+        let visibility: String
+        let maxConcurrentTasks: Int
+        let model: String
+
+        enum CodingKeys: String, CodingKey {
+            case name, description, instructions, visibility, model
+            case runtimeId = "runtime_id"
+            case maxConcurrentTasks = "max_concurrent_tasks"
+        }
+    }
+
+    public func listAgents(workspaceId: String, includeArchived: Bool = false) async throws -> [Agent] {
+        var queryItems = workspaceQuery(workspaceId)
+        if includeArchived {
+            queryItems.append(.init(name: "include_archived", value: "true"))
+        }
+        return try await request("GET", path: "api/agents", queryItems: queryItems)
+    }
+
+    public func createAgent(
+        name: String,
+        description: String,
+        instructions: String,
+        runtimeId: String,
+        visibility: String,
+        maxConcurrentTasks: Int,
+        model: String
+    ) async throws -> Agent {
+        try await request(
+            "POST",
+            path: "api/agents",
+            body: AgentMutationRequest(
+                name: name,
+                description: description,
+                instructions: instructions,
+                runtimeId: runtimeId,
+                visibility: visibility,
+                maxConcurrentTasks: maxConcurrentTasks,
+                model: model
+            )
+        )
+    }
+
+    public func updateAgent(
+        id: String,
+        name: String,
+        description: String,
+        instructions: String,
+        visibility: String,
+        maxConcurrentTasks: Int,
+        model: String
+    ) async throws -> Agent {
+        try await request(
+            "PUT",
+            path: "api/agents/\(id)",
+            body: AgentMutationRequest(
+                name: name,
+                description: description,
+                instructions: instructions,
+                runtimeId: nil,
+                visibility: visibility,
+                maxConcurrentTasks: maxConcurrentTasks,
+                model: model
+            )
+        )
+    }
+
+    public func archiveAgent(id: String) async throws -> Agent {
+        try await request("POST", path: "api/agents/\(id)/archive")
+    }
+
+    public func restoreAgent(id: String) async throws -> Agent {
+        try await request("POST", path: "api/agents/\(id)/restore")
+    }
+
+    public func cancelAgentTasks(id: String) async throws -> AgentCancelResponse {
+        try await request("POST", path: "api/agents/\(id)/cancel-tasks")
+    }
+
+    public func listRuntimes(workspaceId: String) async throws -> [AgentRuntime] {
+        try await request("GET", path: "api/runtimes", queryItems: workspaceQuery(workspaceId))
     }
 
     // MARK: - Inbox

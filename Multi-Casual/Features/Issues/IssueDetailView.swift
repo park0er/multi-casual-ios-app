@@ -7,6 +7,7 @@ public struct IssueDetailView: View {
     @Environment(APIClient.self) private var api
     @State private var viewModel: IssueDetailViewModel?
     @State private var showTranscript = false
+    @State private var showEditIssue = false
     @State private var selectedTaskId: String?
 
     public init(issueId: String) { self.issueId = issueId }
@@ -34,6 +35,26 @@ public struct IssueDetailView: View {
             if let taskId = selectedTaskId {
                 AgentTranscriptView(taskId: taskId)
                     .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(isPresented: $showEditIssue) {
+            if let vm = viewModel, let issue = vm.issue {
+                IssueEditSheet(issue: issue) { updated in
+                    Task { await vm.applyUpdatedIssue(updated) }
+                }
+                .presentationDragIndicator(.visible)
+            }
+        }
+        .toolbar {
+            if viewModel?.issue != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showEditIssue = true
+                    } label: {
+                        Label("Edit Issue", systemImage: "pencil")
+                    }
+                    .accessibilityIdentifier("IssueDetailEditButton")
+                }
             }
         }
     }
@@ -77,7 +98,7 @@ public struct IssueDetailView: View {
 
     private func issueHeader(issue: Issue, vm: IssueDetailViewModel) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(issue.title).font(.title2.bold())
+            MarkdownText(issue.title).font(.title2.bold())
             HStack(spacing: 12) {
                 Menu {
                     ForEach(IssueStatus.displayCases, id: \.self) { status in
@@ -112,7 +133,7 @@ public struct IssueDetailView: View {
                 .disabled(vm.isUpdatingIssue)
             }
             if let desc = issue.description, !desc.isEmpty {
-                Text(desc).font(.body)
+                MarkdownText(desc).font(.body)
             }
             if !issue.attachments.isEmpty {
                 AttachmentListView(attachments: issue.attachments)
@@ -255,7 +276,7 @@ public struct CommentRowView: View {
                 Spacer()
                 Text(iso8601DateOnlyFormatter.string(from: comment.createdAt)).font(.caption2).foregroundStyle(.secondary)
             }
-            Text(comment.content).font(.body)
+            MarkdownText(comment.content).font(.body)
             if !comment.attachments.isEmpty {
                 AttachmentListView(attachments: comment.attachments)
             }
@@ -297,7 +318,7 @@ private struct AttachmentRowView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
-                Text(attachment.filename)
+                MarkdownText(attachment.filename)
                     .font(.caption.bold())
                     .lineLimit(1)
                 Text(fileDetails)

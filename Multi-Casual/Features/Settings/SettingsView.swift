@@ -34,7 +34,7 @@ public struct SettingsView: View {
             }
 
             Section("Configure") {
-                NavigationLink("Agents") { ComingSoonView(title: "Agents") }
+                NavigationLink("Agents") { AgentsView() }
                 NavigationLink("Autopilots") { ComingSoonView(title: "Autopilots") }
                 NavigationLink("Runtimes") { ComingSoonView(title: "Runtimes") }
                 NavigationLink("Skills") { ComingSoonView(title: "Skills") }

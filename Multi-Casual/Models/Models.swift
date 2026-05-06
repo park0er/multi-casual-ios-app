@@ -60,15 +60,88 @@ public struct WorkspaceMember: Codable, Identifiable, Sendable {
 public struct Agent: Codable, Identifiable, Sendable {
     public let id: String
     public let workspaceId: String
+    public let runtimeId: String
     public let name: String
     public let description: String
+    public let instructions: String
     public let status: String
     public let avatarUrl: String?
+    public let runtimeMode: String
+    public let visibility: String
+    public let maxConcurrentTasks: Int
+    public let model: String?
+    public let archivedAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, description, status
+        case id, name, description, instructions, status, visibility, model
         case workspaceId = "workspace_id"
+        case runtimeId = "runtime_id"
         case avatarUrl = "avatar_url"
+        case runtimeMode = "runtime_mode"
+        case maxConcurrentTasks = "max_concurrent_tasks"
+        case archivedAt = "archived_at"
+    }
+
+    public init(
+        id: String,
+        workspaceId: String,
+        runtimeId: String,
+        name: String,
+        description: String,
+        instructions: String,
+        status: String,
+        avatarUrl: String?,
+        runtimeMode: String,
+        visibility: String,
+        maxConcurrentTasks: Int,
+        model: String?,
+        archivedAt: String?
+    ) {
+        self.id = id
+        self.workspaceId = workspaceId
+        self.runtimeId = runtimeId
+        self.name = name
+        self.description = description
+        self.instructions = instructions
+        self.status = status
+        self.avatarUrl = avatarUrl
+        self.runtimeMode = runtimeMode
+        self.visibility = visibility
+        self.maxConcurrentTasks = maxConcurrentTasks
+        self.model = model
+        self.archivedAt = archivedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        workspaceId = try c.decode(String.self, forKey: .workspaceId)
+        runtimeId = try c.decodeIfPresent(String.self, forKey: .runtimeId) ?? ""
+        name = try c.decode(String.self, forKey: .name)
+        description = try c.decodeIfPresent(String.self, forKey: .description) ?? ""
+        instructions = try c.decodeIfPresent(String.self, forKey: .instructions) ?? ""
+        status = try c.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
+        avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+        runtimeMode = try c.decodeIfPresent(String.self, forKey: .runtimeMode) ?? "cloud"
+        visibility = try c.decodeIfPresent(String.self, forKey: .visibility) ?? "workspace"
+        maxConcurrentTasks = try c.decodeIfPresent(Int.self, forKey: .maxConcurrentTasks) ?? 1
+        model = try c.decodeIfPresent(String.self, forKey: .model)
+        archivedAt = try c.decodeIfPresent(String.self, forKey: .archivedAt)
+    }
+}
+
+public struct AgentRuntime: Codable, Identifiable, Sendable {
+    public let id: String
+    public let workspaceId: String
+    public let name: String
+    public let runtimeMode: String
+    public let provider: String
+    public let status: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, provider, status
+        case workspaceId = "workspace_id"
+        case runtimeMode = "runtime_mode"
     }
 }
 
@@ -265,6 +338,7 @@ public struct Issue: Codable, Identifiable, Sendable {
     public let assigneeId: String?
     public let assigneeType: String?
     public let projectId: String?
+    public let dueDate: String?
     public let workspaceId: String
     public let attachments: [Attachment]
     public let createdAt: Date
@@ -275,6 +349,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         case assigneeId = "assignee_id"
         case assigneeType = "assignee_type"
         case projectId = "project_id"
+        case dueDate = "due_date"
         case workspaceId = "workspace_id"
         case attachments
         case createdAt = "created_at"
@@ -284,7 +359,7 @@ public struct Issue: Codable, Identifiable, Sendable {
     public init(id: String, identifier: String, number: Int, title: String, description: String?,
                 status: IssueStatus, priority: IssuePriority, assigneeId: String?,
                 assigneeType: String?, projectId: String?, workspaceId: String,
-                attachments: [Attachment] = [], createdAt: Date, updatedAt: Date) {
+                dueDate: String? = nil, attachments: [Attachment] = [], createdAt: Date, updatedAt: Date) {
         self.id = id
         self.identifier = identifier
         self.number = number
@@ -295,6 +370,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         self.assigneeId = assigneeId
         self.assigneeType = assigneeType
         self.projectId = projectId
+        self.dueDate = dueDate
         self.workspaceId = workspaceId
         self.attachments = attachments
         self.createdAt = createdAt
@@ -313,6 +389,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         assigneeId = try c.decodeIfPresent(String.self, forKey: .assigneeId)
         assigneeType = try c.decodeIfPresent(String.self, forKey: .assigneeType)
         projectId = try c.decodeIfPresent(String.self, forKey: .projectId)
+        dueDate = try c.decodeIfPresent(String.self, forKey: .dueDate)
         workspaceId = try c.decode(String.self, forKey: .workspaceId)
         attachments = try c.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
         createdAt = try c.decode(Date.self, forKey: .createdAt)

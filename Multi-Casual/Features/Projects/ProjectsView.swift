@@ -18,9 +18,9 @@ public struct ProjectsView: View {
                     ForEach(vm.loader.items) { project in
                         NavigationLink(destination: ProjectDetailView(project: project)) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(project.name).font(.body)
+                                MarkdownText(project.name).font(.body)
                                 if let desc = project.description {
-                                    Text(desc).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                    MarkdownText(desc).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                                 }
                                 HStack(spacing: 8) {
                                     Label(project.status.displayName, systemImage: project.status.icon)

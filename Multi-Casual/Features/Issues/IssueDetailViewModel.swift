@@ -153,6 +153,12 @@ public final class IssueDetailViewModel {
         await updateIssue(status: nil, priority: priority)
     }
 
+    public func applyUpdatedIssue(_ updated: Issue) async {
+        issue = updated
+        await DataStore.shared.invalidateIssue(updated.id)
+        await loadMetadata()
+    }
+
     private func updateIssue(status: IssueStatus?, priority: IssuePriority?) async {
         guard !isUpdatingIssue else { return }
         isUpdatingIssue = true

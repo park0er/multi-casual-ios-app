@@ -163,7 +163,7 @@ public struct IssueRowView: View {
             Image(systemName: issue.status.icon).foregroundStyle(.secondary).frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text(issue.identifier).font(.caption).foregroundStyle(.secondary)
-                Text(issue.title).font(.body)
+                MarkdownText(issue.title).font(.body)
             }
         }.padding(.vertical, 4)
     }
@@ -174,7 +174,7 @@ struct BoardCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(issue.identifier).font(.caption).foregroundStyle(.secondary)
-            Text(issue.title).font(.subheadline).lineLimit(2)
+            MarkdownText(issue.title).font(.subheadline).lineLimit(2)
         }
         .padding(10).frame(maxWidth: .infinity, alignment: .leading)
         .background(.background, in: RoundedRectangle(cornerRadius: 8))
