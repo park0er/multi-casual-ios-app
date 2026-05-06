@@ -239,6 +239,10 @@ final class MarkdownCoverageTests: XCTestCase {
             (
                 "Multi-Casual/Features/Auth/OTPView.swift",
                 "                    Text(char).font(.title2.bold())"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                "            Text(title)"
             )
         ]
 

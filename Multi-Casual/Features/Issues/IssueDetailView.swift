@@ -374,7 +374,7 @@ public struct IssueDetailView: View {
             Image(systemName: icon)
                 .foregroundStyle(.secondary)
                 .frame(width: 18)
-            Text(title)
+            MarkdownText(title)
                 .foregroundStyle(.secondary)
             Spacer()
             MarkdownText(value)
@@ -1386,7 +1386,7 @@ private struct UsageMetricView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title)
+            MarkdownText(title)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             MarkdownText(value.formatted())
