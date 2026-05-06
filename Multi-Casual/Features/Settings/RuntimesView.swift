@@ -181,7 +181,7 @@ private struct RuntimeDetailView: View {
                         Button {
                             Task { await vm.startUpdate(targetVersion: updateTargetVersion) }
                         } label: {
-                            Label(vm.isUpdatingRuntime ? "Updating Runtime" : "Update Runtime", systemImage: "arrow.triangle.2.circlepath")
+                            MarkdownIconLabel(vm.isUpdatingRuntime ? "Updating Runtime" : "Update Runtime", systemImage: "arrow.triangle.2.circlepath")
                         }
                         .disabled(vm.isUpdatingRuntime || updateTargetVersion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityIdentifier("RuntimeUpdateButton")
@@ -192,7 +192,7 @@ private struct RuntimeDetailView: View {
                             Button {
                                 Task { await vm.refreshUpdateResult() }
                             } label: {
-                                Label(vm.isUpdatingRuntime ? "Refreshing Update Status" : "Refresh Update Status", systemImage: "arrow.clockwise")
+                                MarkdownIconLabel(vm.isUpdatingRuntime ? "Refreshing Update Status" : "Refresh Update Status", systemImage: "arrow.clockwise")
                             }
                             .disabled(vm.isUpdatingRuntime)
                             .accessibilityIdentifier("RuntimeRefreshUpdateStatusButton")
@@ -203,7 +203,7 @@ private struct RuntimeDetailView: View {
                         Button {
                             Task { await vm.refreshModels() }
                         } label: {
-                            Label(vm.isRefreshingModels ? "Refreshing Models" : "Refresh Models", systemImage: "cpu")
+                            MarkdownIconLabel(vm.isRefreshingModels ? "Refreshing Models" : "Refresh Models", systemImage: "cpu")
                         }
                         .disabled(vm.isRefreshingModels)
 
@@ -237,7 +237,7 @@ private struct RuntimeDetailView: View {
                         Button {
                             Task { await vm.refreshLocalSkills() }
                         } label: {
-                            Label(vm.isRefreshingLocalSkills ? "Refreshing Local Skills" : "Refresh Local Skills", systemImage: "wand.and.stars")
+                            MarkdownIconLabel(vm.isRefreshingLocalSkills ? "Refreshing Local Skills" : "Refresh Local Skills", systemImage: "wand.and.stars")
                         }
                         .disabled(vm.isRefreshingLocalSkills)
 
@@ -274,7 +274,7 @@ private struct RuntimeDetailView: View {
                             Button {
                                 Task { await vm.refreshLocalSkillImportResult() }
                             } label: {
-                                Label(vm.isImportingLocalSkill ? "Refreshing Import Status" : "Refresh Import Status", systemImage: "arrow.clockwise")
+                                MarkdownIconLabel(vm.isImportingLocalSkill ? "Refreshing Import Status" : "Refresh Import Status", systemImage: "arrow.clockwise")
                             }
                             .disabled(vm.isImportingLocalSkill)
                             .accessibilityIdentifier("RuntimeRefreshLocalSkillImportButton")

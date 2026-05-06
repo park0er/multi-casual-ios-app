@@ -243,6 +243,42 @@ final class MarkdownCoverageTests: XCTestCase {
             (
                 "Multi-Casual/Features/Issues/IssueDetailView.swift",
                 "            Text(title)"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                #"                        Text(vm.isSubscribed(userId: currentUserId, userType: "member") ? "Unsubscribe" : "Subscribe")"#
+            ),
+            (
+                "Multi-Casual/Features/Chat/ChatView.swift",
+                #"                        Label(viewModel.isCancellingTask ? "Cancelling" : "Cancel Task", systemImage:"#
+            ),
+            (
+                "Multi-Casual/Features/Chat/ChatView.swift",
+                #"                    Button(viewModel.isCreating ? "Creating" : "Create")"#
+            ),
+            (
+                "Multi-Casual/Features/Settings/PersonalAccessTokensView.swift",
+                #"                        Label(copied ? "Copied" : "Copy Token", systemImage:"#
+            ),
+            (
+                "Multi-Casual/Features/Settings/RuntimesView.swift",
+                #"                            Label(vm.isUpdatingRuntime ? "Updating Runtime" : "Update Runtime", systemImage:"#
+            ),
+            (
+                "Multi-Casual/Features/Settings/RuntimesView.swift",
+                #"                                Label(vm.isUpdatingRuntime ? "Refreshing Update Status" : "Refresh Update Status", systemImage:"#
+            ),
+            (
+                "Multi-Casual/Features/Settings/RuntimesView.swift",
+                #"                            Label(vm.isRefreshingModels ? "Refreshing Models" : "Refresh Models", systemImage:"#
+            ),
+            (
+                "Multi-Casual/Features/Settings/RuntimesView.swift",
+                #"                            Label(vm.isRefreshingLocalSkills ? "Refreshing Local Skills" : "Refresh Local Skills", systemImage:"#
+            ),
+            (
+                "Multi-Casual/Features/Settings/RuntimesView.swift",
+                #"                                Label(vm.isImportingLocalSkill ? "Refreshing Import Status" : "Refresh Import Status", systemImage:"#
             )
         ]
 

@@ -207,7 +207,7 @@ private struct CreatedTokenSheet: View {
                         UIPasteboard.general.string = token
                         copied = true
                     } label: {
-                        Label(copied ? "Copied" : "Copy Token", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        MarkdownIconLabel(copied ? "Copied" : "Copy Token", systemImage: copied ? "checkmark" : "doc.on.doc")
                     }
                 }
             }

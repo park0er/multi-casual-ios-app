@@ -126,7 +126,7 @@ private struct ChatSessionDetailView: View {
                     Button(role: .destructive) {
                         Task { await viewModel.cancelPendingTask() }
                     } label: {
-                        Label(viewModel.isCancellingTask ? "Cancelling" : "Cancel Task", systemImage: "xmark.circle")
+                        MarkdownIconLabel(viewModel.isCancellingTask ? "Cancelling" : "Cancel Task", systemImage: "xmark.circle")
                     }
                     .disabled(viewModel.isCancellingTask || pending.taskId?.isEmpty != false)
                     .accessibilityIdentifier("ChatCancelPendingTaskButton")
@@ -258,7 +258,7 @@ private struct ChatCreateSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(viewModel.isCreating ? "Creating" : "Create") {
+                    Button {
                         Task {
                             await viewModel.createSession(agentId: selectedAgentId, title: title)
                             if viewModel.errorMessage == nil {
@@ -266,6 +266,8 @@ private struct ChatCreateSheet: View {
                                 dismiss()
                             }
                         }
+                    } label: {
+                        MarkdownText(viewModel.isCreating ? "Creating" : "Create")
                     }
                     .disabled(viewModel.isCreating || selectedAgentId.isEmpty)
                     .accessibilityIdentifier("ChatCreateButton")

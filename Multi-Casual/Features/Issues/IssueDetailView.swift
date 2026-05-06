@@ -484,7 +484,7 @@ public struct IssueDetailView: View {
                     Button {
                         Task { await vm.toggleSubscriber(userId: currentUserId, userType: "member") }
                     } label: {
-                        Text(vm.isSubscribed(userId: currentUserId, userType: "member") ? "Unsubscribe" : "Subscribe")
+                        MarkdownText(vm.isSubscribed(userId: currentUserId, userType: "member") ? "Unsubscribe" : "Subscribe")
                             .font(.caption)
                     }
                     .disabled(vm.isLoadingSubscribers)
