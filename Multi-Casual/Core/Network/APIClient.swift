@@ -1244,6 +1244,10 @@ public final class APIClient: @unchecked Sendable {
         try await request("POST", path: "api/agents/\(id)/cancel-tasks", queryItems: workspaceQuery(workspaceId))
     }
 
+    public func listAgentTasks(agentId: String, workspaceId: String? = nil) async throws -> [AgentTask] {
+        try await request("GET", path: "api/agents/\(agentId)/tasks", queryItems: workspaceQuery(workspaceId))
+    }
+
     public func listRuntimes(workspaceId: String) async throws -> [AgentRuntime] {
         try await request("GET", path: "api/runtimes", queryItems: workspaceQuery(workspaceId))
     }

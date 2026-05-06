@@ -1487,6 +1487,25 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(agents.isEmpty)
     }
 
+    func test_listAgentTasks_usesDesktopEndpoint() async throws {
+        let json = """
+        [{"id":"t1","agent_id":"a1","issue_id":"i1","status":"completed",
+          "started_at":"2026-01-01T00:00:00Z","completed_at":"2026-01-01T00:02:00Z","error":null}]
+        """.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let tasks = try await client.listAgentTasks(agentId: "a1", workspaceId: "w1")
+
+        XCTAssertEqual(capturedURL?.path, "/api/agents/a1/tasks")
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertEqual(tasks.map(\.id), ["t1"])
+        XCTAssertEqual(tasks.first?.agentId, "a1")
+    }
+
     func test_createAgent_sendsDesktopFields() async throws {
         var body: [String: Any] = [:]
         var capturedURL: URL?

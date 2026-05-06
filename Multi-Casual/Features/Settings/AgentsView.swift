@@ -22,12 +22,11 @@ public struct AgentsView: View {
                         ContentUnavailableView("No Agents", systemImage: "bolt", description: Text("This workspace has no agents yet."))
                     } else {
                         ForEach(vm.agents) { agent in
-                            Button {
-                                editingAgent = agent
+                            NavigationLink {
+                                AgentDetailView(agent: agent, listViewModel: vm)
                             } label: {
                                 AgentRow(agent: agent)
                             }
-                            .buttonStyle(.plain)
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 if agent.archivedAt == nil {
                                     Button(role: .destructive) {
@@ -184,9 +183,213 @@ private struct AgentRow: View {
     }
 }
 
+private struct AgentDetailView: View {
+    let agent: Agent
+    let listViewModel: AgentsViewModel
+
+    @Environment(APIClient.self) private var api
+    @Environment(AuthSession.self) private var authSession
+    @State private var currentAgent: Agent
+    @State private var detailViewModel: AgentDetailViewModel?
+    @State private var editingAgent: Agent?
+
+    init(agent: Agent, listViewModel: AgentsViewModel) {
+        self.agent = agent
+        self.listViewModel = listViewModel
+        _currentAgent = State(initialValue: agent)
+    }
+
+    var body: some View {
+        Group {
+            if let vm = detailViewModel {
+                List {
+                    Section("Agent Detail") {
+                        MarkdownLabeledContent("Name", value: currentAgent.name)
+                        if !currentAgent.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            MarkdownLabeledContent("Description", value: currentAgent.description)
+                        }
+                        MarkdownLabeledContent("Status", value: currentAgent.status.capitalized)
+                        if let runtimeName = vm.runtimeName {
+                            MarkdownLabeledContent("Runtime", value: runtimeName)
+                        } else if !currentAgent.runtimeId.isEmpty {
+                            MarkdownLabeledContent("Runtime", value: currentAgent.runtimeId)
+                        }
+                        if let ownerName = vm.ownerName {
+                            MarkdownLabeledContent("Owner", value: ownerName)
+                        }
+                        if let model = currentAgent.model, !model.isEmpty {
+                            MarkdownLabeledContent("Model", value: model)
+                        }
+                        MarkdownLabeledContent("Visibility", value: currentAgent.visibility.capitalized)
+                        MarkdownLabeledContent("Max Tasks", value: currentAgent.maxConcurrentTasks.formatted())
+                        if let createdAt = currentAgent.createdAt {
+                            MarkdownLabeledContent("Created", value: createdAt.formatted(date: .abbreviated, time: .shortened))
+                        }
+                        if let updatedAt = currentAgent.updatedAt {
+                            MarkdownLabeledContent("Updated", value: updatedAt.formatted(date: .abbreviated, time: .shortened))
+                        }
+                    }
+
+                    Section("Activity") {
+                        if vm.isLoading && vm.activeTasks.isEmpty {
+                            ProgressView()
+                        } else if vm.activeTasks.isEmpty {
+                            MarkdownText("No active tasks.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(vm.activeTasks.prefix(5)) { task in
+                                AgentTaskRow(task: task)
+                            }
+                        }
+                    }
+
+                    Section("Recent Work") {
+                        if vm.isLoading && vm.recentTasks.isEmpty {
+                            ProgressView()
+                        } else if vm.recentTasks.isEmpty {
+                            MarkdownText("No recent workflow tasks.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(vm.recentTasks.prefix(10)) { task in
+                                AgentTaskRow(task: task)
+                            }
+                        }
+                    }
+
+                    Section("Instructions") {
+                        if currentAgent.instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            MarkdownText("No instructions configured.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            MarkdownText(currentAgent.instructions)
+                        }
+                    }
+
+                    Section("Skills") {
+                        if currentAgent.skills.isEmpty {
+                            MarkdownText("No skills attached.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(currentAgent.skills) { skill in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    MarkdownText(skill.name)
+                                    if !skill.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        MarkdownText(skill.description)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Section("Environment") {
+                        if currentAgent.customEnvRedacted {
+                            MarkdownText("Environment values are redacted.")
+                                .foregroundStyle(.secondary)
+                        } else if currentAgent.customEnv.isEmpty {
+                            MarkdownText("No custom environment variables.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(currentAgent.customEnv.keys.sorted(), id: \.self) { key in
+                                MarkdownLabeledContent(key, value: currentAgent.customEnv[key]?.displayString ?? "")
+                            }
+                        }
+                    }
+
+                    Section("Custom Args") {
+                        if currentAgent.customArgs.isEmpty {
+                            MarkdownText("No custom arguments.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(currentAgent.customArgs, id: \.self) { arg in
+                                MarkdownText(arg)
+                                    .font(.system(.body, design: .monospaced))
+                            }
+                        }
+                    }
+
+                    if let errorMessage = vm.errorMessage {
+                        Section {
+                            ErrorRetryView(message: errorMessage) {
+                                Task { await vm.load() }
+                            }
+                        }
+                    }
+                }
+                .refreshable { await vm.load() }
+            } else {
+                ProgressView()
+            }
+        }
+        .navigationTitle("Agent Detail")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    editingAgent = currentAgent
+                } label: {
+                    Label("Edit Agent", systemImage: "pencil")
+                }
+                .accessibilityIdentifier("AgentDetailEditButton")
+            }
+        }
+        .sheet(item: $editingAgent) { agent in
+            AgentFormSheet(agent: agent, viewModel: listViewModel) { updated in
+                currentAgent = updated
+                detailViewModel = AgentDetailViewModel(agent: updated, api: api, authSession: authSession)
+                Task { await detailViewModel?.load() }
+            }
+            .presentationDragIndicator(.visible)
+        }
+        .onAppear {
+            if detailViewModel == nil {
+                let vm = AgentDetailViewModel(agent: currentAgent, api: api, authSession: authSession)
+                detailViewModel = vm
+                Task { await vm.load() }
+            }
+        }
+    }
+}
+
+private struct AgentTaskRow: View {
+    let task: AgentTask
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                MarkdownText(task.status.replacingOccurrences(of: "_", with: " ").capitalized)
+                    .font(.body.weight(.medium))
+                Spacer()
+                if let completedAt = task.completedAt {
+                    Text(completedAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if let startedAt = task.startedAt {
+                    Text(startedAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if !task.issueId.isEmpty {
+                MarkdownText(task.issueId)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let error = task.error, !error.isEmpty {
+                MarkdownText(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
 private struct AgentFormSheet: View {
     let agent: Agent?
     let viewModel: AgentsViewModel
+    var onSave: ((Agent) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
@@ -199,9 +402,10 @@ private struct AgentFormSheet: View {
     @State private var selectedSkillIds: Set<String>
     @State private var isLoadingSkills = false
 
-    init(agent: Agent?, viewModel: AgentsViewModel) {
+    init(agent: Agent?, viewModel: AgentsViewModel, onSave: ((Agent) -> Void)? = nil) {
         self.agent = agent
         self.viewModel = viewModel
+        self.onSave = onSave
         _name = State(initialValue: agent?.name ?? "")
         _description = State(initialValue: agent?.description ?? "")
         _instructions = State(initialValue: agent?.instructions ?? "")
@@ -337,6 +541,9 @@ private struct AgentFormSheet: View {
         }
 
         if saved != nil {
+            if let saved {
+                onSave?(saved)
+            }
             dismiss()
         }
     }

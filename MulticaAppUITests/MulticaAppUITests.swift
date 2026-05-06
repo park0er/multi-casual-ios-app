@@ -206,6 +206,24 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons["AgentsNewButton"].waitForExistence(timeout: 10))
     }
 
+    func testSettingsAgentDetailRendersWhenAgentExists() throws {
+        let app = launchApp(initialTab: "settings")
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Agents"].waitForExistence(timeout: 10))
+        app.buttons["Agents"].tap()
+
+        XCTAssertTrue(app.staticTexts["Agents"].waitForExistence(timeout: 20))
+        let firstAgent = app.cells.firstMatch
+        guard firstAgent.waitForExistence(timeout: 20) else {
+            throw XCTSkip("No agent row is available for detail smoke coverage.")
+        }
+        firstAgent.tap()
+
+        XCTAssertTrue(app.staticTexts["Agent Detail"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Activity"].waitForExistence(timeout: 10))
+    }
+
     func testSettingsAgentCancelTasksRequiresConfirmation() throws {
         let app = launchApp(initialTab: "settings")
 

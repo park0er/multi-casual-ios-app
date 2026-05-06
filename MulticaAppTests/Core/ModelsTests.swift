@@ -224,6 +224,55 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(agent.ownerId, "u1")
     }
 
+    func test_agent_decodesDesktopDetailFields() throws {
+        let json = """
+        {
+            "id": "a1",
+            "workspace_id": "w1",
+            "runtime_id": "r1",
+            "name": "Agent **One**",
+            "description": "Handles **work**",
+            "instructions": "# Instructions",
+            "avatar_url": "https://example.com/avatar.png",
+            "runtime_mode": "local",
+            "runtime_config": {},
+            "custom_env": {"ANTHROPIC_API_KEY": "redacted"},
+            "custom_args": ["--model", "sonnet"],
+            "custom_env_redacted": true,
+            "visibility": "private",
+            "status": "idle",
+            "max_concurrent_tasks": 3,
+            "model": "claude-sonnet-4",
+            "owner_id": "u1",
+            "skills": [{
+                "id": "s1",
+                "workspace_id": "w1",
+                "name": "Review",
+                "description": "Code review",
+                "content": "# Review",
+                "config": {},
+                "files": [],
+                "created_by": "u1",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z"
+            }],
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-02T00:00:00Z",
+            "archived_at": null,
+            "archived_by": null
+        }
+        """.data(using: .utf8)!
+
+        let agent = try decoder.decode(Agent.self, from: json)
+
+        XCTAssertEqual(agent.customArgs, ["--model", "sonnet"])
+        XCTAssertEqual(agent.customEnv["ANTHROPIC_API_KEY"]?.displayString, "redacted")
+        XCTAssertTrue(agent.customEnvRedacted)
+        XCTAssertEqual(agent.skills.map(\.name), ["Review"])
+        XCTAssertEqual(agent.createdAt, ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z"))
+        XCTAssertEqual(agent.updatedAt, ISO8601DateFormatter().date(from: "2026-01-02T00:00:00Z"))
+    }
+
     func test_agentRuntime_decodesDesktopDetailFields() throws {
         let json = """
         {

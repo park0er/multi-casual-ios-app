@@ -102,6 +102,42 @@ final class AgentsViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_agentDetailLoadsOwnerRuntimeAndTasks() async throws {
+        var requests: [String] = []
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch req.url?.path {
+            case "/api/workspaces/w1/members":
+                return Self.response(for: req, body: Self.membersJSON())
+            case "/api/runtimes":
+                return Self.response(for: req, body: Self.runtimeListJSON())
+            case "/api/agents/a1/tasks":
+                XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+                return Self.response(for: req, body: Self.agentTasksJSON())
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let agent = try decoder.decode(Agent.self, from: Self.agentJSON(id: "a1", name: "Codex", ownerId: "u1"))
+        let vm = AgentDetailViewModel(agent: agent, api: client, authSession: makeSession())
+
+        await vm.load()
+
+        XCTAssertEqual(Set(requests), Set([
+            "GET /api/workspaces/w1/members",
+            "GET /api/runtimes",
+            "GET /api/agents/a1/tasks",
+        ]))
+        XCTAssertEqual(vm.ownerName, "Parker")
+        XCTAssertEqual(vm.runtimeName, "MacBook")
+        XCTAssertEqual(vm.activeTasks.map(\.id), ["t2"])
+        XCTAssertEqual(vm.recentTasks.map(\.id), ["t1"])
+        XCTAssertNil(vm.errorMessage)
+    }
+
     func test_updateAgentSavesSkillAssignments() async throws {
         var requests: [String] = []
         var skillBody: [String: Any] = [:]
@@ -167,13 +203,14 @@ final class AgentsViewModelTests: XCTestCase {
         "[\(String(data: agentJSON(id: "a1", name: "Codex"), encoding: .utf8)!)]".data(using: .utf8)!
     }
 
-    private static func agentJSON(id: String, name: String) -> Data {
-        """
+    private static func agentJSON(id: String, name: String, ownerId: String? = nil) -> Data {
+        let ownerJSON = ownerId.map { "\"\($0)\"" } ?? "null"
+        return """
         {"id":"\(id)","workspace_id":"w1","runtime_id":"r1","name":"\(name)",
           "description":"**Markdown** description","instructions":"Be useful","avatar_url":null,"runtime_mode":"cloud",
           "runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,
           "visibility":"workspace","status":"idle","max_concurrent_tasks":1,
-          "model":"gpt","owner_id":null,"skills":[],"created_at":"2026-01-01T00:00:00Z",
+          "model":"gpt","owner_id":\(ownerJSON),"skills":[],"created_at":"2026-01-01T00:00:00Z",
           "updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}
         """.data(using: .utf8)!
     }
@@ -184,6 +221,24 @@ final class AgentsViewModelTests: XCTestCase {
           "runtime_mode":"cloud","provider":"multica","launch_header":"",
           "status":"online","device_info":"","metadata":{},"owner_id":null,
           "last_seen_at":null,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}]
+        """.data(using: .utf8)!
+    }
+
+    private static func membersJSON() -> Data {
+        """
+        [{"id":"m1","workspace_id":"w1","user_id":"u1","role":"owner",
+          "name":"Parker","email":"p@example.com","avatar_url":null}]
+        """.data(using: .utf8)!
+    }
+
+    private static func agentTasksJSON() -> Data {
+        """
+        [
+          {"id":"t1","agent_id":"a1","issue_id":"i1","status":"completed",
+           "started_at":"2026-01-01T00:00:00Z","completed_at":"2026-01-01T00:05:00Z","error":null},
+          {"id":"t2","agent_id":"a1","issue_id":"i2","status":"running",
+           "started_at":"2026-01-02T00:00:00Z","completed_at":null,"error":null}
+        ]
         """.data(using: .utf8)!
     }
 

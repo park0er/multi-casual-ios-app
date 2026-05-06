@@ -394,16 +394,27 @@ public struct Agent: Codable, Identifiable, Sendable {
     public let maxConcurrentTasks: Int
     public let model: String?
     public let ownerId: String?
+    public let skills: [Skill]
+    public let customEnv: [String: JSONValue]
+    public let customArgs: [String]
+    public let customEnvRedacted: Bool
+    public let createdAt: Date?
+    public let updatedAt: Date?
     public let archivedAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, description, instructions, status, visibility, model
+        case id, name, description, instructions, status, visibility, model, skills
         case workspaceId = "workspace_id"
         case runtimeId = "runtime_id"
         case avatarUrl = "avatar_url"
         case runtimeMode = "runtime_mode"
         case maxConcurrentTasks = "max_concurrent_tasks"
         case ownerId = "owner_id"
+        case customEnv = "custom_env"
+        case customArgs = "custom_args"
+        case customEnvRedacted = "custom_env_redacted"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
         case archivedAt = "archived_at"
     }
 
@@ -421,6 +432,12 @@ public struct Agent: Codable, Identifiable, Sendable {
         maxConcurrentTasks: Int,
         model: String?,
         ownerId: String? = nil,
+        skills: [Skill] = [],
+        customEnv: [String: JSONValue] = [:],
+        customArgs: [String] = [],
+        customEnvRedacted: Bool = false,
+        createdAt: Date? = nil,
+        updatedAt: Date? = nil,
         archivedAt: String?
     ) {
         self.id = id
@@ -436,6 +453,12 @@ public struct Agent: Codable, Identifiable, Sendable {
         self.maxConcurrentTasks = maxConcurrentTasks
         self.model = model
         self.ownerId = ownerId
+        self.skills = skills
+        self.customEnv = customEnv
+        self.customArgs = customArgs
+        self.customEnvRedacted = customEnvRedacted
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
         self.archivedAt = archivedAt
     }
 
@@ -454,6 +477,12 @@ public struct Agent: Codable, Identifiable, Sendable {
         maxConcurrentTasks = try c.decodeIfPresent(Int.self, forKey: .maxConcurrentTasks) ?? 1
         model = try c.decodeIfPresent(String.self, forKey: .model)
         ownerId = try c.decodeIfPresent(String.self, forKey: .ownerId)
+        skills = try c.decodeIfPresent([Skill].self, forKey: .skills) ?? []
+        customEnv = try c.decodeIfPresent([String: JSONValue].self, forKey: .customEnv) ?? [:]
+        customArgs = try c.decodeIfPresent([String].self, forKey: .customArgs) ?? []
+        customEnvRedacted = try c.decodeIfPresent(Bool.self, forKey: .customEnvRedacted) ?? false
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
         archivedAt = try c.decodeIfPresent(String.self, forKey: .archivedAt)
     }
 }
@@ -1575,28 +1604,43 @@ public struct ProjectResource: Codable, Identifiable, Sendable {
 
 public struct AgentTask: Codable, Identifiable, Sendable {
     public let id: String
+    public let agentId: String?
     public let issueId: String
     public let status: String
     public let startedAt: Date?
     public let completedAt: Date?
     public let error: String?
+    public let chatSessionId: String?
 
     enum CodingKeys: String, CodingKey {
         case id
+        case agentId = "agent_id"
         case issueId = "issue_id"
         case status
         case startedAt = "started_at"
         case completedAt = "completed_at"
         case error
+        case chatSessionId = "chat_session_id"
     }
 
-    public init(id: String, issueId: String, status: String, startedAt: Date?, completedAt: Date?, error: String?) {
+    public init(
+        id: String,
+        issueId: String,
+        status: String,
+        startedAt: Date?,
+        completedAt: Date?,
+        error: String?,
+        agentId: String? = nil,
+        chatSessionId: String? = nil
+    ) {
         self.id = id
+        self.agentId = agentId
         self.issueId = issueId
         self.status = status
         self.startedAt = startedAt
         self.completedAt = completedAt
         self.error = error
+        self.chatSessionId = chatSessionId
     }
 }
 
