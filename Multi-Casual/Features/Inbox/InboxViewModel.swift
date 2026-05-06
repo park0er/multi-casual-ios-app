@@ -1,6 +1,36 @@
 import Foundation
 import Observation
 
+public enum InboxBulkArchiveAction: Equatable, Sendable {
+    case all
+    case read
+    case completed
+
+    public var menuTitle: String {
+        switch self {
+        case .all: "Archive All"
+        case .read: "Archive Read"
+        case .completed: "Archive Completed"
+        }
+    }
+
+    public var confirmationTitle: String {
+        switch self {
+        case .all: "Archive all notifications?"
+        case .read: "Archive read notifications?"
+        case .completed: "Archive completed notifications?"
+        }
+    }
+
+    public var confirmationMessage: String {
+        switch self {
+        case .all: "All notifications will be removed from Inbox."
+        case .read: "All read notifications will be removed from Inbox."
+        case .completed: "Notifications for completed issues will be removed from Inbox."
+        }
+    }
+}
+
 @Observable
 @MainActor
 public final class InboxViewModel {
@@ -8,6 +38,7 @@ public final class InboxViewModel {
     public var lastError: Error?
     public var unreadCount: Int = 0
     public var pendingArchiveItem: InboxItem?
+    public var pendingBulkArchiveAction: InboxBulkArchiveAction?
     private let api: APIClient
     private let authSession: AuthSession
 
@@ -76,14 +107,32 @@ public final class InboxViewModel {
         pendingArchiveItem = nil
     }
 
+    public func requestBulkArchive(_ action: InboxBulkArchiveAction) {
+        pendingBulkArchiveAction = action
+    }
+
+    public func cancelPendingBulkArchive() {
+        pendingBulkArchiveAction = nil
+    }
+
     public func confirmPendingArchive() async {
         guard let item = pendingArchiveItem else { return }
         await archive(id: item.id)
         pendingArchiveItem = nil
     }
 
+    public func confirmPendingBulkArchive() async {
+        guard let action = pendingBulkArchiveAction else { return }
+        await archiveBulk(action)
+        pendingBulkArchiveAction = nil
+    }
+
     public var pendingArchiveConfirmation: DestructiveConfirmation {
         DestructiveConfirmation.archiveInboxItem(issueTitle: pendingArchiveItem?.issueTitle ?? "")
+    }
+
+    public var pendingBulkArchiveConfirmation: DestructiveConfirmation {
+        DestructiveConfirmation.archiveInboxBulk(pendingBulkArchiveAction ?? .all)
     }
 
     private func archive(id: String) async {
@@ -94,6 +143,30 @@ public final class InboxViewModel {
         do {
             _ = try await api.archiveInbox(id: id, workspaceSlug: workspace.slug)
             loader.items.removeAll { $0.id == id }
+            updateUnreadCount()
+            lastError = nil
+        } catch {
+            lastError = error
+        }
+    }
+
+    private func archiveBulk(_ action: InboxBulkArchiveAction) async {
+        guard let workspace = authSession.currentWorkspace else {
+            lastError = UserVisibleError("Pick a workspace before updating Inbox.")
+            return
+        }
+        do {
+            switch action {
+            case .all:
+                _ = try await api.archiveAllInbox(workspaceSlug: workspace.slug)
+                loader.items.removeAll()
+            case .read:
+                _ = try await api.archiveAllReadInbox(workspaceSlug: workspace.slug)
+                loader.items.removeAll { $0.read }
+            case .completed:
+                _ = try await api.archiveCompletedInbox(workspaceSlug: workspace.slug)
+                loader.items.removeAll { $0.issueStatus == .done }
+            }
             updateUnreadCount()
             lastError = nil
         } catch {

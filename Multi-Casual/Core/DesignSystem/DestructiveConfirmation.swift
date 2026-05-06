@@ -33,6 +33,14 @@ public struct DestructiveConfirmation: Equatable, Sendable {
         )
     }
 
+    public static func archiveInboxBulk(_ action: InboxBulkArchiveAction) -> DestructiveConfirmation {
+        DestructiveConfirmation(
+            title: action.confirmationTitle,
+            message: action.confirmationMessage,
+            confirmTitle: "Archive"
+        )
+    }
+
     public static func deleteIssue(identifier: String?, title: String?) -> DestructiveConfirmation {
         let id = identifier?.trimmingCharacters(in: .whitespacesAndNewlines)
         let issueTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)

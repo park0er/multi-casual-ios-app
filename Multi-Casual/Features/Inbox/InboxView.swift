@@ -7,6 +7,7 @@ public struct InboxView: View {
     @State private var viewModel: InboxViewModel?
     @State private var observedWorkspaceId: String?
     @State private var showingArchiveConfirmation = false
+    @State private var showingBulkArchiveConfirmation = false
 
     public init() {}
 
@@ -59,19 +60,56 @@ public struct InboxView: View {
                 } onCancel: {
                     vm.cancelPendingArchive()
                 }
+                .destructiveConfirmation(
+                    vm.pendingBulkArchiveConfirmation,
+                    isPresented: $showingBulkArchiveConfirmation
+                ) {
+                    Task { await vm.confirmPendingBulkArchive() }
+                } onCancel: {
+                    vm.cancelPendingBulkArchive()
+                }
             } else { ProgressView() }
         }
         .navigationTitle("Inbox")
         .toolbar {
             if let vm = viewModel {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await vm.markAllRead() }
+                    Menu {
+                        Button {
+                            Task { await vm.markAllRead() }
+                        } label: {
+                            Label("Mark All Read", systemImage: "envelope.open")
+                        }
+                        .disabled(vm.unreadCount == 0 || vm.loader.isLoading)
+                        .accessibilityIdentifier("InboxMarkAllReadButton")
+
+                        Button(role: .destructive) {
+                            vm.requestBulkArchive(.read)
+                            showingBulkArchiveConfirmation = true
+                        } label: {
+                            Label(InboxBulkArchiveAction.read.menuTitle, systemImage: "archivebox")
+                        }
+                        .disabled(!vm.loader.items.contains { $0.read } || vm.loader.isLoading)
+
+                        Button(role: .destructive) {
+                            vm.requestBulkArchive(.completed)
+                            showingBulkArchiveConfirmation = true
+                        } label: {
+                            Label(InboxBulkArchiveAction.completed.menuTitle, systemImage: "checkmark.circle")
+                        }
+                        .disabled(!vm.loader.items.contains { $0.issueStatus == .done } || vm.loader.isLoading)
+
+                        Button(role: .destructive) {
+                            vm.requestBulkArchive(.all)
+                            showingBulkArchiveConfirmation = true
+                        } label: {
+                            Label(InboxBulkArchiveAction.all.menuTitle, systemImage: "archivebox.fill")
+                        }
+                        .disabled(vm.loader.items.isEmpty || vm.loader.isLoading)
                     } label: {
-                        Label("Mark All Read", systemImage: "envelope.open")
+                        Label("Inbox Actions", systemImage: "ellipsis.circle")
                     }
-                    .disabled(vm.unreadCount == 0 || vm.loader.isLoading)
-                    .accessibilityIdentifier("InboxMarkAllReadButton")
+                    .accessibilityIdentifier("InboxActionsMenu")
                 }
             }
         }

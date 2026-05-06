@@ -20,6 +20,15 @@ final class DestructiveConfirmationTests: XCTestCase {
         XCTAssertEqual(confirmation.cancelTitle, "Cancel")
     }
 
+    func test_archiveInboxBulkConfirmationNamesScope() {
+        let confirmation = DestructiveConfirmation.archiveInboxBulk(.read)
+
+        XCTAssertEqual(confirmation.title, "Archive read notifications?")
+        XCTAssertEqual(confirmation.message, "All read notifications will be removed from Inbox.")
+        XCTAssertEqual(confirmation.confirmTitle, "Archive")
+        XCTAssertEqual(confirmation.cancelTitle, "Cancel")
+    }
+
     func test_issueDeleteConfirmationNamesIdentifier() {
         let confirmation = DestructiveConfirmation.deleteIssue(identifier: "PAR-73", title: "Core iOS walkthrough")
 

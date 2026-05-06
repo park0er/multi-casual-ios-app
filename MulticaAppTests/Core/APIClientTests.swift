@@ -369,6 +369,60 @@ final class APIClientTests: XCTestCase {
         XCTAssertNil(capturedURL?.query)
     }
 
+    func test_archiveAllInbox_usesDesktopBulkEndpoint() async throws {
+        let json = #"{"count":3}"#.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/inbox/archive-all")
+            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let response = try await client.archiveAllInbox(workspaceSlug: "park0er")
+
+        XCTAssertEqual(response.count, 3)
+        XCTAssertNil(capturedURL?.query)
+    }
+
+    func test_archiveAllReadInbox_usesDesktopBulkEndpoint() async throws {
+        let json = #"{"count":2}"#.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/inbox/archive-all-read")
+            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let response = try await client.archiveAllReadInbox(workspaceSlug: "park0er")
+
+        XCTAssertEqual(response.count, 2)
+        XCTAssertNil(capturedURL?.query)
+    }
+
+    func test_archiveCompletedInbox_usesDesktopBulkEndpoint() async throws {
+        let json = #"{"count":1}"#.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/inbox/archive-completed")
+            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let response = try await client.archiveCompletedInbox(workspaceSlug: "park0er")
+
+        XCTAssertEqual(response.count, 1)
+        XCTAssertNil(capturedURL?.query)
+    }
+
     func test_listComments_decodesBareArrayResponse() async throws {
         let json = """
         [{"id":"c1","content":"Hi","author_id":"u1","author_type":"member",

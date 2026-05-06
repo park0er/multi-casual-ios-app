@@ -1000,6 +1000,18 @@ public final class APIClient: @unchecked Sendable {
         try await request("POST", path: "api/inbox/mark-all-read", headers: workspaceHeaders(workspaceSlug))
     }
 
+    public func archiveAllInbox(workspaceSlug: String? = nil) async throws -> CountResponse {
+        try await request("POST", path: "api/inbox/archive-all", headers: workspaceHeaders(workspaceSlug))
+    }
+
+    public func archiveAllReadInbox(workspaceSlug: String? = nil) async throws -> CountResponse {
+        try await request("POST", path: "api/inbox/archive-all-read", headers: workspaceHeaders(workspaceSlug))
+    }
+
+    public func archiveCompletedInbox(workspaceSlug: String? = nil) async throws -> CountResponse {
+        try await request("POST", path: "api/inbox/archive-completed", headers: workspaceHeaders(workspaceSlug))
+    }
+
     // MARK: - Projects
 
     public func listProjects(workspaceId: String, limit: Int = 50, offset: Int = 0) async throws -> PageResponse<Project> {

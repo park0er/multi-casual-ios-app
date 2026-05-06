@@ -274,8 +274,15 @@ final class Multi-CasualUITests: XCTestCase {
         let app = launchApp(initialTab: "inbox")
 
         XCTAssertTrue(app.staticTexts["Inbox"].waitForExistence(timeout: 20))
-        let markAllReadButton = app.buttons["InboxMarkAllReadButton"]
+        let actionsMenu = app.buttons["InboxActionsMenu"]
+        XCTAssertTrue(actionsMenu.waitForExistence(timeout: 10))
+        actionsMenu.tap()
+
+        let markAllReadButton = app.buttons["Mark All Read"]
         XCTAssertTrue(markAllReadButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Archive Read"].exists)
+        XCTAssertTrue(app.buttons["Archive Completed"].exists)
+        XCTAssertTrue(app.buttons["Archive All"].exists)
 
         let deadline = Date().addingTimeInterval(20)
         while Date() < deadline {

@@ -231,6 +231,97 @@ final class InboxViewModelTests: XCTestCase {
         XCTAssertNil(vm.lastError)
     }
 
+    func test_confirmPendingBulkArchiveAll_removesVisibleItemsAndRecomputesUnreadCount() async throws {
+        var didCallArchiveAll = false
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/inbox":
+                let body = Self.inboxItemsJSON([
+                    Self.inboxItemJSON(id: "n1", issueId: "i1", title: "Unread update", read: false, archived: false, createdAt: "2026-01-01T00:00:00Z"),
+                    Self.inboxItemJSON(id: "n2", issueId: "i2", title: "Read update", read: true, archived: false, createdAt: "2026-01-02T00:00:00Z")
+                ])
+                return Self.response(for: req, body: body)
+            case "/api/inbox/archive-all":
+                didCallArchiveAll = true
+                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
+                return Self.response(for: req, body: Data(#"{"count":2}"#.utf8))
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = InboxViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        vm.requestBulkArchive(.all)
+        await vm.confirmPendingBulkArchive()
+
+        XCTAssertTrue(didCallArchiveAll)
+        XCTAssertNil(vm.pendingBulkArchiveAction)
+        XCTAssertTrue(vm.loader.items.isEmpty)
+        XCTAssertEqual(vm.unreadCount, 0)
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_confirmPendingBulkArchiveRead_removesOnlyReadItems() async throws {
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/inbox":
+                let body = Self.inboxItemsJSON([
+                    Self.inboxItemJSON(id: "unread", issueId: "i1", title: "Unread update", read: false, archived: false, createdAt: "2026-01-02T00:00:00Z"),
+                    Self.inboxItemJSON(id: "read", issueId: "i2", title: "Read update", read: true, archived: false, createdAt: "2026-01-01T00:00:00Z")
+                ])
+                return Self.response(for: req, body: body)
+            case "/api/inbox/archive-all-read":
+                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
+                return Self.response(for: req, body: Data(#"{"count":1}"#.utf8))
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = InboxViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        vm.requestBulkArchive(.read)
+        await vm.confirmPendingBulkArchive()
+
+        XCTAssertEqual(vm.loader.items.map(\.id), ["unread"])
+        XCTAssertEqual(vm.unreadCount, 1)
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_confirmPendingBulkArchiveCompleted_removesDoneItems() async throws {
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/inbox":
+                let body = Self.inboxItemsJSON([
+                    Self.inboxItemJSON(id: "done", issueId: "i1", title: "Done issue", issueStatus: "done", read: false, archived: false, createdAt: "2026-01-02T00:00:00Z"),
+                    Self.inboxItemJSON(id: "todo", issueId: "i2", title: "Todo issue", issueStatus: "todo", read: false, archived: false, createdAt: "2026-01-01T00:00:00Z")
+                ])
+                return Self.response(for: req, body: body)
+            case "/api/inbox/archive-completed":
+                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
+                return Self.response(for: req, body: Data(#"{"count":1}"#.utf8))
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = InboxViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        vm.requestBulkArchive(.completed)
+        await vm.confirmPendingBulkArchive()
+
+        XCTAssertEqual(vm.loader.items.map(\.id), ["todo"])
+        XCTAssertEqual(vm.unreadCount, 1)
+        XCTAssertNil(vm.lastError)
+    }
+
     private func makeClient(handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)) -> APIClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -272,6 +363,7 @@ final class InboxViewModelTests: XCTestCase {
         id: String,
         issueId: String,
         title: String,
+        issueStatus: String = "todo",
         read: Bool,
         archived: Bool,
         createdAt: String
@@ -279,7 +371,7 @@ final class InboxViewModelTests: XCTestCase {
         """
         {"id":"\(id)","workspace_id":"w1","recipient_type":"member","recipient_id":"u1",
          "actor_type":null,"actor_id":null,"type":"new_comment","severity":"attention",
-         "issue_id":"\(issueId)","title":"\(title)","body":null,"issue_status":"todo",
+         "issue_id":"\(issueId)","title":"\(title)","body":null,"issue_status":"\(issueStatus)",
          "read":\(read),"archived":\(archived),"created_at":"\(createdAt)",
          "details":{"identifier":"PAR-73"}}
         """
