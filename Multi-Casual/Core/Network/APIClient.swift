@@ -312,6 +312,15 @@ public final class APIClient: @unchecked Sendable {
     private struct UpdateNotificationPreferencesRequest: Encodable {
         let preferences: NotificationPreferences
     }
+    private struct CreatePersonalAccessTokenRequest: Encodable {
+        let name: String
+        let expiresInDays: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case expiresInDays = "expires_in_days"
+        }
+    }
     private struct CreateProjectRequest: Encodable {
         let title: String
         let description: String?
@@ -1368,6 +1377,24 @@ public final class APIClient: @unchecked Sendable {
             path: "api/autopilots/\(autopilotId)/triggers/\(triggerId)",
             queryItems: workspaceQuery(workspaceId)
         )
+    }
+
+    // MARK: - Personal Access Tokens
+
+    public func listPersonalAccessTokens() async throws -> [PersonalAccessToken] {
+        try await request("GET", path: "api/tokens")
+    }
+
+    public func createPersonalAccessToken(name: String, expiresInDays: Int?) async throws -> CreatedPersonalAccessToken {
+        try await request(
+            "POST",
+            path: "api/tokens",
+            body: CreatePersonalAccessTokenRequest(name: name, expiresInDays: expiresInDays)
+        )
+    }
+
+    public func revokePersonalAccessToken(id: String) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/tokens/\(id)")
     }
 
     // MARK: - Notification Preferences

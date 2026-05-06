@@ -38,6 +38,7 @@ public struct SettingsView: View {
                 NavigationLink("Workspace Details") { WorkspaceSettingsView() }
                 NavigationLink("Members") { WorkspaceMembersView() }
                 NavigationLink("Notifications") { NotificationPreferencesView() }
+                NavigationLink("API Tokens") { PersonalAccessTokensView() }
                 NavigationLink("Agents") { AgentsView() }
                 NavigationLink("Autopilots") { AutopilotsView() }
                 NavigationLink("Runtimes") { RuntimesView() }

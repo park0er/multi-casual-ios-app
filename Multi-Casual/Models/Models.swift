@@ -205,6 +205,59 @@ public struct Invitation: Codable, Identifiable, Sendable {
     }
 }
 
+// MARK: - Personal Access Tokens
+
+public struct PersonalAccessToken: Codable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+    public let tokenPrefix: String
+    public let expiresAt: String?
+    public let lastUsedAt: String?
+    public let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case tokenPrefix = "token_prefix"
+        case expiresAt = "expires_at"
+        case lastUsedAt = "last_used_at"
+        case createdAt = "created_at"
+    }
+
+    public init(
+        id: String,
+        name: String,
+        tokenPrefix: String,
+        expiresAt: String?,
+        lastUsedAt: String?,
+        createdAt: String
+    ) {
+        self.id = id
+        self.name = name
+        self.tokenPrefix = tokenPrefix
+        self.expiresAt = expiresAt
+        self.lastUsedAt = lastUsedAt
+        self.createdAt = createdAt
+    }
+}
+
+public struct CreatedPersonalAccessToken: Codable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+    public let tokenPrefix: String
+    public let expiresAt: String?
+    public let lastUsedAt: String?
+    public let createdAt: String
+    public let token: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, token
+        case tokenPrefix = "token_prefix"
+        case expiresAt = "expires_at"
+        case lastUsedAt = "last_used_at"
+        case createdAt = "created_at"
+    }
+}
+
 // MARK: - Notification Preferences
 
 public enum NotificationPreferenceGroup: String, Codable, CaseIterable, Identifiable, Sendable {

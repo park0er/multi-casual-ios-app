@@ -677,6 +677,49 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual((requests[1].body?["preferences"] as? [String: String])?["agent_activity"], "all")
     }
 
+    func test_personalAccessTokenEndpointsUseDesktopShape() async throws {
+        var requests: [(method: String, path: String, body: [String: Any]?)] = []
+        MockURLProtocol.handler = { req in
+            let requestBody = MockURLProtocol.bodyData(for: req)
+            let body = requestBody.isEmpty
+                ? nil
+                : (try? JSONSerialization.jsonObject(with: requestBody) as? [String: Any])
+            requests.append((req.httpMethod ?? "", req.url?.path ?? "", body))
+
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/tokens"):
+                let json = """
+                [{"id":"t1","name":"CLI","token_prefix":"mul_abc12345","expires_at":null,"last_used_at":null,"created_at":"2026-05-01T00:00:00Z"}]
+                """.data(using: .utf8)!
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+            case ("POST", "/api/tokens"):
+                let json = """
+                {"id":"t2","name":"Mobile","token_prefix":"mul_xyz12345","expires_at":"2026-08-01T00:00:00Z","last_used_at":null,"created_at":"2026-05-01T00:00:00Z","token":"mul_xyz123456789"}
+                """.data(using: .utf8)!
+                return (HTTPURLResponse(url: req.url!, statusCode: 201, httpVersion: nil, headerFields: nil)!, json)
+            case ("DELETE", "/api/tokens/t1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.path ?? "")")
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data())
+            }
+        }
+
+        let tokens = try await client.listPersonalAccessTokens()
+        let created = try await client.createPersonalAccessToken(name: "Mobile", expiresInDays: 90)
+        try await client.revokePersonalAccessToken(id: "t1")
+
+        XCTAssertEqual(tokens.first?.tokenPrefix, "mul_abc12345")
+        XCTAssertEqual(created.token, "mul_xyz123456789")
+        XCTAssertEqual(requests.map { "\($0.method) \($0.path)" }, [
+            "GET /api/tokens",
+            "POST /api/tokens",
+            "DELETE /api/tokens/t1",
+        ])
+        XCTAssertEqual(requests[1].body?["name"] as? String, "Mobile")
+        XCTAssertEqual(requests[1].body?["expires_in_days"] as? Int, 90)
+    }
+
     func test_listComments_decodesBareArrayResponse() async throws {
         let json = """
         [{"id":"c1","content":"Hi","author_id":"u1","author_type":"member",
