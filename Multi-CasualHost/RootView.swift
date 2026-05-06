@@ -27,6 +27,21 @@ struct RootView: View {
 
     var body: some View {
         Group {
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["MULTICA_DEBUG_FORCE_LOGIN_SCREEN"] == "1" {
+                LoginView()
+            } else if authSession.isLoading {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if authSession.isAuthenticated {
+                mainTabView
+                    .onReceive(NotificationCenter.default.publisher(for: .didRegisterPushToken)) { note in
+                        guard let token = note.object as? String else { return }
+                        Task { try? await api.registerPushToken(token) }
+                    }
+            } else {
+                LoginView()
+            }
+            #else
             if authSession.isLoading {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if authSession.isAuthenticated {
@@ -38,6 +53,7 @@ struct RootView: View {
             } else {
                 LoginView()
             }
+            #endif
         }
         .onOpenURL { url in handleDeepLink(url) }
     }

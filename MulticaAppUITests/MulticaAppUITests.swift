@@ -16,6 +16,22 @@ final class Multi-CasualUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    func testLoginScreenRendersAndEnablesContinueWithoutSendingCode() {
+        let app = launchLoggedOutApp()
+
+        XCTAssertTrue(app.staticTexts["Sign in to Multica"].waitForExistence(timeout: 20))
+        let emailField = app.textFields["LoginEmailField"]
+        XCTAssertTrue(emailField.waitForExistence(timeout: 10))
+        let continueButton = app.buttons["LoginContinueButton"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 10))
+        XCTAssertFalse(continueButton.isEnabled)
+
+        emailField.tap()
+        emailField.typeText("parker@example.com")
+
+        XCTAssertTrue(waitForEnabled(continueButton, timeout: 5))
+    }
+
     func testSettingsWorkspaceScreenRenders() {
         let app = launchApp(initialTab: "settings")
 
@@ -391,6 +407,19 @@ final class Multi-CasualUITests: XCTestCase {
         for (key, value) in createDefaults {
             app.launchEnvironment[key] = value
         }
+        addTeardownBlock {
+            if app.state != .notRunning {
+                app.terminate()
+            }
+        }
+        app.launch()
+        return app
+    }
+
+    private func launchLoggedOutApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["MULTICA_DEBUG_SKIP_PUSH_PROMPT"] = "1"
+        app.launchEnvironment["MULTICA_DEBUG_FORCE_LOGIN_SCREEN"] = "1"
         addTeardownBlock {
             if app.state != .notRunning {
                 app.terminate()

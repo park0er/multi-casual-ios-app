@@ -40,6 +40,7 @@ public struct LoginView: View {
                     .textInputAutocapitalization(.never)
                     .padding()
                     .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityIdentifier("LoginEmailField")
 
                 if let error = vm.errorMessage {
                     Text(error).font(.caption).foregroundStyle(.red)
@@ -57,6 +58,7 @@ public struct LoginView: View {
                 .buttonStyle(.primary)
                 .disabled(vm.email.isEmpty || vm.isLoading)
                 .accessibilityLabel("Continue - send login code to \(vm.email.isEmpty ? "email" : vm.email)")
+                .accessibilityIdentifier("LoginContinueButton")
             }
             .padding(.horizontal, 24)
             Spacer()
