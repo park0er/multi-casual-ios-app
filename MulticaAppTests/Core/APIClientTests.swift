@@ -825,6 +825,50 @@ final class APIClientTests: XCTestCase {
         ])
     }
 
+    func test_labelEndpointsUseDesktopPaths() async throws {
+        var requests: [String] = []
+        MockURLProtocol.handler = { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            if req.httpMethod == "DELETE", req.url?.path == "/api/labels/l1" {
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            }
+            let body: Data
+            switch req.url?.path {
+            case "/api/labels" where req.httpMethod == "GET":
+                body = #"{"labels":[\#(String(data: Self.labelJSON(id: "l1", name: "bug"), encoding: .utf8)!)],"total":1}"#.data(using: .utf8)!
+            case "/api/issues/i1/labels":
+                body = #"{"labels":[\#(String(data: Self.labelJSON(id: "l1", name: "bug"), encoding: .utf8)!)]}"#.data(using: .utf8)!
+            case "/api/issues/i1/labels/l1":
+                body = #"{"labels":[]}"#.data(using: .utf8)!
+            default:
+                body = Self.labelJSON(id: "l1", name: "bug")
+            }
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+        }
+
+        let list = try await client.listLabels()
+        _ = try await client.getLabel(id: "l1")
+        _ = try await client.createLabel(name: "bug", color: "#ef4444")
+        _ = try await client.updateLabel(id: "l1", name: "bug", color: "#dc2626")
+        try await client.deleteLabel(id: "l1")
+        let issueLabels = try await client.listLabelsForIssue(issueId: "i1")
+        _ = try await client.attachLabel(issueId: "i1", labelId: "l1")
+        _ = try await client.detachLabel(issueId: "i1", labelId: "l1")
+
+        XCTAssertEqual(list.labels.map(\.id), ["l1"])
+        XCTAssertEqual(issueLabels.labels.map(\.id), ["l1"])
+        XCTAssertEqual(requests, [
+            "GET /api/labels",
+            "GET /api/labels/l1",
+            "POST /api/labels",
+            "PUT /api/labels/l1",
+            "DELETE /api/labels/l1",
+            "GET /api/issues/i1/labels",
+            "POST /api/issues/i1/labels",
+            "DELETE /api/issues/i1/labels/l1",
+        ])
+    }
+
     private static func agentJSON(id: String, name: String) -> Data {
         """
         {"id":"\(id)","workspace_id":"w1","runtime_id":"r1","name":"\(name)",
@@ -868,6 +912,13 @@ final class APIClientTests: XCTestCase {
          "status":"running","issue_id":null,"task_id":"t1","triggered_at":"2026-01-01T00:00:00Z",
          "completed_at":null,"failure_reason":null,"trigger_payload":{},"result":null,
          "created_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+    }
+
+    private static func labelJSON(id: String, name: String) -> Data {
+        """
+        {"id":"\(id)","workspace_id":"w1","name":"\(name)","color":"#ef4444",
+         "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
         """.data(using: .utf8)!
     }
 

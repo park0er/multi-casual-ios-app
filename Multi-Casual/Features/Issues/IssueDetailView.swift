@@ -135,6 +135,9 @@ public struct IssueDetailView: View {
             if let desc = issue.description, !desc.isEmpty {
                 MarkdownText(desc).font(.body)
             }
+            if !issue.labels.isEmpty {
+                LabelWrapView(labels: issue.labels)
+            }
             if !issue.attachments.isEmpty {
                 AttachmentListView(attachments: issue.attachments)
             }
@@ -291,6 +294,30 @@ private struct AttachmentListView: View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(attachments) { attachment in
                 AttachmentRowView(attachment: attachment)
+            }
+        }
+    }
+}
+
+private struct LabelWrapView: View {
+    let labels: [IssueLabel]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(labels) { label in
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(Color(hex: label.color) ?? .secondary)
+                            .frame(width: 8, height: 8)
+                        MarkdownText(label.name)
+                            .font(.caption)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.secondary.opacity(0.1), in: Capsule())
+                }
             }
         }
     }

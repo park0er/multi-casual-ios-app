@@ -442,6 +442,16 @@ public final class APIClient: @unchecked Sendable {
         enum CodingKeys: String, CodingKey { case content, type; case parentId = "parent_id" }
     }
 
+    private struct LabelMutationRequest: Encodable {
+        let name: String
+        let color: String
+    }
+
+    private struct AttachLabelRequest: Encodable {
+        let labelId: String
+        enum CodingKeys: String, CodingKey { case labelId = "label_id" }
+    }
+
     public func addComment(issueId: String, content: String, parentId: String? = nil, workspaceId: String? = nil) async throws -> Comment {
         try await request("POST", path: "api/issues/\(issueId)/comments",
                           queryItems: workspaceQuery(workspaceId),
@@ -489,6 +499,38 @@ public final class APIClient: @unchecked Sendable {
                 dueDate: dueDate
             )
         )
+    }
+
+    public func listLabels() async throws -> ListLabelsResponse {
+        try await request("GET", path: "api/labels")
+    }
+
+    public func getLabel(id: String) async throws -> IssueLabel {
+        try await request("GET", path: "api/labels/\(id)")
+    }
+
+    public func createLabel(name: String, color: String) async throws -> IssueLabel {
+        try await request("POST", path: "api/labels", body: LabelMutationRequest(name: name, color: color))
+    }
+
+    public func updateLabel(id: String, name: String, color: String) async throws -> IssueLabel {
+        try await request("PUT", path: "api/labels/\(id)", body: LabelMutationRequest(name: name, color: color))
+    }
+
+    public func deleteLabel(id: String) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/labels/\(id)")
+    }
+
+    public func listLabelsForIssue(issueId: String) async throws -> IssueLabelsResponse {
+        try await request("GET", path: "api/issues/\(issueId)/labels")
+    }
+
+    public func attachLabel(issueId: String, labelId: String) async throws -> IssueLabelsResponse {
+        try await request("POST", path: "api/issues/\(issueId)/labels", body: AttachLabelRequest(labelId: labelId))
+    }
+
+    public func detachLabel(issueId: String, labelId: String) async throws -> IssueLabelsResponse {
+        try await request("DELETE", path: "api/issues/\(issueId)/labels/\(labelId)")
     }
 
     public func listAgentRuns(issueId: String, workspaceId: String? = nil) async throws -> [AgentTask] {

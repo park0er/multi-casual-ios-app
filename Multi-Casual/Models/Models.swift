@@ -508,6 +508,40 @@ public struct Attachment: Codable, Identifiable, Sendable {
     }
 }
 
+public struct IssueLabel: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let workspaceId: String
+    public let name: String
+    public let color: String
+    public let createdAt: Date
+    public let updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, color
+        case workspaceId = "workspace_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    public init(id: String, workspaceId: String, name: String, color: String, createdAt: Date, updatedAt: Date) {
+        self.id = id
+        self.workspaceId = workspaceId
+        self.name = name
+        self.color = color
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+public struct ListLabelsResponse: Codable, Sendable {
+    public let labels: [IssueLabel]
+    public let total: Int?
+}
+
+public struct IssueLabelsResponse: Codable, Sendable {
+    public let labels: [IssueLabel]
+}
+
 public struct Issue: Codable, Identifiable, Sendable {
     public let id: String
     public let identifier: String
@@ -522,6 +556,7 @@ public struct Issue: Codable, Identifiable, Sendable {
     public let dueDate: String?
     public let workspaceId: String
     public let attachments: [Attachment]
+    public let labels: [IssueLabel]
     public let createdAt: Date
     public let updatedAt: Date
 
@@ -532,7 +567,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         case projectId = "project_id"
         case dueDate = "due_date"
         case workspaceId = "workspace_id"
-        case attachments
+        case attachments, labels
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -540,7 +575,8 @@ public struct Issue: Codable, Identifiable, Sendable {
     public init(id: String, identifier: String, number: Int, title: String, description: String?,
                 status: IssueStatus, priority: IssuePriority, assigneeId: String?,
                 assigneeType: String?, projectId: String?, workspaceId: String,
-                dueDate: String? = nil, attachments: [Attachment] = [], createdAt: Date, updatedAt: Date) {
+                dueDate: String? = nil, attachments: [Attachment] = [], labels: [IssueLabel] = [],
+                createdAt: Date, updatedAt: Date) {
         self.id = id
         self.identifier = identifier
         self.number = number
@@ -554,6 +590,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         self.dueDate = dueDate
         self.workspaceId = workspaceId
         self.attachments = attachments
+        self.labels = labels
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -573,8 +610,30 @@ public struct Issue: Codable, Identifiable, Sendable {
         dueDate = try c.decodeIfPresent(String.self, forKey: .dueDate)
         workspaceId = try c.decode(String.self, forKey: .workspaceId)
         attachments = try c.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
+        labels = try c.decodeIfPresent([IssueLabel].self, forKey: .labels) ?? []
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+    }
+
+    public func replacingLabels(_ labels: [IssueLabel]) -> Issue {
+        Issue(
+            id: id,
+            identifier: identifier,
+            number: number,
+            title: title,
+            description: description,
+            status: status,
+            priority: priority,
+            assigneeId: assigneeId,
+            assigneeType: assigneeType,
+            projectId: projectId,
+            workspaceId: workspaceId,
+            dueDate: dueDate,
+            attachments: attachments,
+            labels: labels,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
     }
 }
 

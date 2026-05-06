@@ -75,6 +75,40 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(issue.attachments.first?.sizeBytes, 2048)
     }
 
+    func test_issue_decodesLabelsFromDesktopDetailResponse() throws {
+        let json = """
+        {
+            "id": "abc123",
+            "identifier": "PAR-71",
+            "number": 71,
+            "title": "Tech Stack Selection",
+            "description": "Determine iOS tech stack",
+            "status": "in_progress",
+            "priority": "high",
+            "assignee_id": null,
+            "assignee_type": null,
+            "project_id": null,
+            "workspace_id": "ws1",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-02T00:00:00Z",
+            "labels": [{
+                "id": "l1",
+                "workspace_id": "ws1",
+                "name": "bug",
+                "color": "#ef4444",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z"
+            }]
+        }
+        """.data(using: .utf8)!
+
+        let issue = try decoder.decode(Issue.self, from: json)
+
+        XCTAssertEqual(issue.labels.map(\.id), ["l1"])
+        XCTAssertEqual(issue.labels.first?.name, "bug")
+        XCTAssertEqual(issue.labels.first?.color, "#ef4444")
+    }
+
     func test_issueStatus_decodesDesktopStatuses() throws {
         let backlog = try decoder.decode(IssueStatus.self, from: #""backlog""#.data(using: .utf8)!)
         let cancelled = try decoder.decode(IssueStatus.self, from: #""cancelled""#.data(using: .utf8)!)

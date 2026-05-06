@@ -14,10 +14,12 @@ public final class IssueEditViewModel {
     public var priority: IssuePriority
     public var selectedAssigneeOptionId: String
     public var selectedProjectId: String
+    public var selectedLabelIds: Set<String>
     public var includesDueDate: Bool
     public var dueDate: Date
     public var assigneeOptions: [IssueAssigneeOption] = []
     public var projects: [Project] = []
+    public var labels: [IssueLabel] = []
     public var isLoadingOptions = false
     public var isSubmitting = false
     public var errorMessage: String?
@@ -25,6 +27,7 @@ public final class IssueEditViewModel {
     private let workspaceId: String?
     private let api: APIClient
     private let dateFormatter: ISO8601DateFormatter
+    private let originalLabelIds: Set<String>
 
     public init(issue: Issue, api: APIClient, authSession: AuthSession) {
         issueId = issue.id
@@ -37,6 +40,9 @@ public final class IssueEditViewModel {
             issue.assigneeId.map { "\(type):\($0)" }
         } ?? Self.noAssigneeId
         selectedProjectId = issue.projectId ?? Self.noProjectId
+        selectedLabelIds = Set(issue.labels.map(\.id))
+        labels = issue.labels
+        originalLabelIds = Set(issue.labels.map(\.id))
 
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
@@ -84,9 +90,11 @@ public final class IssueEditViewModel {
         do {
             async let members = api.listMembers(workspaceId: workspaceId)
             async let agents = api.listAgents(workspaceId: workspaceId)
+            async let labelResponse = api.listLabels()
 
             let loadedMembers = try await members
             let loadedAgents = try await agents
+            let loadedLabels = try await labelResponse.labels
             let loadedProjects = try await loadAllProjects(workspaceId: workspaceId)
 
             assigneeOptions = loadedMembers.map {
@@ -107,6 +115,7 @@ public final class IssueEditViewModel {
                 )
             }
             projects = loadedProjects
+            labels = mergeLabels(issueLabels: labels, workspaceLabels: loadedLabels)
 
             if selectedAssigneeOptionId != Self.noAssigneeId && selectedAssignee == nil {
                 selectedAssigneeOptionId = Self.noAssigneeId
@@ -136,7 +145,7 @@ public final class IssueEditViewModel {
         let assignee = selectedAssignee
 
         do {
-            return try await api.updateIssueDetails(
+            let updated = try await api.updateIssueDetails(
                 id: issueId,
                 workspaceId: workspaceId,
                 title: trimmedTitle,
@@ -148,9 +157,19 @@ public final class IssueEditViewModel {
                 projectId: selectedProject?.id,
                 dueDate: includesDueDate ? dateFormatter.string(from: dueDate) : nil
             )
+            let syncedLabels = try await syncLabels()
+            return updated.replacingLabels(syncedLabels ?? updated.labels)
         } catch {
             errorMessage = error.localizedDescription
             return nil
+        }
+    }
+
+    public func toggleLabel(_ label: IssueLabel, isSelected: Bool) {
+        if isSelected {
+            selectedLabelIds.insert(label.id)
+        } else {
+            selectedLabelIds.remove(label.id)
         }
     }
 
@@ -174,5 +193,33 @@ public final class IssueEditViewModel {
         }
 
         return allProjects
+    }
+
+    private func syncLabels() async throws -> [IssueLabel]? {
+        let toAttach = selectedLabelIds.subtracting(originalLabelIds).sorted()
+        let toDetach = originalLabelIds.subtracting(selectedLabelIds).sorted()
+        guard !toAttach.isEmpty || !toDetach.isEmpty else {
+            return nil
+        }
+
+        var latestLabels: [IssueLabel]?
+        for labelId in toAttach {
+            latestLabels = try await api.attachLabel(issueId: issueId, labelId: labelId).labels
+        }
+        for labelId in toDetach {
+            latestLabels = try await api.detachLabel(issueId: issueId, labelId: labelId).labels
+        }
+        return latestLabels
+    }
+
+    private func mergeLabels(issueLabels: [IssueLabel], workspaceLabels: [IssueLabel]) -> [IssueLabel] {
+        var seen = Set<String>()
+        return (issueLabels + workspaceLabels)
+            .filter { label in
+                if seen.contains(label.id) { return false }
+                seen.insert(label.id)
+                return true
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 }

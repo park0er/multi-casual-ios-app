@@ -91,6 +91,24 @@ public struct IssueEditSheet: View {
                             }
                         }
 
+                        if !vm.labels.isEmpty {
+                            Section("Labels") {
+                                ForEach(vm.labels) { label in
+                                    Toggle(isOn: Binding(
+                                        get: { vm.selectedLabelIds.contains(label.id) },
+                                        set: { vm.toggleLabel(label, isSelected: $0) }
+                                    )) {
+                                        HStack(spacing: 8) {
+                                            Circle()
+                                                .fill(Color(hex: label.color) ?? .secondary)
+                                                .frame(width: 10, height: 10)
+                                            MarkdownText(label.name)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         if vm.isLoadingOptions {
                             Section {
                                 ProgressView("Loading workspace options")

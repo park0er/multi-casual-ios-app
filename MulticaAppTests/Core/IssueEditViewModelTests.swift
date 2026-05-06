@@ -36,12 +36,32 @@ final class IssueEditViewModelTests: XCTestCase {
                 }],"total":1}
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
+            case "/api/labels":
+                let json = """
+                {"labels":[{
+                    "id":"l1","workspace_id":"w1","name":"bug","color":"#ef4444",
+                    "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"
+                }],"total":1}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
             }
         }
-        let vm = IssueEditViewModel(issue: issue(assigneeType: "agent", assigneeId: "a1", projectId: "p1"), api: client, authSession: makeSession())
+        let selectedLabel = IssueLabel(
+            id: "l1",
+            workspaceId: "w1",
+            name: "bug",
+            color: "#ef4444",
+            createdAt: Date(timeIntervalSince1970: 0),
+            updatedAt: Date(timeIntervalSince1970: 0)
+        )
+        let vm = IssueEditViewModel(
+            issue: issue(assigneeType: "agent", assigneeId: "a1", projectId: "p1", labels: [selectedLabel]),
+            api: client,
+            authSession: makeSession()
+        )
 
         await vm.loadOptions()
 
@@ -49,6 +69,73 @@ final class IssueEditViewModelTests: XCTestCase {
         XCTAssertEqual(vm.selectedAssigneeOptionId, "agent:a1")
         XCTAssertEqual(vm.projects.map(\.id), ["p1"])
         XCTAssertEqual(vm.selectedProjectId, "p1")
+        XCTAssertEqual(vm.labels.map(\.id), ["l1"])
+        XCTAssertEqual(vm.selectedLabelIds, ["l1"])
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_submitSyncsIssueLabelsAndReturnsUpdatedLabels() async throws {
+        var requests: [(String, String)] = []
+        let client = makeClient { req in
+            requests.append((req.httpMethod ?? "", req.url?.path ?? ""))
+            switch (req.httpMethod, req.url?.path) {
+            case ("PUT", "/api/issues/i1"):
+                let json = """
+                {"id":"i1","identifier":"PAR-1","number":1,"title":"Original","description":"Body",
+                 "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+                 "project_id":null,"due_date":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+                 "updated_at":"2026-01-02T00:00:00Z","labels":[]}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("POST", "/api/issues/i1/labels"):
+                let json = """
+                {"labels":[{"id":"l2","workspace_id":"w1","name":"feature","color":"#22c55e",
+                 "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}]}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("DELETE", "/api/issues/i1/labels/l1"):
+                let json = """
+                {"labels":[{"id":"l2","workspace_id":"w1","name":"feature","color":"#22c55e",
+                 "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}]}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let original = IssueLabel(
+            id: "l1",
+            workspaceId: "w1",
+            name: "bug",
+            color: "#ef4444",
+            createdAt: Date(timeIntervalSince1970: 0),
+            updatedAt: Date(timeIntervalSince1970: 0)
+        )
+        let replacement = IssueLabel(
+            id: "l2",
+            workspaceId: "w1",
+            name: "feature",
+            color: "#22c55e",
+            createdAt: Date(timeIntervalSince1970: 0),
+            updatedAt: Date(timeIntervalSince1970: 0)
+        )
+        let vm = IssueEditViewModel(
+            issue: issue(assigneeType: nil, assigneeId: nil, projectId: nil, labels: [original]),
+            api: client,
+            authSession: makeSession()
+        )
+        vm.labels = [original, replacement]
+        vm.selectedLabelIds = ["l2"]
+
+        let updated = await vm.submit()
+
+        XCTAssertEqual(updated?.labels.map(\.id), ["l2"])
+        XCTAssertEqual(requests.map { "\($0.0) \($0.1)" }, [
+            "PUT /api/issues/i1",
+            "POST /api/issues/i1/labels",
+            "DELETE /api/issues/i1/labels/l1",
+        ])
         XCTAssertNil(vm.errorMessage)
     }
 
@@ -89,7 +176,12 @@ final class IssueEditViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
-    private func issue(assigneeType: String?, assigneeId: String?, projectId: String?) -> Issue {
+    private func issue(
+        assigneeType: String?,
+        assigneeId: String?,
+        projectId: String?,
+        labels: [IssueLabel] = []
+    ) -> Issue {
         Issue(
             id: "i1",
             identifier: "PAR-1",
@@ -102,6 +194,7 @@ final class IssueEditViewModelTests: XCTestCase {
             assigneeType: assigneeType,
             projectId: projectId,
             workspaceId: "w1",
+            labels: labels,
             createdAt: Date(timeIntervalSince1970: 0),
             updatedAt: Date(timeIntervalSince1970: 0)
         )
