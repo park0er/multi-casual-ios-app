@@ -219,6 +219,7 @@ public final class APIClient: @unchecked Sendable {
             "api/autopilots",
             "api/pins",
             "api/attachments",
+            "api/upload-file",
             "api/comments",
             "api/agents",
             "api/skills",
@@ -572,6 +573,115 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
+    // MARK: - File Uploads
+
+    public func uploadFile(
+        filename: String,
+        data: Data,
+        contentType: String,
+        issueId: String? = nil,
+        commentId: String? = nil,
+        workspaceId: String? = nil
+    ) async throws -> Attachment {
+        let path = "api/upload-file"
+        guard var components = URLComponents(
+            url: baseURL.appendingPathComponent(path),
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw APIError.serverError(-1, body: "Invalid base URL: \(baseURL) + \(path)")
+        }
+        let queryItems = await queryItemsWithWorkspaceIfNeeded(
+            path: path,
+            queryItems: workspaceQuery(workspaceId)
+        )
+        if !queryItems.isEmpty {
+            components.queryItems = queryItems
+        }
+        guard let url = components.url else {
+            throw APIError.serverError(-1, body: "Invalid URL components for path \(path)")
+        }
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        req.setValue(UUID().uuidString, forHTTPHeaderField: "X-Request-ID")
+        req.setValue("ios", forHTTPHeaderField: "X-Client-Platform")
+        req.setValue(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "debug",
+                     forHTTPHeaderField: "X-Client-Version")
+        req.setValue(ProcessInfo.processInfo.operatingSystemVersionString, forHTTPHeaderField: "X-Client-OS")
+        if let token = tokenProvider() {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let workspaceSlug = await workspaceSlugProvider(), !workspaceSlug.isEmpty {
+            req.setValue(workspaceSlug, forHTTPHeaderField: "X-Workspace-Slug")
+        }
+        req.httpBody = multipartBody(
+            boundary: boundary,
+            file: (filename: filename, data: data, contentType: contentType),
+            fields: [
+                ("issue_id", issueId),
+                ("comment_id", commentId),
+            ]
+        )
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await responseData(for: req)
+        } catch {
+            if let apiError = error as? APIError {
+                throw apiError
+            }
+            throw APIError.networkError(error)
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.serverError(-1, body: "Non-HTTP response: \(response)")
+        }
+        switch http.statusCode {
+        case 200...299:
+            break
+        case 401:
+            throw APIError.unauthorized
+        case 404:
+            throw APIError.notFound
+        default:
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw APIError.serverError(http.statusCode, body: body)
+        }
+
+        do {
+            return try APIClient.decoder.decode(Attachment.self, from: data)
+        } catch {
+            let body = String(data: data, encoding: .utf8) ?? "<binary \(data.count) bytes>"
+            throw APIError.decodingError(underlying: error, body: body)
+        }
+    }
+
+    private func multipartBody(
+        boundary: String,
+        file: (filename: String, data: Data, contentType: String),
+        fields: [(name: String, value: String?)]
+    ) -> Data {
+        var body = Data()
+        let lineBreak = "\r\n"
+
+        for field in fields {
+            guard let value = field.value, !value.isEmpty else { continue }
+            body.appendString("--\(boundary)\(lineBreak)")
+            body.appendString("Content-Disposition: form-data; name=\"\(field.name)\"\(lineBreak)\(lineBreak)")
+            body.appendString("\(value)\(lineBreak)")
+        }
+
+        body.appendString("--\(boundary)\(lineBreak)")
+        body.appendString("Content-Disposition: form-data; name=\"file\"; filename=\"\(file.filename)\"\(lineBreak)")
+        body.appendString("Content-Type: \(file.contentType)\(lineBreak)\(lineBreak)")
+        body.append(file.data)
+        body.appendString(lineBreak)
+        body.appendString("--\(boundary)--\(lineBreak)")
+        return body
+    }
+
     // MARK: - Issues
 
     private struct CreateIssueRequest: Encodable {
@@ -585,6 +695,7 @@ public final class APIClient: @unchecked Sendable {
         let projectId: String?
         let parentIssueId: String?
         let dueDate: String?
+        let attachmentIds: [String]?
         enum CodingKeys: String, CodingKey {
             case title, description, status, priority
             case workspaceId = "workspace_id"
@@ -593,6 +704,7 @@ public final class APIClient: @unchecked Sendable {
             case projectId = "project_id"
             case parentIssueId = "parent_issue_id"
             case dueDate = "due_date"
+            case attachmentIds = "attachment_ids"
         }
     }
 
@@ -745,7 +857,8 @@ public final class APIClient: @unchecked Sendable {
         assigneeId: String? = nil,
         projectId: String? = nil,
         parentIssueId: String? = nil,
-        dueDate: String? = nil
+        dueDate: String? = nil,
+        attachmentIds: [String]? = nil
     ) async throws -> Issue {
         try await request("POST", path: "api/issues",
                           queryItems: workspaceQuery(workspaceId),
@@ -759,7 +872,8 @@ public final class APIClient: @unchecked Sendable {
                             assigneeId: assigneeId,
                             projectId: projectId,
                             parentIssueId: parentIssueId,
-                            dueDate: dueDate
+                            dueDate: dueDate,
+                            attachmentIds: attachmentIds?.isEmpty == false ? attachmentIds : nil
                           ))
     }
 
@@ -775,7 +889,13 @@ public final class APIClient: @unchecked Sendable {
         let content: String
         let type: String
         let parentId: String?
-        enum CodingKeys: String, CodingKey { case content, type; case parentId = "parent_id" }
+        let attachmentIds: [String]?
+
+        enum CodingKeys: String, CodingKey {
+            case content, type
+            case parentId = "parent_id"
+            case attachmentIds = "attachment_ids"
+        }
     }
 
     private struct UpdateCommentRequest: Encodable {
@@ -806,10 +926,21 @@ public final class APIClient: @unchecked Sendable {
         let emoji: String
     }
 
-    public func addComment(issueId: String, content: String, parentId: String? = nil, workspaceId: String? = nil) async throws -> Comment {
+    public func addComment(
+        issueId: String,
+        content: String,
+        parentId: String? = nil,
+        attachmentIds: [String]? = nil,
+        workspaceId: String? = nil
+    ) async throws -> Comment {
         try await request("POST", path: "api/issues/\(issueId)/comments",
                           queryItems: workspaceQuery(workspaceId),
-                          body: AddCommentRequest(content: content, type: "comment", parentId: parentId))
+                          body: AddCommentRequest(
+                            content: content,
+                            type: "comment",
+                            parentId: parentId,
+                            attachmentIds: attachmentIds?.isEmpty == false ? attachmentIds : nil
+                          ))
     }
 
     public func listTimeline(issueId: String, workspaceId: String? = nil) async throws -> [TimelineEntry] {
@@ -1717,6 +1848,12 @@ public final class APIClient: @unchecked Sendable {
     private func workspaceHeaders(_ workspaceSlug: String?) -> [String: String] {
         guard let workspaceSlug, !workspaceSlug.isEmpty else { return [:] }
         return ["X-Workspace-Slug": workspaceSlug]
+    }
+}
+
+private extension Data {
+    mutating func appendString(_ string: String) {
+        append(Data(string.utf8))
     }
 }
 

@@ -19,7 +19,9 @@ public final class IssueDetailViewModel {
     public var subscriberAgents: [Agent] = []
     public let commentLoader = PaginatedLoader<Comment>()
     public var commentDraft = ""
+    public var commentAttachments: [Attachment] = []
     public var isSubmittingComment = false
+    public var isUploadingCommentAttachment = false
     public var isLoadingIssue = false
     public var isLoadingComments = false
     public var isLoadingAgentRuns = false
@@ -65,7 +67,9 @@ public final class IssueDetailViewModel {
     }
 
     public var canSubmitComment: Bool {
-        !commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSubmittingComment
+        !commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !isSubmittingComment &&
+        !isUploadingCommentAttachment
     }
 
     public var childProgressText: String {
@@ -448,6 +452,34 @@ public final class IssueDetailViewModel {
         guard !content.isEmpty else { return }
         guard await submitComment(content: content, parentId: nil) else { return }
         commentDraft = ""
+        commentAttachments = []
+    }
+
+    public func uploadCommentAttachment(filename: String, data: Data, contentType: String) async -> Bool {
+        guard !data.isEmpty else {
+            error = "Attachment is empty."
+            return false
+        }
+        guard !isUploadingCommentAttachment else { return false }
+
+        isUploadingCommentAttachment = true
+        error = nil
+        defer { isUploadingCommentAttachment = false }
+
+        do {
+            let attachment = try await api.uploadFile(
+                filename: filename,
+                data: data,
+                contentType: contentType,
+                issueId: issueId,
+                workspaceId: effectiveWorkspaceId
+            )
+            commentAttachments.append(attachment)
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
     }
 
     public func submitReply(parentId: String, content: String) async -> Bool {
@@ -490,7 +522,13 @@ public final class IssueDetailViewModel {
     private func submitComment(content: String, parentId: String?) async -> Bool {
         isSubmittingComment = true; defer { isSubmittingComment = false }
         do {
-            let comment = try await api.addComment(issueId: issueId, content: content, parentId: parentId, workspaceId: effectiveWorkspaceId)
+            let comment = try await api.addComment(
+                issueId: issueId,
+                content: content,
+                parentId: parentId,
+                attachmentIds: parentId == nil ? commentAttachments.map(\.id) : nil,
+                workspaceId: effectiveWorkspaceId
+            )
             commentLoader.items.append(comment)
             await loadIssue()
             await DataStore.shared.invalidateIssue(issueId)

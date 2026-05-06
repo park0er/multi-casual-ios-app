@@ -838,6 +838,90 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(body["type"] as? String, "comment")
     }
 
+    func test_uploadFile_usesDesktopMultipartEndpoint() async throws {
+        let json = """
+        {"id":"att1","workspace_id":"w1","issue_id":"i1","comment_id":null,
+         "uploader_type":"member","uploader_id":"u1","filename":"spec.md",
+         "url":"https://cdn.example/spec.md","download_url":"https://cdn.example/spec.md",
+         "content_type":"text/markdown","size_bytes":11,"created_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+        var capturedBody = ""
+        var capturedContentType = ""
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/upload-file")
+            XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+            capturedContentType = req.value(forHTTPHeaderField: "Content-Type") ?? ""
+            capturedBody = String(data: MockURLProtocol.bodyData(for: req), encoding: .utf8) ?? ""
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let attachment = try await client.uploadFile(
+            filename: "spec.md",
+            data: Data("hello world".utf8),
+            contentType: "text/markdown",
+            issueId: "i1",
+            workspaceId: "w1"
+        )
+
+        XCTAssertEqual(attachment.id, "att1")
+        XCTAssertTrue(capturedContentType.hasPrefix("multipart/form-data; boundary="))
+        XCTAssertTrue(capturedBody.contains(#"name="file"; filename="spec.md""#))
+        XCTAssertTrue(capturedBody.contains("Content-Type: text/markdown"))
+        XCTAssertTrue(capturedBody.contains("hello world"))
+        XCTAssertTrue(capturedBody.contains(#"name="issue_id""#))
+        XCTAssertTrue(capturedBody.contains("i1"))
+    }
+
+    func test_createIssue_sendsAttachmentIds() async throws {
+        var body: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/issues")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            let json = """
+            {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
+             "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+             "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+             "updated_at":"2026-01-01T00:00:00Z"}
+            """.data(using: .utf8)!
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await client.createIssue(
+            title: "T",
+            description: nil,
+            workspaceId: "w1",
+            attachmentIds: ["att1", "att2"]
+        )
+
+        XCTAssertEqual(body["attachment_ids"] as? [String], ["att1", "att2"])
+    }
+
+    func test_addComment_sendsAttachmentIds() async throws {
+        let json = """
+        {"id":"c1","content":"Hi","author_id":"u1","author_type":"member",
+         "parent_id":null,"issue_id":"i1","created_at":"2026-01-01T00:00:00Z",
+         "attachments":[]}
+        """.data(using: .utf8)!
+        var body: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/issues/i1/comments")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await client.addComment(
+            issueId: "i1",
+            content: "Hi",
+            attachmentIds: ["att1"],
+            workspaceId: "w1"
+        )
+
+        XCTAssertEqual(body["attachment_ids"] as? [String], ["att1"])
+    }
+
     func test_listTimeline_decodesDesktopActivityEntries() async throws {
         let json = """
         [{"type":"activity","id":"a1","actor_type":"member","actor_id":"u1",

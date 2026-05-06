@@ -33,8 +33,10 @@ public final class IssueCreateViewModel {
     public var dueDate: Date
     public var assigneeOptions: [IssueAssigneeOption] = []
     public var projects: [Project] = []
+    public var attachments: [Attachment] = []
     public var isLoadingOptions = false
     public var isSubmitting = false
+    public var isUploadingAttachment = false
     public var errorMessage: String?
 
     private let api: APIClient
@@ -179,8 +181,39 @@ public final class IssueCreateViewModel {
                 assigneeId: assignee?.assigneeId,
                 projectId: projectId,
                 parentIssueId: parentIssueId,
-                dueDate: includesDueDate ? dateFormatter.string(from: dueDate) : nil
+                dueDate: includesDueDate ? dateFormatter.string(from: dueDate) : nil,
+                attachmentIds: attachments.map(\.id)
             )
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    public func uploadAttachment(filename: String, data: Data, contentType: String) async -> Bool {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before uploading an attachment."
+            return false
+        }
+        guard !data.isEmpty else {
+            errorMessage = "Attachment is empty."
+            return false
+        }
+        guard !isUploadingAttachment else { return false }
+
+        isUploadingAttachment = true
+        errorMessage = nil
+        defer { isUploadingAttachment = false }
+
+        do {
+            let attachment = try await api.uploadFile(
+                filename: filename,
+                data: data,
+                contentType: contentType,
+                workspaceId: workspaceId
+            )
+            attachments.append(attachment)
             return true
         } catch {
             errorMessage = error.localizedDescription

@@ -875,6 +875,59 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.error)
     }
 
+    func test_uploadCommentAttachmentAndSubmitIncludesAttachmentIds() async throws {
+        var requests: [String] = []
+        var commentBody: [String: Any] = [:]
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/upload-file"):
+                let body = String(data: MockURLProtocol.bodyData(for: req), encoding: .utf8) ?? ""
+                XCTAssertTrue(body.contains(#"name="file"; filename="screen.png""#))
+                XCTAssertTrue(body.contains("png-data"))
+                let json = """
+                {"id":"att1","workspace_id":"w1","issue_id":"i1","comment_id":null,
+                 "uploader_type":"member","uploader_id":"u1","filename":"screen.png",
+                 "url":"https://cdn.example/screen.png","download_url":"https://cdn.example/screen.png",
+                 "content_type":"image/png","size_bytes":8,"created_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("POST", "/api/issues/i1/comments"):
+                commentBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                let json = """
+                {"id":"c1","content":"With attachment","author_id":"u1","author_type":"member",
+                 "parent_id":null,"issue_id":"i1","created_at":"2026-01-02T00:00:00Z",
+                 "attachments":[]}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("GET", "/api/issues/i1"):
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-02T00:00:00Z"))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+        vm.commentDraft = "With attachment"
+
+        let uploaded = await vm.uploadCommentAttachment(
+            filename: "screen.png",
+            data: Data("png-data".utf8),
+            contentType: "image/png"
+        )
+        await vm.submitComment()
+
+        XCTAssertTrue(uploaded)
+        XCTAssertEqual(commentBody["attachment_ids"] as? [String], ["att1"])
+        XCTAssertTrue(vm.commentAttachments.isEmpty)
+        XCTAssertEqual(requests, [
+            "POST /api/upload-file",
+            "POST /api/issues/i1/comments",
+            "GET /api/issues/i1",
+        ])
+        XCTAssertNil(vm.error)
+    }
+
     func test_deleteIssue_callsDesktopEndpointAndMarksDeleted() async throws {
         var capturedMethod: String?
         let client = makeClient { req in

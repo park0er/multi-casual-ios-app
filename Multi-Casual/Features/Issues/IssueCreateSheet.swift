@@ -1,5 +1,6 @@
 #if canImport(SwiftUI) && canImport(UIKit)
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct IssueCreateSheet: View {
     @Environment(AuthSession.self) private var authSession
@@ -51,6 +52,7 @@ private struct IssueCreateForm: View {
     @Bindable var viewModel: IssueCreateViewModel
     let onCancel: () -> Void
     let onCreated: () -> Void
+    @State private var isShowingAttachmentImporter = false
 
     var body: some View {
         NavigationStack {
@@ -128,6 +130,37 @@ private struct IssueCreateForm: View {
                     }
                 }
 
+                Section("Attachments") {
+                    if viewModel.attachments.isEmpty {
+                        MarkdownText("No attachments selected.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(viewModel.attachments) { attachment in
+                            HStack {
+                                Image(systemName: "paperclip")
+                                    .foregroundStyle(.secondary)
+                                MarkdownText(attachment.filename)
+                                Spacer()
+                                Text(ByteCountFormatter.string(fromByteCount: Int64(attachment.sizeBytes), countStyle: .file))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    Button {
+                        isShowingAttachmentImporter = true
+                    } label: {
+                        if viewModel.isUploadingAttachment {
+                            ProgressView()
+                        } else {
+                            Label("Add Attachment", systemImage: "paperclip")
+                        }
+                    }
+                    .disabled(viewModel.isUploadingAttachment || viewModel.isSubmitting)
+                    .accessibilityIdentifier("IssueCreateAddAttachmentButton")
+                }
+
                 if viewModel.isLoadingOptions {
                     Section {
                         HStack {
@@ -148,6 +181,13 @@ private struct IssueCreateForm: View {
             }
             .navigationTitle("New Issue")
             .navigationBarTitleDisplayMode(.inline)
+            .fileImporter(
+                isPresented: $isShowingAttachmentImporter,
+                allowedContentTypes: [.item],
+                allowsMultipleSelection: false
+            ) { result in
+                handleAttachmentImport(result)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
@@ -168,6 +208,22 @@ private struct IssueCreateForm: View {
                     .disabled(!viewModel.canSubmit)
                 }
             }
+        }
+    }
+
+    private func handleAttachmentImport(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            let payload = try AttachmentImport.payload(from: url)
+            Task {
+                await viewModel.uploadAttachment(
+                    filename: payload.filename,
+                    data: payload.data,
+                    contentType: payload.contentType
+                )
+            }
+        } catch {
+            viewModel.errorMessage = error.localizedDescription
         }
     }
 }

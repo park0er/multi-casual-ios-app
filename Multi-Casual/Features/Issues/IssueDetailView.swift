@@ -1,5 +1,6 @@
 #if canImport(SwiftUI) && canImport(UIKit)
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct IssueDetailView: View {
     public let issueId: String
@@ -11,6 +12,7 @@ public struct IssueDetailView: View {
     @State private var showEditIssue = false
     @State private var showCreateSubIssue = false
     @State private var showSubscribers = false
+    @State private var showCommentAttachmentImporter = false
     @State private var showDeleteIssueConfirmation = false
     @State private var showCancelTaskConfirmation = false
     @State private var pendingCancelTask: AgentTask?
@@ -603,27 +605,84 @@ public struct IssueDetailView: View {
     }
 
     private func commentInputBar(vm: IssueDetailViewModel) -> some View {
-        HStack(spacing: 12) {
-            TextField("Add a comment…", text: Binding(
-                get: { vm.commentDraft }, set: { vm.commentDraft = $0 }
-            ), axis: .vertical)
-            .lineLimit(1...4).padding(.horizontal, 12).padding(.vertical, 8)
-            .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 20))
-            .accessibilityIdentifier("IssueDetailCommentInput")
-
-            Button { Task { await vm.submitComment() } } label: {
-                if vm.isSubmittingComment { ProgressView() }
-                else {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(vm.canSubmitComment ? Color.blue : Color.secondary)
+        VStack(alignment: .leading, spacing: 6) {
+            if !vm.commentAttachments.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(vm.commentAttachments) { attachment in
+                            Label {
+                                MarkdownText(attachment.filename)
+                                    .font(.caption)
+                            } icon: {
+                                Image(systemName: "paperclip")
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.secondary.opacity(0.1), in: Capsule())
+                        }
+                    }
+                    .padding(.horizontal)
                 }
             }
-            .disabled(!vm.canSubmitComment)
-            .accessibilityIdentifier("IssueDetailCommentSendButton")
+
+            HStack(spacing: 12) {
+                Button {
+                    showCommentAttachmentImporter = true
+                } label: {
+                    if vm.isUploadingCommentAttachment {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "paperclip.circle")
+                            .font(.title3)
+                    }
+                }
+                .disabled(vm.isUploadingCommentAttachment || vm.isSubmittingComment)
+                .accessibilityIdentifier("IssueDetailAddCommentAttachmentButton")
+
+                TextField("Add a comment…", text: Binding(
+                    get: { vm.commentDraft }, set: { vm.commentDraft = $0 }
+                ), axis: .vertical)
+                .lineLimit(1...4).padding(.horizontal, 12).padding(.vertical, 8)
+                .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 20))
+                .accessibilityIdentifier("IssueDetailCommentInput")
+
+                Button { Task { await vm.submitComment() } } label: {
+                    if vm.isSubmittingComment { ProgressView() }
+                    else {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(vm.canSubmitComment ? Color.blue : Color.secondary)
+                    }
+                }
+                .disabled(!vm.canSubmitComment)
+                .accessibilityIdentifier("IssueDetailCommentSendButton")
+            }
         }
         .padding(.horizontal).padding(.vertical, 8).background(.background)
         .overlay(alignment: .top) { Divider() }
+        .fileImporter(
+            isPresented: $showCommentAttachmentImporter,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: false
+        ) { result in
+            handleCommentAttachmentImport(result, vm: vm)
+        }
+    }
+
+    private func handleCommentAttachmentImport(_ result: Result<[URL], Error>, vm: IssueDetailViewModel) {
+        do {
+            guard let url = try result.get().first else { return }
+            let payload = try AttachmentImport.payload(from: url)
+            Task {
+                await vm.uploadCommentAttachment(
+                    filename: payload.filename,
+                    data: payload.data,
+                    contentType: payload.contentType
+                )
+            }
+        } catch {
+            vm.error = error.localizedDescription
+        }
     }
 }
 

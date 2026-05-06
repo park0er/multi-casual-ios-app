@@ -310,9 +310,15 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Assignee"].exists)
         XCTAssertTrue(app.staticTexts["Project"].exists)
         XCTAssertTrue(app.staticTexts["Due Date"].exists)
-
         titleField.tap()
         titleField.typeText("UI smoke draft")
+
+        let addAttachmentButton = app.buttons["IssueCreateAddAttachmentButton"]
+        if !addAttachmentButton.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(addAttachmentButton.waitForExistence(timeout: 10))
+
         XCTAssertTrue(app.buttons["Create"].isEnabled)
     }
 
@@ -528,6 +534,7 @@ final class Multi-CasualUITests: XCTestCase {
             reason: "Issue detail endpoint timed out before metadata coverage could run."
         )
         XCTAssertTrue(app.staticTexts["Agent Activity"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["IssueDetailAddCommentAttachmentButton"].waitForExistence(timeout: 10))
         let commentField = app.descendants(matching: .any)["IssueDetailCommentInput"].firstMatch
         XCTAssertTrue(commentField.waitForExistence(timeout: 10))
         commentField.tap()

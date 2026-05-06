@@ -190,6 +190,55 @@ final class IssueCreateViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_uploadAttachmentAndSubmitIncludesAttachmentIds() async throws {
+        var requests: [String] = []
+        var createBody: [String: Any] = [:]
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/upload-file"):
+                let body = String(data: MockURLProtocol.bodyData(for: req), encoding: .utf8) ?? ""
+                XCTAssertTrue(body.contains(#"name="file"; filename="spec.md""#))
+                XCTAssertTrue(body.contains("Attachment body"))
+                let json = """
+                {"id":"att1","workspace_id":"w1","issue_id":null,"comment_id":null,
+                 "uploader_type":"member","uploader_id":"u1","filename":"spec.md",
+                 "url":"https://cdn.example/spec.md","download_url":"https://cdn.example/spec.md",
+                 "content_type":"text/markdown","size_bytes":15,"created_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("POST", "/api/issues"):
+                createBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                let json = """
+                {"id":"i1","identifier":"PAR-1","number":1,"title":"With attachment","description":null,
+                 "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+                 "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+                 "updated_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueCreateViewModel(api: client, authSession: makeSession())
+        vm.title = "With attachment"
+
+        let uploaded = await vm.uploadAttachment(
+            filename: "spec.md",
+            data: Data("Attachment body".utf8),
+            contentType: "text/markdown"
+        )
+        let created = await vm.submit()
+
+        XCTAssertTrue(uploaded)
+        XCTAssertTrue(created)
+        XCTAssertEqual(vm.attachments.map(\.id), ["att1"])
+        XCTAssertEqual(createBody["attachment_ids"] as? [String], ["att1"])
+        XCTAssertEqual(requests, ["POST /api/upload-file", "POST /api/issues"])
+        XCTAssertNil(vm.errorMessage)
+    }
+
     private func makeSession() -> AuthSession {
         let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.issue-create.test"))
         session.currentWorkspace = workspace
