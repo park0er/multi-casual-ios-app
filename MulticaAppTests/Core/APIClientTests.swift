@@ -58,6 +58,10 @@ final class APIClientTests: XCTestCase {
         client = APIClient(session: session, token: "test-token")
     }
 
+    func test_defaultRequestTimeoutAllowsSlowWorkspaceResponses() {
+        XCTAssertGreaterThanOrEqual(APIClient.defaultRequestTimeout, 45)
+    }
+
     func test_getMe_decodesUser() async throws {
         let json = """
         {"id":"u1","email":"test@example.com","name":"Test User","avatar_url":null}
@@ -493,6 +497,30 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(page.items.count, 1)
         XCTAssertEqual(page.items.first?.issueTitle, "PAR-73 updated")
         XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
+    }
+
+    func test_listInbox_sendsPaginationWhenProvided() async throws {
+        MockURLProtocol.handler = { req in
+            let url = try XCTUnwrap(req.url)
+            let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+            let queryItems = components.queryItems ?? []
+            XCTAssertEqual(url.path, "/api/inbox")
+            XCTAssertEqual(queryItems.first(where: { $0.name == "workspace_id" })?.value, "w1")
+            XCTAssertEqual(queryItems.first(where: { $0.name == "limit" })?.value, "50")
+            XCTAssertEqual(queryItems.first(where: { $0.name == "offset" })?.value, "100")
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
+            return (
+                HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("[]".utf8)
+            )
+        }
+
+        _ = try await client.listInbox(
+            workspaceId: "w1",
+            workspaceSlug: "park0er",
+            limit: 50,
+            offset: 100
+        )
     }
 
     func test_markInboxRead_usesDesktopReadEndpoint() async throws {

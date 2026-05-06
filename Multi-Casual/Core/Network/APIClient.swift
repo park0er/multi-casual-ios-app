@@ -3,6 +3,8 @@ import Observation
 
 @Observable
 public final class APIClient: @unchecked Sendable {
+    public static let defaultRequestTimeout: TimeInterval = 45
+
     public struct CountResponse: Codable, Sendable {
         public let count: Int
     }
@@ -57,7 +59,7 @@ public final class APIClient: @unchecked Sendable {
     public init(
         session: URLSession = .shared,
         baseURL: URL = URL(string: "https://api.multica.ai")!,
-        requestTimeout: TimeInterval = 15,
+        requestTimeout: TimeInterval = APIClient.defaultRequestTimeout,
         token: String? = nil,
         tokenProvider: (@Sendable () -> String?)? = nil,
         workspaceSlugProvider: (@Sendable () async -> String?)? = nil
@@ -1367,11 +1369,23 @@ public final class APIClient: @unchecked Sendable {
 
     // MARK: - Inbox
 
-    public func listInbox(workspaceId: String? = nil, workspaceSlug: String? = nil) async throws -> PageResponse<InboxItem> {
-        try await request(
+    public func listInbox(
+        workspaceId: String? = nil,
+        workspaceSlug: String? = nil,
+        limit: Int? = nil,
+        offset: Int? = nil
+    ) async throws -> PageResponse<InboxItem> {
+        var queryItems = workspaceQuery(workspaceId)
+        if let limit {
+            queryItems.append(.init(name: "limit", value: "\(limit)"))
+        }
+        if let offset {
+            queryItems.append(.init(name: "offset", value: "\(offset)"))
+        }
+        return try await request(
             "GET",
             path: "api/inbox",
-            queryItems: workspaceQuery(workspaceId),
+            queryItems: queryItems,
             headers: workspaceHeaders(workspaceSlug)
         )
     }

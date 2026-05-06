@@ -7,7 +7,7 @@ final class InboxViewModelTests: XCTestCase {
         let client = makeClient { req in
             switch req.url?.path {
             case "/api/inbox":
-                XCTAssertEqual(req.url?.query, "workspace_id=w1")
+                Self.assertInboxListQuery(req)
                 XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Self.inboxItemJSON(read: false, archived: false))
             case "/api/inbox/n1/read":
@@ -33,7 +33,7 @@ final class InboxViewModelTests: XCTestCase {
         let client = makeClient { req in
             switch req.url?.path {
             case "/api/inbox":
-                XCTAssertEqual(req.url?.query, "workspace_id=w1")
+                Self.assertInboxListQuery(req)
                 XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
                 return Self.response(for: req, body: Self.inboxItemJSON(read: false, archived: false))
             case "/api/inbox/n1/archive":
@@ -386,5 +386,22 @@ final class InboxViewModelTests: XCTestCase {
             HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!,
             body
         )
+    }
+
+    private static func assertInboxListQuery(
+        _ request: URLRequest,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let url = request.url,
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        else {
+            XCTFail("Missing URL", file: file, line: line)
+            return
+        }
+        let queryItems = components.queryItems ?? []
+        XCTAssertEqual(queryItems.first(where: { $0.name == "workspace_id" })?.value, "w1", file: file, line: line)
+        XCTAssertEqual(queryItems.first(where: { $0.name == "limit" })?.value, "50", file: file, line: line)
+        XCTAssertEqual(queryItems.first(where: { $0.name == "offset" })?.value, "0", file: file, line: line)
     }
 }

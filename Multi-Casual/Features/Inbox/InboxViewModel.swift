@@ -39,6 +39,7 @@ public final class InboxViewModel {
     public var unreadCount: Int = 0
     public var pendingArchiveItem: InboxItem?
     public var pendingBulkArchiveAction: InboxBulkArchiveAction?
+    private let pageSize = 50
     private let api: APIClient
     private let authSession: AuthSession
 
@@ -53,9 +54,14 @@ public final class InboxViewModel {
             return
         }
         do {
-            try await loader.loadNext { [api, workspace] offset in
-                _ = offset
-                return try await api.listInbox(workspaceId: workspace.id, workspaceSlug: workspace.slug)
+            let pageSize = self.pageSize
+            try await loader.loadNext { [api, workspace, pageSize] offset in
+                return try await api.listInbox(
+                    workspaceId: workspace.id,
+                    workspaceSlug: workspace.slug,
+                    limit: pageSize,
+                    offset: offset
+                )
             }
             loader.items = Self.deduplicateInboxItems(loader.items)
             lastError = nil
