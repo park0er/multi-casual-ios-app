@@ -9,6 +9,16 @@ public final class APIClient: @unchecked Sendable {
         public let count: Int
     }
 
+    public struct FeedbackResponse: Codable, Equatable, Sendable {
+        public let id: String
+        public let createdAt: Date
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case createdAt = "created_at"
+        }
+    }
+
     public struct BatchUpdateIssuesResponse: Codable, Sendable {
         public let updated: Int
     }
@@ -241,6 +251,7 @@ public final class APIClient: @unchecked Sendable {
             "api/chat",
             "api/inbox",
             "api/notification-preferences",
+            "api/feedback",
             "api/devices",
         ]
         return scopedPrefixes.contains { path == $0 || path.hasPrefix($0 + "/") }
@@ -363,6 +374,16 @@ public final class APIClient: @unchecked Sendable {
     }
     private struct UpdateNotificationPreferencesRequest: Encodable {
         let preferences: NotificationPreferences
+    }
+    private struct CreateFeedbackRequest: Encodable {
+        let message: String
+        let url: String?
+        let workspaceId: String
+
+        enum CodingKeys: String, CodingKey {
+            case message, url
+            case workspaceId = "workspace_id"
+        }
     }
     private struct CreatePersonalAccessTokenRequest: Encodable {
         let name: String
@@ -1858,6 +1879,17 @@ public final class APIClient: @unchecked Sendable {
             path: "api/notification-preferences",
             queryItems: workspaceQuery(workspaceId),
             body: UpdateNotificationPreferencesRequest(preferences: preferences)
+        )
+    }
+
+    // MARK: - Feedback
+
+    public func createFeedback(message: String, url: String? = nil, workspaceId: String) async throws -> FeedbackResponse {
+        try await request(
+            "POST",
+            path: "api/feedback",
+            queryItems: workspaceQuery(workspaceId),
+            body: CreateFeedbackRequest(message: message, url: url, workspaceId: workspaceId)
         )
     }
 

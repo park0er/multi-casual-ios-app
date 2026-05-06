@@ -777,6 +777,38 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual((requests[1].body?["preferences"] as? [String: String])?["agent_activity"], "all")
     }
 
+    func test_createFeedbackUsesDesktopShapeAndWorkspaceScope() async throws {
+        var capturedURL: URL?
+        var capturedBody: [String: Any]?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            let requestBody = MockURLProtocol.bodyData(for: req)
+            capturedBody = try? JSONSerialization.jsonObject(with: requestBody) as? [String: Any]
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/feedback")
+            XCTAssertEqual(req.url?.query, "workspace_id=w1")
+            let json = """
+            {"id":"fb1","created_at":"2026-05-07T00:00:00Z"}
+            """.data(using: .utf8)!
+            return (
+                HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                json
+            )
+        }
+
+        let response = try await client.createFeedback(
+            message: "Issue detail needs Markdown",
+            url: "https://app.multica.ai/issues/1",
+            workspaceId: "w1"
+        )
+
+        XCTAssertEqual(response.id, "fb1")
+        XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
+        XCTAssertEqual(capturedBody?["message"] as? String, "Issue detail needs Markdown")
+        XCTAssertEqual(capturedBody?["url"] as? String, "https://app.multica.ai/issues/1")
+        XCTAssertEqual(capturedBody?["workspace_id"] as? String, "w1")
+    }
+
     func test_personalAccessTokenEndpointsUseDesktopShape() async throws {
         var requests: [(method: String, path: String, body: [String: Any]?)] = []
         MockURLProtocol.handler = { req in

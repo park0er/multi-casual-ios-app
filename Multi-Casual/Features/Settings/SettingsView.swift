@@ -44,6 +44,7 @@ public struct SettingsView: View {
                 NavigationLink("Autopilots") { AutopilotsView() }
                 NavigationLink("Runtimes") { RuntimesView() }
                 NavigationLink("Skills") { SkillsView() }
+                NavigationLink("Feedback") { FeedbackView() }
             }
 
             Section {
