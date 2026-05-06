@@ -5,11 +5,13 @@ public struct IssueDetailView: View {
     public let issueId: String
     @Environment(AuthSession.self) private var authSession
     @Environment(APIClient.self) private var api
+    @Environment(\.dismiss) private var dismiss
     @State private var viewModel: IssueDetailViewModel?
     @State private var showTranscript = false
     @State private var showEditIssue = false
     @State private var showCreateSubIssue = false
     @State private var showSubscribers = false
+    @State private var showDeleteIssueConfirmation = false
     @State private var selectedTaskId: String?
 
     public init(issueId: String) { self.issueId = issueId }
@@ -66,13 +68,31 @@ public struct IssueDetailView: View {
         }
         .toolbar {
             if viewModel?.issue != nil {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
                         showEditIssue = true
                     } label: {
                         Label("Edit Issue", systemImage: "pencil")
                     }
                     .accessibilityIdentifier("IssueDetailEditButton")
+                    Button(role: .destructive) {
+                        showDeleteIssueConfirmation = true
+                    } label: {
+                        Label("Delete Issue", systemImage: "trash")
+                    }
+                    .disabled(viewModel?.isDeletingIssue == true)
+                    .accessibilityIdentifier("IssueDetailDeleteButton")
+                }
+            }
+        }
+        .destructiveConfirmation(
+            deleteIssueConfirmation,
+            isPresented: $showDeleteIssueConfirmation
+        ) {
+            Task {
+                await viewModel?.deleteIssue()
+                if viewModel?.didDeleteIssue == true {
+                    dismiss()
                 }
             }
         }
@@ -87,6 +107,9 @@ public struct IssueDetailView: View {
                         ErrorMessageRow(message: error) {
                             Task { await vm.loadIssueAndMetadata() }
                         }
+                    }
+                    if let deleteIssueError = vm.deleteIssueError {
+                        ErrorMessageRow(message: deleteIssueError)
                     }
                     if let issue = vm.issue {
                         issueHeader(issue: issue, vm: vm, currentUserId: authSession.currentUser?.id)
@@ -150,6 +173,13 @@ public struct IssueDetailView: View {
             .accessibilityIdentifier("IssueDetailScrollView")
             commentInputBar(vm: vm)
         }
+    }
+
+    private var deleteIssueConfirmation: DestructiveConfirmation {
+        DestructiveConfirmation.deleteIssue(
+            identifier: viewModel?.issue?.identifier,
+            title: viewModel?.issue?.title
+        )
     }
 
     private func issueHeader(issue: Issue, vm: IssueDetailViewModel, currentUserId: String?) -> some View {

@@ -32,6 +32,17 @@ public struct DestructiveConfirmation: Equatable, Sendable {
             confirmTitle: "Archive"
         )
     }
+
+    public static func deleteIssue(identifier: String?, title: String?) -> DestructiveConfirmation {
+        let id = identifier?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let issueTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subject = id?.isEmpty == false ? id! : (issueTitle?.isEmpty == false ? issueTitle! : "this issue")
+        return DestructiveConfirmation(
+            title: "Delete \(subject)?",
+            message: "This removes the issue and its activity from the workspace. This action cannot be undone.",
+            confirmTitle: "Delete"
+        )
+    }
 }
 
 #if canImport(SwiftUI)

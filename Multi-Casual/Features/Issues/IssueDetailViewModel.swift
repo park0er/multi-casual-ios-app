@@ -26,6 +26,7 @@ public final class IssueDetailViewModel {
     public var isLoadingUsage = false
     public var isLoadingSubscribers = false
     public var isLoadingIssueRelations = false
+    public var isDeletingIssue = false
     public var didLoadComments = false
     public var didLoadAgentRuns = false
     public var didLoadTimeline = false
@@ -40,6 +41,8 @@ public final class IssueDetailViewModel {
     public var subscribersError: String?
     public var issueRelationsError: String?
     public var metadataError: String?
+    public var deleteIssueError: String?
+    public var didDeleteIssue = false
     public var assigneeDisplayName: String?
     public var projectDisplayName: String?
     public var isUpdatingIssue = false
@@ -328,6 +331,19 @@ public final class IssueDetailViewModel {
             usage = nil
             didLoadUsage = true
             usageError = error.localizedDescription
+        }
+    }
+
+    public func deleteIssue() async {
+        isDeletingIssue = true
+        deleteIssueError = nil
+        defer { isDeletingIssue = false }
+        do {
+            try await api.deleteIssue(id: issueId)
+            didDeleteIssue = true
+        } catch {
+            didDeleteIssue = false
+            deleteIssueError = error.localizedDescription
         }
     }
 

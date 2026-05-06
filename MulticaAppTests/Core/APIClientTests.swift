@@ -498,6 +498,19 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(body["priority"] as? String, "urgent")
     }
 
+    func test_deleteIssue_usesDesktopEndpoint() async throws {
+        var capturedMethod: String?
+        MockURLProtocol.handler = { req in
+            capturedMethod = req.httpMethod
+            XCTAssertEqual(req.url?.path, "/api/issues/i1")
+            return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+        }
+
+        try await client.deleteIssue(id: "i1")
+
+        XCTAssertEqual(capturedMethod, "DELETE")
+    }
+
     func test_updateIssueDetails_sendsEditableFieldsAndNulls() async throws {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"Updated","description":null,

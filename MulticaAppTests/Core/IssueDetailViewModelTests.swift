@@ -742,6 +742,22 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.error)
     }
 
+    func test_deleteIssue_callsDesktopEndpointAndMarksDeleted() async throws {
+        var capturedMethod: String?
+        let client = makeClient { req in
+            capturedMethod = req.httpMethod
+            XCTAssertEqual(req.url?.path, "/api/issues/i1")
+            return Self.response(for: req, body: Data(), status: 204)
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.deleteIssue()
+
+        XCTAssertEqual(capturedMethod, "DELETE")
+        XCTAssertTrue(vm.didDeleteIssue)
+        XCTAssertNil(vm.deleteIssueError)
+    }
+
     func test_submitComment_ignoresWhitespaceOnlyDraft() async throws {
         var requestCount = 0
         let client = makeClient { req in

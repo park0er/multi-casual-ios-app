@@ -19,4 +19,13 @@ final class DestructiveConfirmationTests: XCTestCase {
         XCTAssertEqual(confirmation.confirmTitle, "Archive")
         XCTAssertEqual(confirmation.cancelTitle, "Cancel")
     }
+
+    func test_issueDeleteConfirmationNamesIdentifier() {
+        let confirmation = DestructiveConfirmation.deleteIssue(identifier: "PAR-73", title: "Core iOS walkthrough")
+
+        XCTAssertEqual(confirmation.title, "Delete PAR-73?")
+        XCTAssertEqual(confirmation.message, "This removes the issue and its activity from the workspace. This action cannot be undone.")
+        XCTAssertEqual(confirmation.confirmTitle, "Delete")
+        XCTAssertEqual(confirmation.cancelTitle, "Cancel")
+    }
 }

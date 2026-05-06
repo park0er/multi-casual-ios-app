@@ -543,6 +543,10 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
+    public func deleteIssue(id: String) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/issues/\(id)")
+    }
+
     public func listLabels() async throws -> ListLabelsResponse {
         try await request("GET", path: "api/labels")
     }
