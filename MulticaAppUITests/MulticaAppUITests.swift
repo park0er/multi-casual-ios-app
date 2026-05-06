@@ -222,9 +222,8 @@ final class Multi-CasualUITests: XCTestCase {
         app.buttons["AgentsNewButton"].tap()
 
         XCTAssertTrue(app.textFields["AgentNameField"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.textViews["AgentCustomEnvEditor"].waitForExistence(timeout: 10))
-        app.swipeUp()
-        XCTAssertTrue(app.textViews["AgentCustomArgsEditor"].waitForExistence(timeout: 10))
+        XCTAssertTrue(scrollUntilElementExists(app.textViews["AgentCustomEnvEditor"], app: app, timeout: 10))
+        XCTAssertTrue(scrollUntilElementExists(app.textViews["AgentCustomArgsEditor"], app: app, timeout: 10))
         app.buttons["Cancel"].tap()
     }
 
@@ -328,17 +327,15 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Description"].exists)
         XCTAssertTrue(app.staticTexts["Status"].exists)
         XCTAssertTrue(app.staticTexts["Priority"].exists)
-        XCTAssertTrue(app.staticTexts["Assignee"].exists)
-        XCTAssertTrue(app.staticTexts["Project"].exists)
-        XCTAssertTrue(app.staticTexts["Due Date"].exists)
         titleField.tap()
         titleField.typeText("UI smoke draft")
 
+        XCTAssertTrue(scrollUntilStaticTextExists("Assignee", app: app, timeout: 10))
+        XCTAssertTrue(scrollUntilStaticTextExists("Project", app: app, timeout: 10))
+        XCTAssertTrue(scrollUntilStaticTextExists("Due Date", app: app, timeout: 10))
+
         let addAttachmentButton = app.buttons["IssueCreateAddAttachmentButton"]
-        if !addAttachmentButton.exists {
-            app.swipeUp()
-        }
-        XCTAssertTrue(addAttachmentButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(scrollUntilElementExists(addAttachmentButton, app: app, timeout: 10))
 
         XCTAssertTrue(app.buttons["Create"].isEnabled)
     }
@@ -348,7 +345,7 @@ final class Multi-CasualUITests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["New Issue"].waitForExistence(timeout: 20))
         let assigneePicker = app.buttons["IssueCreateAssigneePicker"]
-        XCTAssertTrue(assigneePicker.waitForExistence(timeout: 20))
+        XCTAssertTrue(scrollUntilElementExists(assigneePicker, app: app, timeout: 20))
         XCTAssertTrue(waitForValue(assigneePicker, timeout: 30) { value in
             value.contains("Assignee options loaded:") && !value.contains("Assignee options loaded: 0")
         })
@@ -597,11 +594,8 @@ final class Multi-CasualUITests: XCTestCase {
         let app = launchApp(initialTab: "issues", issueId: par73IssueId)
 
         XCTAssertTrue(app.staticTexts["Comments"].waitForExistence(timeout: 20))
-        let scrollView = app.scrollViews["IssueDetailScrollView"]
-        XCTAssertTrue(scrollView.waitForExistence(timeout: 10))
-
         for _ in 0..<3 {
-            scrollView.swipeUp()
+            app.swipeUp()
         }
 
         let commentField = app.descendants(matching: .any)["IssueDetailCommentInput"].firstMatch
@@ -1106,6 +1100,10 @@ final class Multi-CasualUITests: XCTestCase {
 
     private func scrollUntilButtonExists(_ label: String, app: XCUIApplication, timeout: TimeInterval) -> Bool {
         let element = app.buttons[label]
+        return scrollUntilElementExists(element, app: app, timeout: timeout)
+    }
+
+    private func scrollUntilElementExists(_ element: XCUIElement, app: XCUIApplication, timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if element.exists { return true }
