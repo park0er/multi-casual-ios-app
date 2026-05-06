@@ -314,6 +314,24 @@ final class APIClientTests: XCTestCase {
         XCTAssertNil(capturedURL?.query)
     }
 
+    func test_markAllInboxRead_usesDesktopBulkEndpoint() async throws {
+        let json = #"{"count":3}"#.data(using: .utf8)!
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            XCTAssertEqual(req.httpMethod, "POST")
+            XCTAssertEqual(req.url?.path, "/api/inbox/mark-all-read")
+            XCTAssertNil(req.url?.query)
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let response = try await client.markAllInboxRead(workspaceSlug: "park0er")
+
+        XCTAssertEqual(response.count, 3)
+        XCTAssertNil(capturedURL?.query)
+    }
+
     func test_listComments_decodesBareArrayResponse() async throws {
         let json = """
         [{"id":"c1","content":"Hi","author_id":"u1","author_type":"member",

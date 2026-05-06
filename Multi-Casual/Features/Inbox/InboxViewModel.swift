@@ -53,6 +53,21 @@ public final class InboxViewModel {
         }
     }
 
+    public func markAllRead() async {
+        guard let workspace = authSession.currentWorkspace else {
+            lastError = UserVisibleError("Pick a workspace before updating Inbox.")
+            return
+        }
+        do {
+            _ = try await api.markAllInboxRead(workspaceSlug: workspace.slug)
+            loader.items = loader.items.map(Self.markedRead)
+            updateUnreadCount()
+            lastError = nil
+        } catch {
+            lastError = error
+        }
+    }
+
     public func requestArchive(id: String) {
         pendingArchiveItem = loader.items.first { $0.id == id }
     }
@@ -88,6 +103,22 @@ public final class InboxViewModel {
 
     private func updateUnreadCount() {
         unreadCount = loader.items.filter { !$0.read && !$0.archived }.count
+    }
+
+    private static func markedRead(_ item: InboxItem) -> InboxItem {
+        InboxItem(
+            id: item.id,
+            issueId: item.issueId,
+            issueIdentifier: item.issueIdentifier,
+            issueTitle: item.issueTitle,
+            type: item.type,
+            body: item.body,
+            severity: item.severity,
+            issueStatus: item.issueStatus,
+            read: true,
+            archived: item.archived,
+            createdAt: item.createdAt
+        )
     }
 
     private static func deduplicateInboxItems(_ items: [InboxItem]) -> [InboxItem] {

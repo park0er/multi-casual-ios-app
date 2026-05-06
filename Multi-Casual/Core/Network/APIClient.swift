@@ -3,6 +3,10 @@ import Observation
 
 @Observable
 public final class APIClient: @unchecked Sendable {
+    public struct CountResponse: Codable, Sendable {
+        public let count: Int
+    }
+
     public enum APIError: Error, @unchecked Sendable {
         case unauthorized
         case notFound
@@ -352,6 +356,10 @@ public final class APIClient: @unchecked Sendable {
 
     public func archiveInbox(id: String, workspaceSlug: String? = nil) async throws -> InboxItem {
         try await request("POST", path: "api/inbox/\(id)/archive", headers: workspaceHeaders(workspaceSlug))
+    }
+
+    public func markAllInboxRead(workspaceSlug: String? = nil) async throws -> CountResponse {
+        try await request("POST", path: "api/inbox/mark-all-read", headers: workspaceHeaders(workspaceSlug))
     }
 
     // MARK: - Projects

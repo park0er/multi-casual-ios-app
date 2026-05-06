@@ -62,6 +62,19 @@ public struct InboxView: View {
             } else { ProgressView() }
         }
         .navigationTitle("Inbox")
+        .toolbar {
+            if let vm = viewModel {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await vm.markAllRead() }
+                    } label: {
+                        Label("Mark All Read", systemImage: "envelope.open")
+                    }
+                    .disabled(vm.unreadCount == 0 || vm.loader.isLoading)
+                    .accessibilityIdentifier("InboxMarkAllReadButton")
+                }
+            }
+        }
         .onAppear {
             if viewModel == nil {
                 observedWorkspaceId = authSession.currentWorkspace?.id

@@ -184,6 +184,53 @@ final class InboxViewModelTests: XCTestCase {
         XCTAssertNil(vm.lastError)
     }
 
+    func test_markAllRead_marksVisibleActiveItemsReadAndRecomputesUnreadCount() async throws {
+        var didCallMarkAll = false
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/inbox":
+                let body = Self.inboxItemsJSON([
+                    Self.inboxItemJSON(
+                        id: "n1",
+                        issueId: "i1",
+                        title: "First update",
+                        read: false,
+                        archived: false,
+                        createdAt: "2026-01-01T00:00:00Z"
+                    ),
+                    Self.inboxItemJSON(
+                        id: "n2",
+                        issueId: "i2",
+                        title: "Second update",
+                        read: false,
+                        archived: false,
+                        createdAt: "2026-01-02T00:00:00Z"
+                    )
+                ])
+                return Self.response(for: req, body: body)
+            case "/api/inbox/mark-all-read":
+                didCallMarkAll = true
+                XCTAssertNil(req.url?.query)
+                XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
+                return Self.response(for: req, body: Data(#"{"count":2}"#.utf8))
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = InboxViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        XCTAssertEqual(vm.unreadCount, 2)
+
+        await vm.markAllRead()
+
+        XCTAssertTrue(didCallMarkAll)
+        XCTAssertEqual(vm.loader.items.map(\.read), [true, true])
+        XCTAssertEqual(vm.unreadCount, 0)
+        XCTAssertNil(vm.lastError)
+    }
+
     private func makeClient(handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)) -> APIClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
