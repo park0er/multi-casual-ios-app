@@ -26,18 +26,30 @@ public struct Workspace: Codable, Identifiable, Sendable {
     public let name: String
     public let slug: String
     public let issuePrefix: String
+    public let description: String?
+    public let context: String?
     public let repos: [WorkspaceRepo]
 
     enum CodingKeys: String, CodingKey {
-        case id, name, slug, repos
+        case id, name, slug, description, context, repos
         case issuePrefix = "issue_prefix"
     }
 
-    public init(id: String, name: String, slug: String, issuePrefix: String, repos: [WorkspaceRepo] = []) {
+    public init(
+        id: String,
+        name: String,
+        slug: String,
+        issuePrefix: String,
+        description: String? = nil,
+        context: String? = nil,
+        repos: [WorkspaceRepo] = []
+    ) {
         self.id = id
         self.name = name
         self.slug = slug
         self.issuePrefix = issuePrefix
+        self.description = description
+        self.context = context
         self.repos = repos
     }
 
@@ -47,6 +59,8 @@ public struct Workspace: Codable, Identifiable, Sendable {
         name = try container.decode(String.self, forKey: .name)
         slug = try container.decode(String.self, forKey: .slug)
         issuePrefix = try container.decode(String.self, forKey: .issuePrefix)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        context = try container.decodeIfPresent(String.self, forKey: .context)
         repos = try container.decodeIfPresent([WorkspaceRepo].self, forKey: .repos) ?? []
     }
 }

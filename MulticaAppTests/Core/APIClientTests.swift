@@ -238,6 +238,51 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(body["platform"] as? String, "apns")
     }
 
+    func test_getAndUpdateWorkspaceUseDesktopPaths() async throws {
+        var requests: [(method: String?, path: String, query: String?, body: [String: Any]?)] = []
+        let workspaceJSON = """
+        {"id":"w1","name":"Workspace","slug":"workspace","description":"Docs",
+         "context":"Use **Markdown**","issue_prefix":"PAR",
+         "repos":[{"url":"https://github.com/multica-ai/multica","default_branch_hint":"main"}]}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            let bodyData = MockURLProtocol.bodyData(for: req)
+            let body = bodyData.isEmpty ? nil : try JSONSerialization.jsonObject(with: bodyData) as? [String: Any]
+            requests.append((req.httpMethod, req.url?.path ?? "", req.url?.query, body))
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/workspaces/w1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, workspaceJSON)
+            case ("PATCH", "/api/workspaces/w1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, workspaceJSON)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data())
+            }
+        }
+
+        let fetched = try await client.getWorkspace(id: "w1", workspaceId: "w1")
+        let updated = try await client.updateWorkspace(
+            id: "w1",
+            workspaceId: "w1",
+            name: "Workspace",
+            description: "Docs",
+            context: "Use **Markdown**",
+            repos: [WorkspaceRepo(url: "https://github.com/multica-ai/multica", defaultBranchHint: "main")]
+        )
+
+        XCTAssertEqual(fetched.context, "Use **Markdown**")
+        XCTAssertEqual(updated.repos.first?.defaultBranchHint, "main")
+        XCTAssertEqual(requests.map(\.method), ["GET", "PATCH"])
+        XCTAssertEqual(requests.map(\.path), ["/api/workspaces/w1", "/api/workspaces/w1"])
+        XCTAssertTrue(requests.allSatisfy { $0.query == "workspace_id=w1" })
+        XCTAssertEqual(requests[1].body?["name"] as? String, "Workspace")
+        XCTAssertEqual(requests[1].body?["description"] as? String, "Docs")
+        XCTAssertEqual(requests[1].body?["context"] as? String, "Use **Markdown**")
+        let repos = requests[1].body?["repos"] as? [[String: Any]]
+        XCTAssertEqual(repos?.first?["url"] as? String, "https://github.com/multica-ai/multica")
+        XCTAssertEqual(repos?.first?["default_branch_hint"] as? String, "main")
+    }
+
     func test_createIssue_sendsDesktopCreateFields() async throws {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":"D",

@@ -453,6 +453,8 @@ final class ModelsTests: XCTestCase {
             "id": "w1",
             "name": "Workspace",
             "slug": "workspace",
+            "description": "Team workspace",
+            "context": "Use **Markdown** context",
             "issue_prefix": "PAR",
             "repos": [{
                 "url": "https://github.com/multica-ai/multica",
@@ -465,6 +467,8 @@ final class ModelsTests: XCTestCase {
 
         XCTAssertEqual(workspace.repos.map(\.url), ["https://github.com/multica-ai/multica"])
         XCTAssertEqual(workspace.repos.first?.defaultBranchHint, "main")
+        XCTAssertEqual(workspace.description, "Team workspace")
+        XCTAssertEqual(workspace.context, "Use **Markdown** context")
     }
 
     func test_projectStatus_allCases_haveDisplayName() {

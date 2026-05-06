@@ -202,6 +202,32 @@ public final class APIClient: @unchecked Sendable {
         let token: String
         let platform: String = "apns"
     }
+    private struct UpdateWorkspaceRequest: Encodable {
+        let name: String
+        let description: String?
+        let context: String?
+        let repos: [WorkspaceRepo]
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(name, forKey: .name)
+            if let description {
+                try container.encode(description, forKey: .description)
+            } else {
+                try container.encodeNil(forKey: .description)
+            }
+            if let context {
+                try container.encode(context, forKey: .context)
+            } else {
+                try container.encodeNil(forKey: .context)
+            }
+            try container.encode(repos, forKey: .repos)
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case name, description, context, repos
+        }
+    }
     private struct CreateMemberRequest: Encodable {
         let email: String
         let role: String
@@ -407,6 +433,31 @@ public final class APIClient: @unchecked Sendable {
     // Confirmed via desktop client consumer and real response body (PAR-72).
     public func listWorkspaces() async throws -> [Workspace] {
         try await request("GET", path: "api/workspaces")
+    }
+
+    public func getWorkspace(id: String, workspaceId: String? = nil) async throws -> Workspace {
+        try await request("GET", path: "api/workspaces/\(id)", queryItems: workspaceQuery(workspaceId))
+    }
+
+    public func updateWorkspace(
+        id: String,
+        workspaceId: String? = nil,
+        name: String,
+        description: String?,
+        context: String?,
+        repos: [WorkspaceRepo]
+    ) async throws -> Workspace {
+        try await request(
+            "PATCH",
+            path: "api/workspaces/\(id)",
+            queryItems: workspaceQuery(workspaceId),
+            body: UpdateWorkspaceRequest(
+                name: name,
+                description: description,
+                context: context,
+                repos: repos
+            )
+        )
     }
 
     public func registerPushToken(_ token: String, workspaceId: String? = nil) async throws {
