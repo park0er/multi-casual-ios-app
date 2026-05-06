@@ -17,6 +17,8 @@ final class AgentsViewModelTests: XCTestCase {
                 return Self.response(for: req, body: Self.runtimeListJSON())
             case "/api/agent-task-snapshot":
                 return Self.response(for: req, body: Self.agentTasksJSON())
+            case "/api/agent-run-counts":
+                return Self.response(for: req, body: Self.agentRunCountsJSON())
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -31,6 +33,7 @@ final class AgentsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.presenceByAgentId["a1"]?.availability, .online)
         XCTAssertEqual(vm.presenceByAgentId["a1"]?.workload, .working)
         XCTAssertEqual(vm.presenceByAgentId["a1"]?.runningCount, 1)
+        XCTAssertEqual(vm.runCountsByAgentId["a1"], 7)
         XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertNil(vm.errorMessage)
     }
@@ -387,6 +390,15 @@ final class AgentsViewModelTests: XCTestCase {
         [
           {"agent_id":"a1","bucket_at":"2026-01-01T00:00:00Z","task_count":4,"failed_count":1},
           {"agent_id":"a2","bucket_at":"2026-01-01T00:00:00Z","task_count":8,"failed_count":8}
+        ]
+        """.data(using: .utf8)!
+    }
+
+    private static func agentRunCountsJSON() -> Data {
+        """
+        [
+          {"agent_id":"a1","run_count":7},
+          {"agent_id":"a2","run_count":2}
         ]
         """.data(using: .utf8)!
     }

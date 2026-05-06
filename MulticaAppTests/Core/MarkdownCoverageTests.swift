@@ -197,6 +197,10 @@ final class MarkdownCoverageTests: XCTestCase {
                 "                    Text(startedAt.formatted(date: .abbreviated, time: .shortened))"
             ),
             (
+                "Multi-Casual/Features/Settings/AgentsView.swift",
+                #"                        Text("Runs \(runCount.formatted())")"#
+            ),
+            (
                 "Multi-Casual/Features/Settings/AutopilotsView.swift",
                 "                    Text(\"Next \\(nextRunAt.formatted(date: .abbreviated, time: .shortened))\")"
             ),

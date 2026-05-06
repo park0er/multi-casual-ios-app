@@ -25,7 +25,11 @@ public struct AgentsView: View {
                             NavigationLink {
                                 AgentDetailView(agent: agent, listViewModel: vm)
                             } label: {
-                                AgentRow(agent: agent, presence: vm.presenceByAgentId[agent.id])
+                                AgentRow(
+                                    agent: agent,
+                                    presence: vm.presenceByAgentId[agent.id],
+                                    runCount: vm.runCountsByAgentId[agent.id]
+                                )
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 if agent.archivedAt == nil {
@@ -148,6 +152,7 @@ public struct AgentsView: View {
 private struct AgentRow: View {
     let agent: Agent
     let presence: AgentPresenceSummary?
+    let runCount: Int?
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -174,6 +179,9 @@ private struct AgentRow: View {
                     MarkdownText(agent.visibility.capitalized)
                     if let presence {
                         MarkdownText(presence.displayText)
+                    }
+                    if let runCount {
+                        MarkdownText("Runs \(runCount.formatted())")
                     }
                     if let model = agent.model, !model.isEmpty {
                         MarkdownText(model)

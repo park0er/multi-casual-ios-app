@@ -1925,6 +1925,25 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(buckets.first?.failedCount, 1)
     }
 
+    func test_getWorkspaceAgentRunCounts_usesDesktopEndpoint() async throws {
+        var capturedRequest: URLRequest?
+        MockURLProtocol.handler = { req in
+            capturedRequest = req
+            let body = """
+            [{"agent_id":"a1","run_count":7}]
+            """.data(using: .utf8)!
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+        }
+
+        let counts = try await client.getWorkspaceAgentRunCounts(workspaceId: "w1")
+
+        XCTAssertEqual(capturedRequest?.httpMethod, "GET")
+        XCTAssertEqual(capturedRequest?.url?.path, "/api/agent-run-counts")
+        XCTAssertTrue(capturedRequest?.url?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertEqual(counts.first?.agentId, "a1")
+        XCTAssertEqual(counts.first?.runCount, 7)
+    }
+
     func test_getAgentTaskSnapshot_usesDesktopEndpoint() async throws {
         var capturedRequest: URLRequest?
         MockURLProtocol.handler = { req in

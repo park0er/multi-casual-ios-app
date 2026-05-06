@@ -1503,6 +1503,10 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/agent-activity-30d", queryItems: workspaceQuery(workspaceId))
     }
 
+    public func getWorkspaceAgentRunCounts(workspaceId: String? = nil) async throws -> [AgentRunCount] {
+        try await request("GET", path: "api/agent-run-counts", queryItems: workspaceQuery(workspaceId))
+    }
+
     public func listRuntimes(workspaceId: String) async throws -> [AgentRuntime] {
         try await request("GET", path: "api/runtimes", queryItems: workspaceQuery(workspaceId))
     }

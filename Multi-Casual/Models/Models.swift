@@ -701,6 +701,31 @@ public struct AgentActivityBucket: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+public struct AgentRunCount: Decodable, Sendable, Hashable, Identifiable {
+    public var id: String { agentId }
+    public let agentId: String
+    public let runCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case agentId = "agent_id"
+        case runCount = "run_count"
+        case count
+    }
+
+    public init(agentId: String, runCount: Int) {
+        self.agentId = agentId
+        self.runCount = runCount
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        agentId = try container.decode(String.self, forKey: .agentId)
+        runCount = try container.decodeIfPresent(Int.self, forKey: .runCount)
+            ?? container.decodeIfPresent(Int.self, forKey: .count)
+            ?? 0
+    }
+}
+
 public struct AgentActivitySummary: Sendable, Hashable {
     public let totalRuns: Int
     public let failedRuns: Int

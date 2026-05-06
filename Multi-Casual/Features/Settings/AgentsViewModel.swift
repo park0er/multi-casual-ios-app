@@ -9,6 +9,7 @@ public final class AgentsViewModel {
     public var skills: [Skill] = []
     public var assignedSkillIdsByAgentId: [String: Set<String>] = [:]
     public var presenceByAgentId: [String: AgentPresenceSummary] = [:]
+    public var runCountsByAgentId: [String: Int] = [:]
     public var isLoading = false
     public var isMutating = false
     public var errorMessage: String?
@@ -36,6 +37,7 @@ public final class AgentsViewModel {
             async let loadedAgents = api.listAgents(workspaceId: workspaceId, includeArchived: true)
             async let loadedRuntimes = api.listRuntimes(workspaceId: workspaceId)
             async let loadedSnapshot = api.getAgentTaskSnapshot(workspaceId: workspaceId)
+            async let loadedRunCounts = api.getWorkspaceAgentRunCounts(workspaceId: workspaceId)
             agents = try await loadedAgents.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             runtimes = try await loadedRuntimes
             do {
@@ -47,6 +49,12 @@ public final class AgentsViewModel {
                 )
             } catch {
                 presenceByAgentId = [:]
+            }
+            do {
+                let runCounts = try await loadedRunCounts
+                runCountsByAgentId = Dictionary(uniqueKeysWithValues: runCounts.map { ($0.agentId, $0.runCount) })
+            } catch {
+                runCountsByAgentId = [:]
             }
         } catch {
             errorMessage = error.localizedDescription
