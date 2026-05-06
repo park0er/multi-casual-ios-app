@@ -28,7 +28,7 @@ final class AgentTimelineViewModelTests: XCTestCase {
             """.data(using: .utf8)!
             return Self.response(for: req, body: json)
         }
-        let vm = AgentTimelineViewModel(taskId: "t1", api: client)
+        let vm = AgentTimelineViewModel(taskId: "t1", workspaceId: "w1", api: client)
 
         await vm.loadHistory()
         vm.applyRealtimeMessage(TaskMessage(
@@ -52,6 +52,20 @@ final class AgentTimelineViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.timeline.map(\.id), [1, 2, 3])
         XCTAssertEqual(vm.timeline.map(\.summary), ["new", "middle", "failed"])
+    }
+
+    func test_loadHistoryRequiresWorkspaceBeforeCallingBackend() async throws {
+        let client = makeClient { req in
+            XCTFail("Transcript history should not call backend without a workspace: \(req.url?.absoluteString ?? "")")
+            return Self.response(for: req, body: Data(#"{"error":"workspace_id or workspace_slug is required"}"#.utf8), status: 400)
+        }
+        let vm = AgentTimelineViewModel(taskId: "t1", api: client)
+
+        await vm.loadHistory()
+
+        XCTAssertTrue(vm.timeline.isEmpty)
+        XCTAssertEqual(vm.errorMessage, "Pick a workspace before viewing agent transcript.")
+        XCTAssertFalse(vm.isLoading)
     }
 
     func test_applyRealtimePayloadSurfacesDecodeErrors() async throws {

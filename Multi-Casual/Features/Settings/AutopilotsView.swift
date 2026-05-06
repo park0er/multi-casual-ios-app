@@ -154,7 +154,7 @@ private struct AutopilotDetailView: View {
                     Text("No runs yet").foregroundStyle(.secondary)
                 } else {
                     ForEach(viewModel.detailRuns) { run in
-                        AutopilotRunRow(run: run)
+                        AutopilotRunRow(run: run, workspaceId: item.workspaceId)
                     }
                 }
             }
@@ -269,6 +269,7 @@ private struct AutopilotTriggerRow: View {
 
 private struct AutopilotRunRow: View {
     let run: AutopilotRun
+    let workspaceId: String?
     @State private var showTranscript = false
 
     var body: some View {
@@ -317,7 +318,7 @@ private struct AutopilotRunRow: View {
         .padding(.vertical, 4)
         .sheet(isPresented: $showTranscript) {
             if let taskId = run.taskId {
-                AgentTranscriptView(taskId: taskId)
+                AgentTranscriptView(taskId: taskId, workspaceId: workspaceId)
                     .presentationDragIndicator(.visible)
             }
         }

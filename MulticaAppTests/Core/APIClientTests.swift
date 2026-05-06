@@ -334,6 +334,23 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(body["platform"] as? String, "apns")
     }
 
+    func test_registerPushTokenUsesConfiguredWorkspaceWhenNotProvided() async throws {
+        let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.api-client.push-workspace.test"))
+        session.currentWorkspace = Workspace(id: "w1", name: "park0er", slug: "park0er", issuePrefix: "PAR")
+        client.configure(authSession: session)
+
+        var capturedURL: URL?
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+        }
+
+        try await client.registerPushToken("apns-token")
+
+        XCTAssertEqual(capturedURL?.path, "/api/devices/push-token")
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
+    }
+
     func test_getAndUpdateWorkspaceUseDesktopPaths() async throws {
         var requests: [(method: String?, path: String, query: String?, body: [String: Any]?)] = []
         let workspaceJSON = """

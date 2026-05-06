@@ -3,6 +3,7 @@ import SwiftUI
 
 public struct AgentLiveView: View {
     public let taskId: String
+    public let workspaceId: String?
     @Environment(AuthSession.self) private var authSession
     @Environment(APIClient.self) private var api
     @State private var viewModel: AgentTimelineViewModel?
@@ -10,7 +11,10 @@ public struct AgentLiveView: View {
     @State private var showTranscript = false
     @State private var subscriptionTask: Task<Void, Never>?
 
-    public init(taskId: String) { self.taskId = taskId }
+    public init(taskId: String, workspaceId: String? = nil) {
+        self.taskId = taskId
+        self.workspaceId = workspaceId
+    }
 
     public var body: some View {
         let timeline = viewModel?.timeline ?? []
@@ -57,7 +61,7 @@ public struct AgentLiveView: View {
             if viewModel == nil {
                 let vm = AgentTimelineViewModel(
                     taskId: taskId,
-                    workspaceId: authSession.currentWorkspace?.id,
+                    workspaceId: workspaceId ?? authSession.currentWorkspace?.id,
                     api: api
                 )
                 viewModel = vm
@@ -70,7 +74,7 @@ public struct AgentLiveView: View {
             subscriptionTask = nil
         }
         .sheet(isPresented: $showTranscript) {
-            AgentTranscriptView(taskId: taskId)
+            AgentTranscriptView(taskId: taskId, workspaceId: workspaceId ?? authSession.currentWorkspace?.id)
                 .presentationDragIndicator(.visible)
         }
     }
@@ -78,7 +82,8 @@ public struct AgentLiveView: View {
     private func subscribeToWebSocket() {
         subscriptionTask?.cancel()
         guard let token = authSession.token(),
-              let workspaceId = authSession.currentWorkspace?.id
+              let workspaceId = workspaceId ?? authSession.currentWorkspace?.id,
+              !workspaceId.isEmpty
         else { return }
         subscriptionTask = Task {
             await WebSocketActor.shared.connect(token: token, workspaceId: workspaceId)

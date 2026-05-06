@@ -231,6 +231,7 @@ public final class APIClient: @unchecked Sendable {
             "api/chat",
             "api/inbox",
             "api/notification-preferences",
+            "api/devices",
         ]
         return scopedPrefixes.contains { path == $0 || path.hasPrefix($0 + "/") }
     }

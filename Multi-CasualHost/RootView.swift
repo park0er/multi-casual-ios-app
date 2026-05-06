@@ -90,7 +90,7 @@ struct RootView: View {
     private var debugInitialIssueView: some View {
         #if DEBUG
         if let taskId = ProcessInfo.processInfo.environment["MULTICA_DEBUG_INITIAL_TASK_ID"], !taskId.isEmpty {
-            AgentTranscriptView(taskId: taskId)
+            AgentTranscriptView(taskId: taskId, workspaceId: authSession.currentWorkspace?.id)
         } else if let issueId = ProcessInfo.processInfo.environment["MULTICA_DEBUG_INITIAL_ISSUE_ID"], !issueId.isEmpty {
             IssueDetailView(issueId: issueId)
         } else {

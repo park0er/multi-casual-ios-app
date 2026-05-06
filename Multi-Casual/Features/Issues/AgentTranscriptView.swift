@@ -3,12 +3,16 @@ import SwiftUI
 
 public struct AgentTranscriptView: View {
     public let taskId: String
+    public let workspaceId: String?
     @Environment(\.dismiss) private var dismiss
     @Environment(APIClient.self) private var api
     @Environment(AuthSession.self) private var authSession
     @State private var viewModel: AgentTimelineViewModel?
 
-    public init(taskId: String) { self.taskId = taskId }
+    public init(taskId: String, workspaceId: String? = nil) {
+        self.taskId = taskId
+        self.workspaceId = workspaceId
+    }
 
     public var body: some View {
         NavigationStack {
@@ -53,7 +57,7 @@ public struct AgentTranscriptView: View {
                 if viewModel == nil {
                     let vm = AgentTimelineViewModel(
                         taskId: taskId,
-                        workspaceId: authSession.currentWorkspace?.id,
+                        workspaceId: workspaceId ?? authSession.currentWorkspace?.id,
                         api: api
                     )
                     viewModel = vm

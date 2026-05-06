@@ -17,6 +17,7 @@ public struct IssueDetailView: View {
     @State private var showCancelTaskConfirmation = false
     @State private var pendingCancelTask: AgentTask?
     @State private var selectedTaskId: String?
+    @State private var selectedTaskWorkspaceId: String?
     @State private var pinViewModel: PinToggleViewModel?
 
     public init(issueId: String) { self.issueId = issueId }
@@ -45,7 +46,7 @@ public struct IssueDetailView: View {
         }
         .sheet(isPresented: $showTranscript) {
             if let taskId = selectedTaskId {
-                AgentTranscriptView(taskId: taskId)
+                AgentTranscriptView(taskId: taskId, workspaceId: selectedTaskWorkspaceId ?? viewModel?.resolvedWorkspaceId)
                     .presentationDragIndicator(.visible)
             }
         }
@@ -512,7 +513,7 @@ public struct IssueDetailView: View {
             }
             ForEach(vm.activeTasks) { task in
                 VStack(alignment: .leading, spacing: 8) {
-                    AgentLiveView(taskId: task.id)
+                    AgentLiveView(taskId: task.id, workspaceId: vm.resolvedWorkspaceId)
                     HStack {
                         MarkdownText(task.status.capitalized)
                             .font(.caption)
@@ -549,10 +550,14 @@ public struct IssueDetailView: View {
                     .padding(.horizontal)
             }
             if vm.activeTasks.isEmpty, let running = vm.agentRuns.first(where: { $0.status == "running" }) {
-                AgentLiveView(taskId: running.id)
+                AgentLiveView(taskId: running.id, workspaceId: vm.resolvedWorkspaceId)
             }
             ForEach(vm.agentRuns) { run in
-                Button { selectedTaskId = run.id; showTranscript = true } label: {
+                Button {
+                    selectedTaskId = run.id
+                    selectedTaskWorkspaceId = vm.resolvedWorkspaceId
+                    showTranscript = true
+                } label: {
                     AgentRunRowView(run: run)
                 }.buttonStyle(.plain)
             }

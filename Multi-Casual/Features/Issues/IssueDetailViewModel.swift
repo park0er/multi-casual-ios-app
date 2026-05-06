@@ -58,7 +58,7 @@ public final class IssueDetailViewModel {
 
     private let api: APIClient
 
-    private var effectiveWorkspaceId: String? {
+    public var resolvedWorkspaceId: String? {
         workspaceId ?? issue?.workspaceId
     }
 
@@ -109,7 +109,7 @@ public final class IssueDetailViewModel {
         error = nil
         defer { isLoadingIssue = false }
         do {
-            issue = try await api.getIssue(id: issueId, workspaceId: effectiveWorkspaceId)
+            issue = try await api.getIssue(id: issueId, workspaceId: resolvedWorkspaceId)
         } catch {
             self.error = error.localizedDescription
         }
@@ -130,7 +130,7 @@ public final class IssueDetailViewModel {
         defer { isLoadingIssueRelations = false }
 
         do {
-            let workspaceId = effectiveWorkspaceId
+            let workspaceId = resolvedWorkspaceId
             childIssues = try await api.listChildIssues(issueId: issue.id, workspaceId: workspaceId)
             if let parentIssueId = issue.parentIssueId {
                 parentIssue = try await api.getIssue(id: parentIssueId, workspaceId: workspaceId)
@@ -150,7 +150,7 @@ public final class IssueDetailViewModel {
     }
 
     public func loadMetadata() async {
-        guard let issue, let workspaceId = effectiveWorkspaceId else { return }
+        guard let issue, let workspaceId = resolvedWorkspaceId else { return }
         metadataError = nil
         assigneeDisplayName = nil
         projectDisplayName = nil
@@ -194,7 +194,7 @@ public final class IssueDetailViewModel {
         subscribersError = nil
         defer { isLoadingSubscribers = false }
         do {
-            subscribers = try await api.listIssueSubscribers(issueId: issueId, workspaceId: effectiveWorkspaceId)
+            subscribers = try await api.listIssueSubscribers(issueId: issueId, workspaceId: resolvedWorkspaceId)
             didLoadSubscribers = true
         } catch {
             subscribers = []
@@ -226,7 +226,7 @@ public final class IssueDetailViewModel {
         subscribersError = nil
         let currentlySubscribed = isSubscribed(userId: userId, userType: userType)
         do {
-            let workspaceId = effectiveWorkspaceId
+            let workspaceId = resolvedWorkspaceId
             if currentlySubscribed {
                 try await api.unsubscribeFromIssue(issueId: issueId, userId: userId, userType: userType, workspaceId: workspaceId)
             } else {
@@ -249,14 +249,14 @@ public final class IssueDetailViewModel {
 
         do {
             if existing != nil {
-                try await api.removeIssueReaction(issueId: issueId, emoji: emoji, workspaceId: effectiveWorkspaceId)
+                try await api.removeIssueReaction(issueId: issueId, emoji: emoji, workspaceId: resolvedWorkspaceId)
                 issue = currentIssue.replacingReactions(
                     currentIssue.reactions.filter {
                         !($0.emoji == emoji && $0.actorType == "member" && $0.actorId == currentUserId)
                     }
                 )
             } else {
-                let reaction = try await api.addIssueReaction(issueId: issueId, emoji: emoji, workspaceId: effectiveWorkspaceId)
+                let reaction = try await api.addIssueReaction(issueId: issueId, emoji: emoji, workspaceId: resolvedWorkspaceId)
                 issue = currentIssue.replacingReactions(currentIssue.reactions + [reaction])
             }
         } catch {
@@ -276,14 +276,14 @@ public final class IssueDetailViewModel {
 
         do {
             if existing != nil {
-                try await api.removeReaction(commentId: commentId, emoji: emoji, workspaceId: effectiveWorkspaceId)
+                try await api.removeReaction(commentId: commentId, emoji: emoji, workspaceId: resolvedWorkspaceId)
                 commentLoader.items[index] = comment.replacingReactions(
                     comment.reactions.filter {
                         !($0.emoji == emoji && $0.actorType == "member" && $0.actorId == currentUserId)
                     }
                 )
             } else {
-                let reaction = try await api.addReaction(commentId: commentId, emoji: emoji, workspaceId: effectiveWorkspaceId)
+                let reaction = try await api.addReaction(commentId: commentId, emoji: emoji, workspaceId: resolvedWorkspaceId)
                 commentLoader.items[index] = comment.replacingReactions(comment.reactions + [reaction])
             }
         } catch {
@@ -302,7 +302,7 @@ public final class IssueDetailViewModel {
         commentsError = nil
         defer { isLoadingComments = false }
         do {
-            let workspaceId = effectiveWorkspaceId
+            let workspaceId = resolvedWorkspaceId
             try await commentLoader.loadNext { [api, issueId, workspaceId] offset in
                 try await api.listComments(issueId: issueId, workspaceId: workspaceId, limit: 50, offset: offset)
             }
@@ -317,7 +317,7 @@ public final class IssueDetailViewModel {
         agentRunsError = nil
         defer { isLoadingAgentRuns = false }
         do {
-            agentRuns = try await api.listAgentRuns(issueId: issueId, workspaceId: effectiveWorkspaceId)
+            agentRuns = try await api.listAgentRuns(issueId: issueId, workspaceId: resolvedWorkspaceId)
             didLoadAgentRuns = true
         } catch {
             agentRuns = []
@@ -331,7 +331,7 @@ public final class IssueDetailViewModel {
         activeTasksError = nil
         defer { isLoadingActiveTasks = false }
         do {
-            activeTasks = try await api.getActiveTasksForIssue(issueId: issueId, workspaceId: effectiveWorkspaceId)
+            activeTasks = try await api.getActiveTasksForIssue(issueId: issueId, workspaceId: resolvedWorkspaceId)
             didLoadActiveTasks = true
         } catch {
             activeTasks = []
@@ -347,7 +347,7 @@ public final class IssueDetailViewModel {
         defer { cancellingTaskIds.remove(taskId) }
 
         do {
-            let cancelled = try await api.cancelTask(issueId: issueId, taskId: taskId, workspaceId: effectiveWorkspaceId)
+            let cancelled = try await api.cancelTask(issueId: issueId, taskId: taskId, workspaceId: resolvedWorkspaceId)
             activeTasks.removeAll { $0.id == taskId }
             if let index = agentRuns.firstIndex(where: { $0.id == taskId }) {
                 agentRuns[index] = cancelled
@@ -364,7 +364,7 @@ public final class IssueDetailViewModel {
         timelineError = nil
         defer { isLoadingTimeline = false }
         do {
-            timelineEntries = try await api.listTimeline(issueId: issueId, workspaceId: effectiveWorkspaceId)
+            timelineEntries = try await api.listTimeline(issueId: issueId, workspaceId: resolvedWorkspaceId)
             didLoadTimeline = true
         } catch {
             timelineEntries = []
@@ -378,7 +378,7 @@ public final class IssueDetailViewModel {
         usageError = nil
         defer { isLoadingUsage = false }
         do {
-            usage = try await api.getIssueUsage(issueId: issueId, workspaceId: effectiveWorkspaceId)
+            usage = try await api.getIssueUsage(issueId: issueId, workspaceId: resolvedWorkspaceId)
             didLoadUsage = true
         } catch {
             usage = nil
@@ -392,7 +392,7 @@ public final class IssueDetailViewModel {
         deleteIssueError = nil
         defer { isDeletingIssue = false }
         do {
-            try await api.deleteIssue(id: issueId, workspaceId: effectiveWorkspaceId)
+            try await api.deleteIssue(id: issueId, workspaceId: resolvedWorkspaceId)
             didDeleteIssue = true
         } catch {
             didDeleteIssue = false
@@ -474,7 +474,7 @@ public final class IssueDetailViewModel {
                 data: data,
                 contentType: contentType,
                 issueId: issueId,
-                workspaceId: effectiveWorkspaceId
+                workspaceId: resolvedWorkspaceId
             )
             commentAttachments.append(attachment)
             return true
@@ -501,7 +501,7 @@ public final class IssueDetailViewModel {
                 data: data,
                 contentType: contentType,
                 issueId: issueId,
-                workspaceId: effectiveWorkspaceId
+                workspaceId: resolvedWorkspaceId
             )
             replyAttachments[parentId, default: []].append(attachment)
             return true
@@ -526,7 +526,7 @@ public final class IssueDetailViewModel {
         guard !trimmed.isEmpty else { return false }
         error = nil
         do {
-            let updated = try await api.updateComment(commentId: commentId, content: trimmed, workspaceId: effectiveWorkspaceId)
+            let updated = try await api.updateComment(commentId: commentId, content: trimmed, workspaceId: resolvedWorkspaceId)
             if let index = commentLoader.items.firstIndex(where: { $0.id == commentId }) {
                 commentLoader.items[index] = updated
             }
@@ -541,7 +541,7 @@ public final class IssueDetailViewModel {
     public func deleteComment(commentId: String) async -> Bool {
         error = nil
         do {
-            try await api.deleteComment(commentId: commentId, workspaceId: effectiveWorkspaceId)
+            try await api.deleteComment(commentId: commentId, workspaceId: resolvedWorkspaceId)
             let removedIds = descendantCommentIds(of: commentId).union([commentId])
             commentLoader.items.removeAll { removedIds.contains($0.id) }
             await DataStore.shared.invalidateIssue(issueId)
@@ -560,7 +560,7 @@ public final class IssueDetailViewModel {
                 content: content,
                 parentId: parentId,
                 attachmentIds: attachmentIds(forParentId: parentId),
-                workspaceId: effectiveWorkspaceId
+                workspaceId: resolvedWorkspaceId
             )
             commentLoader.items.append(comment)
             await loadIssue()
@@ -618,7 +618,7 @@ public final class IssueDetailViewModel {
         do {
             issue = try await api.updateIssue(
                 id: issueId,
-                workspaceId: effectiveWorkspaceId,
+                workspaceId: resolvedWorkspaceId,
                 status: status,
                 priority: priority
             )

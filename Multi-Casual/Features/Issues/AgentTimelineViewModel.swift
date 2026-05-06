@@ -30,6 +30,12 @@ public final class AgentTimelineViewModel {
         errorMessage = nil
         defer { isLoading = false }
 
+        guard let workspaceId, !workspaceId.isEmpty else {
+            timeline = []
+            errorMessage = "Pick a workspace before viewing agent transcript."
+            return
+        }
+
         do {
             timeline = try await api.listRunMessages(taskId: taskId, workspaceId: workspaceId)
                 .map(TimelineItem.init(from:))
