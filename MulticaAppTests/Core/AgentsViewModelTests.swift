@@ -6,7 +6,9 @@ final class AgentsViewModelTests: XCTestCase {
     private let workspace = Workspace(id: "w1", name: "Workspace", slug: "workspace", issuePrefix: "PAR")
 
     func test_loadFetchesArchivedAgentsAndRuntimes() async throws {
+        var requestURLs: [URL] = []
         let client = makeClient { req in
+            requestURLs.append(req.url!)
             switch req.url?.path {
             case "/api/agents":
                 XCTAssertTrue(req.url?.absoluteString.contains("include_archived=true") ?? false)
@@ -24,13 +26,16 @@ final class AgentsViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.agents.map(\.id), ["a1"])
         XCTAssertEqual(vm.runtimes.map(\.id), ["r1"])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertNil(vm.errorMessage)
     }
 
     func test_createAndUpdateReplaceAgentInList() async throws {
         var requests: [(String, String)] = []
+        var requestURLs: [URL] = []
         let client = makeClient { req in
             requests.append((req.httpMethod ?? "", req.url?.path ?? ""))
+            requestURLs.append(req.url!)
             let name = req.httpMethod == "POST" ? "Created" : "Updated"
             return Self.response(for: req, body: Self.agentJSON(id: "a1", name: name))
         }
@@ -43,11 +48,14 @@ final class AgentsViewModelTests: XCTestCase {
         XCTAssertEqual(updated?.name, "Updated")
         XCTAssertEqual(vm.agents.map(\.name), ["Updated"])
         XCTAssertEqual(requests.map { "\($0.0) \($0.1)" }, ["POST /api/agents", "PUT /api/agents/a1"])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertNil(vm.errorMessage)
     }
 
     func testArchiveRestoreAndCancelTasksSurfaceResults() async throws {
+        var requestURLs: [URL] = []
         let client = makeClient { req in
+            requestURLs.append(req.url!)
             switch req.url?.path {
             case "/api/agents/a1/archive", "/api/agents/a1/restore":
                 return Self.response(for: req, body: Self.agentJSON(id: "a1", name: "Codex"))
@@ -66,6 +74,7 @@ final class AgentsViewModelTests: XCTestCase {
 
         XCTAssertEqual(cancelled, 3)
         XCTAssertEqual(vm.agents.map(\.id), ["a1"])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertNil(vm.errorMessage)
     }
 

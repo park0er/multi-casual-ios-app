@@ -3,12 +3,15 @@ import XCTest
 
 @MainActor
 final class SkillsViewModelTests: XCTestCase {
+    private let workspace = Workspace(id: "w1", name: "Workspace", slug: "workspace", issuePrefix: "PAR")
+
     func test_loadFetchesSkills() async throws {
         let client = makeClient { req in
             XCTAssertEqual(req.url?.path, "/api/skills")
+            XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
             return Self.response(for: req, body: "[\(String(data: Self.skillJSON(id: "s1", name: "Writer"), encoding: .utf8)!)]".data(using: .utf8)!)
         }
-        let vm = SkillsViewModel(api: client)
+        let vm = SkillsViewModel(api: client, authSession: makeSession())
 
         await vm.load()
 
@@ -18,15 +21,17 @@ final class SkillsViewModelTests: XCTestCase {
 
     func test_createUpdateImportAndDeleteKeepListInSync() async throws {
         var requests: [String] = []
+        var requestURLs: [URL] = []
         let client = makeClient { req in
             requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            requestURLs.append(req.url!)
             if req.httpMethod == "DELETE" {
                 return Self.response(for: req, body: Data("{}".utf8), status: 204)
             }
             let name = req.url?.path == "/api/skills/import" ? "Imported" : "Writer"
             return Self.response(for: req, body: Self.skillJSON(id: "s1", name: name))
         }
-        let vm = SkillsViewModel(api: client)
+        let vm = SkillsViewModel(api: client, authSession: makeSession())
 
         _ = await vm.createSkill(name: "Writer", description: "", content: "# Skill")
         _ = await vm.updateSkill(id: "s1", name: "Writer", description: "D", content: "# Updated")
@@ -40,7 +45,15 @@ final class SkillsViewModelTests: XCTestCase {
             "POST /api/skills/import",
             "DELETE /api/skills/s1",
         ])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertNil(vm.errorMessage)
+    }
+
+    private func makeSession() -> AuthSession {
+        let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.skills.test"))
+        session.currentWorkspace = workspace
+        session.workspaces = [workspace]
+        return session
     }
 
     private func makeClient(handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)) -> APIClient {

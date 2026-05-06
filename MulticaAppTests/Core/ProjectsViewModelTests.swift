@@ -3,7 +3,15 @@ import XCTest
 
 @MainActor
 final class ProjectsViewModelTests: XCTestCase {
-    private let workspace = Workspace(id: "w1", name: "Workspace", slug: "workspace", issuePrefix: "PAR")
+    private let workspace = Workspace(
+        id: "w1",
+        name: "Workspace",
+        slug: "workspace",
+        issuePrefix: "PAR",
+        repos: [
+            WorkspaceRepo(url: "https://github.com/multica-ai/multica", defaultBranchHint: "main")
+        ]
+    )
 
     func test_loadNext_withoutWorkspaceSurfacesActionableError() async throws {
         let vm = ProjectsViewModel(api: makeClient(), authSession: AuthSession(userDefaults: makeUserDefaults()))
@@ -43,8 +51,26 @@ final class ProjectsViewModelTests: XCTestCase {
             Project(id: "p1", name: "Alpha", description: nil, workspaceId: "w1", createdAt: Date())
         ]
 
-        let created = await vm.createProject(title: "Beta", description: "**Docs**", status: .planned, priority: .medium)
-        let updated = await vm.updateProject(id: "p1", title: "Alpha Edited", description: nil, status: .paused, priority: .high)
+        let created = await vm.createProject(
+            title: "Beta",
+            description: "**Docs**",
+            status: .planned,
+            priority: .medium,
+            icon: "📱",
+            leadType: "agent",
+            leadId: "a1",
+            resourceURLs: ["https://github.com/multica-ai/multica"]
+        )
+        let updated = await vm.updateProject(
+            id: "p1",
+            title: "Alpha Edited",
+            description: nil,
+            status: .paused,
+            priority: .high,
+            icon: nil,
+            leadType: nil,
+            leadId: nil
+        )
         await vm.deleteProject(id: "p2")
 
         XCTAssertEqual(created?.id, "p2")
@@ -53,7 +79,49 @@ final class ProjectsViewModelTests: XCTestCase {
         XCTAssertEqual(requests.map(\.method), ["POST", "PUT", "DELETE"])
         XCTAssertEqual(requests.map(\.workspaceId), ["w1", "w1", "w1"])
         XCTAssertEqual(requests[0].body?["description"] as? String, "**Docs**")
+        XCTAssertEqual(requests[0].body?["icon"] as? String, "📱")
+        XCTAssertEqual(requests[0].body?["lead_type"] as? String, "agent")
+        XCTAssertEqual(requests[0].body?["lead_id"] as? String, "a1")
+        let resources = requests[0].body?["resources"] as? [[String: Any]]
+        XCTAssertEqual((resources?.first?["resource_ref"] as? [String: Any])?["url"] as? String, "https://github.com/multica-ai/multica")
         XCTAssertTrue(requests[1].body?["description"] is NSNull)
+        XCTAssertTrue(requests[1].body?["icon"] is NSNull)
+        XCTAssertTrue(requests[1].body?["lead_type"] is NSNull)
+        XCTAssertTrue(requests[1].body?["lead_id"] is NSNull)
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_loadProjectOptionsBuildsLeadChoicesAndWorkspaceRepos() async throws {
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/workspaces/w1/members":
+                let json = """
+                [{"id":"m1","workspace_id":"w1","user_id":"u1","role":"owner",
+                  "created_at":"2026-01-01T00:00:00Z","name":"Parker",
+                  "email":"p@example.com","avatar_url":null}]
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/agents":
+                let json = """
+                [{"id":"a1","workspace_id":"w1","runtime_id":"r1","name":"Codex",
+                  "description":"","instructions":"","avatar_url":null,"runtime_mode":"cloud",
+                  "runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,
+                  "visibility":"workspace","status":"active","max_concurrent_tasks":1,
+                  "model":"gpt","owner_id":null,"skills":[],"created_at":"2026-01-01T00:00:00Z",
+                  "updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}]
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = ProjectsViewModel(api: client, authSession: makeSession())
+
+        await vm.loadProjectOptions()
+
+        XCTAssertEqual(vm.projectLeadOptions.map(\.id), ["member:u1", "agent:a1"])
+        XCTAssertEqual(vm.workspaceRepoURLs, ["https://github.com/multica-ai/multica"])
         XCTAssertNil(vm.lastError)
     }
 
@@ -96,8 +164,8 @@ final class ProjectsViewModelTests: XCTestCase {
     private static func projectJSON(id: String, title: String, status: String) -> Data {
         """
         {"id":"\(id)","workspace_id":"w1","title":"\(title)","description":null,
-         "icon":null,"status":"\(status)","priority":"high",
-         "lead_type":null,"lead_id":null,"created_at":"2026-01-01T00:00:00Z",
+         "icon":"📱","status":"\(status)","priority":"high",
+         "lead_type":"agent","lead_id":"a1","created_at":"2026-01-01T00:00:00Z",
          "updated_at":"2026-01-01T00:00:00Z","issue_count":0,"done_count":0}
         """.data(using: .utf8)!
     }

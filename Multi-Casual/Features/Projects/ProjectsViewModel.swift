@@ -7,6 +7,9 @@ public final class ProjectsViewModel {
     public let loader = PaginatedLoader<Project>()
     public var lastError: Error?
     public var isMutating = false
+    public var isLoadingProjectOptions = false
+    public var projectLeadOptions: [IssueAssigneeOption] = []
+    public var workspaceRepoURLs: [String] = []
     private let api: APIClient
     private let authSession: AuthSession
 
@@ -31,11 +34,54 @@ public final class ProjectsViewModel {
 
     public func refresh() async { loader.reset(); await loadNext() }
 
+    public func loadProjectOptions() async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            lastError = UserVisibleError("Pick a workspace before editing projects.")
+            return
+        }
+        guard !isLoadingProjectOptions else { return }
+        isLoadingProjectOptions = true
+        lastError = nil
+        defer { isLoadingProjectOptions = false }
+
+        do {
+            workspaceRepoURLs = authSession.currentWorkspace?.repos.map(\.url) ?? []
+            async let members = api.listMembers(workspaceId: workspaceId)
+            async let agents = api.listAgents(workspaceId: workspaceId)
+            let loadedMembers = try await members
+            let loadedAgents = try await agents
+            projectLeadOptions = loadedMembers.map {
+                IssueAssigneeOption(
+                    id: "member:\($0.userId)",
+                    type: "member",
+                    assigneeId: $0.userId,
+                    displayName: $0.name,
+                    subtitle: $0.email
+                )
+            } + loadedAgents.filter { $0.archivedAt == nil }.map {
+                IssueAssigneeOption(
+                    id: "agent:\($0.id)",
+                    type: "agent",
+                    assigneeId: $0.id,
+                    displayName: $0.name,
+                    subtitle: "Agent"
+                )
+            }
+        } catch {
+            projectLeadOptions = []
+            lastError = error
+        }
+    }
+
     public func createProject(
         title: String,
         description: String?,
         status: ProjectStatus,
-        priority: IssuePriority
+        priority: IssuePriority,
+        icon: String? = nil,
+        leadType: String? = nil,
+        leadId: String? = nil,
+        resourceURLs: [String] = []
     ) async -> Project? {
         guard let wsId = authSession.currentWorkspace?.id else {
             lastError = UserVisibleError("Pick a workspace before creating a project.")
@@ -47,7 +93,11 @@ public final class ProjectsViewModel {
                 description: description,
                 workspaceId: wsId,
                 status: status,
-                priority: priority
+                priority: priority,
+                icon: normalizedOptional(icon),
+                leadType: leadType,
+                leadId: leadId,
+                resourceURLs: resourceURLs
             )
         }
     }
@@ -57,7 +107,10 @@ public final class ProjectsViewModel {
         title: String,
         description: String?,
         status: ProjectStatus,
-        priority: IssuePriority
+        priority: IssuePriority,
+        icon: String? = nil,
+        leadType: String? = nil,
+        leadId: String? = nil
     ) async -> Project? {
         guard let wsId = authSession.currentWorkspace?.id else {
             lastError = UserVisibleError("Pick a workspace before editing a project.")
@@ -70,7 +123,10 @@ public final class ProjectsViewModel {
                 title: title,
                 description: description,
                 status: status,
-                priority: priority
+                priority: priority,
+                icon: normalizedOptional(icon),
+                leadType: leadType,
+                leadId: leadId
             )
         }
     }
@@ -118,5 +174,10 @@ public final class ProjectsViewModel {
         loader.items.sort { lhs, rhs in
             lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
+    }
+
+    private func normalizedOptional(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

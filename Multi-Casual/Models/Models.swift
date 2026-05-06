@@ -26,17 +26,43 @@ public struct Workspace: Codable, Identifiable, Sendable {
     public let name: String
     public let slug: String
     public let issuePrefix: String
+    public let repos: [WorkspaceRepo]
 
     enum CodingKeys: String, CodingKey {
-        case id, name, slug
+        case id, name, slug, repos
         case issuePrefix = "issue_prefix"
     }
 
-    public init(id: String, name: String, slug: String, issuePrefix: String) {
+    public init(id: String, name: String, slug: String, issuePrefix: String, repos: [WorkspaceRepo] = []) {
         self.id = id
         self.name = name
         self.slug = slug
         self.issuePrefix = issuePrefix
+        self.repos = repos
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        slug = try container.decode(String.self, forKey: .slug)
+        issuePrefix = try container.decode(String.self, forKey: .issuePrefix)
+        repos = try container.decodeIfPresent([WorkspaceRepo].self, forKey: .repos) ?? []
+    }
+}
+
+public struct WorkspaceRepo: Codable, Hashable, Sendable {
+    public let url: String
+    public let defaultBranchHint: String?
+
+    enum CodingKeys: String, CodingKey {
+        case url
+        case defaultBranchHint = "default_branch_hint"
+    }
+
+    public init(url: String, defaultBranchHint: String? = nil) {
+        self.url = url
+        self.defaultBranchHint = defaultBranchHint
     }
 }
 
@@ -1068,16 +1094,21 @@ public struct Project: Codable, Identifiable, Sendable {
     public let id: String
     public let name: String
     public let description: String?
+    public let icon: String?
     public let status: ProjectStatus
     public let priority: IssuePriority
+    public let leadType: String?
+    public let leadId: String?
     public let workspaceId: String
     public let createdAt: Date
     public let issueCount: Int
     public let doneCount: Int
 
     enum CodingKeys: String, CodingKey {
-        case id, name, description, status, priority
+        case id, name, description, icon, status, priority
         case workspaceId = "workspace_id"
+        case leadType = "lead_type"
+        case leadId = "lead_id"
         case createdAt = "created_at"
         case title
         case issueCount = "issue_count"
@@ -1086,12 +1117,16 @@ public struct Project: Codable, Identifiable, Sendable {
 
     public init(id: String, name: String, description: String?, workspaceId: String,
                 createdAt: Date, issueCount: Int = 0, doneCount: Int = 0,
-                status: ProjectStatus = .unknown, priority: IssuePriority = .unknown) {
+                status: ProjectStatus = .unknown, priority: IssuePriority = .unknown,
+                icon: String? = nil, leadType: String? = nil, leadId: String? = nil) {
         self.id = id
         self.name = name
         self.description = description
+        self.icon = icon
         self.status = status
         self.priority = priority
+        self.leadType = leadType
+        self.leadId = leadId
         self.workspaceId = workspaceId
         self.createdAt = createdAt
         self.issueCount = issueCount
@@ -1104,8 +1139,11 @@ public struct Project: Codable, Identifiable, Sendable {
         name = try container.decodeIfPresent(String.self, forKey: .name)
             ?? container.decode(String.self, forKey: .title)
         description = try container.decodeIfPresent(String.self, forKey: .description)
+        icon = try container.decodeIfPresent(String.self, forKey: .icon)
         status = try container.decodeIfPresent(ProjectStatus.self, forKey: .status) ?? .unknown
         priority = try container.decodeIfPresent(IssuePriority.self, forKey: .priority) ?? .unknown
+        leadType = try container.decodeIfPresent(String.self, forKey: .leadType)
+        leadId = try container.decodeIfPresent(String.self, forKey: .leadId)
         workspaceId = try container.decode(String.self, forKey: .workspaceId)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         issueCount = try container.decodeIfPresent(Int.self, forKey: .issueCount) ?? 0
@@ -1117,8 +1155,11 @@ public struct Project: Codable, Identifiable, Sendable {
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encodeIfPresent(description, forKey: .description)
+        try container.encodeIfPresent(icon, forKey: .icon)
         try container.encode(status, forKey: .status)
         try container.encode(priority, forKey: .priority)
+        try container.encodeIfPresent(leadType, forKey: .leadType)
+        try container.encodeIfPresent(leadId, forKey: .leadId)
         try container.encode(workspaceId, forKey: .workspaceId)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(issueCount, forKey: .issueCount)

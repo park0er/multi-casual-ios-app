@@ -579,7 +579,9 @@ final class APIClientTests: XCTestCase {
 
     func test_batchUpdateIssues_usesDesktopEndpointAndBody() async throws {
         var body: [String: Any] = [:]
+        var capturedURL: URL?
         MockURLProtocol.handler = { req in
+            capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/issues/batch-update")
             body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
@@ -591,11 +593,13 @@ final class APIClientTests: XCTestCase {
 
         let response = try await client.batchUpdateIssues(
             ids: ["i1", "i2"],
+            workspaceId: "w1",
             status: .done,
             priority: .urgent
         )
 
         XCTAssertEqual(response.updated, 2)
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
         XCTAssertEqual(body["issue_ids"] as? [String], ["i1", "i2"])
         let updates = body["updates"] as? [String: Any]
         XCTAssertEqual(updates?["status"] as? String, "done")
@@ -604,7 +608,9 @@ final class APIClientTests: XCTestCase {
 
     func test_batchDeleteIssues_usesDesktopEndpointAndBody() async throws {
         var body: [String: Any] = [:]
+        var capturedURL: URL?
         MockURLProtocol.handler = { req in
+            capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/issues/batch-delete")
             body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
@@ -614,9 +620,10 @@ final class APIClientTests: XCTestCase {
             )
         }
 
-        let response = try await client.batchDeleteIssues(ids: ["i1", "i2"])
+        let response = try await client.batchDeleteIssues(ids: ["i1", "i2"], workspaceId: "w1")
 
         XCTAssertEqual(response.deleted, 2)
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
         XCTAssertEqual(body["issue_ids"] as? [String], ["i1", "i2"])
     }
 
@@ -875,7 +882,11 @@ final class APIClientTests: XCTestCase {
             description: "**Docs**",
             workspaceId: "w1",
             status: .paused,
-            priority: .high
+            priority: .high,
+            icon: "📱",
+            leadType: "agent",
+            leadId: "a1",
+            resourceURLs: ["https://github.com/multica-ai/multica"]
         )
         _ = try await client.updateProject(
             id: "p1",
@@ -883,7 +894,10 @@ final class APIClientTests: XCTestCase {
             title: "Edited Project",
             description: nil,
             status: .paused,
-            priority: .high
+            priority: .high,
+            icon: nil,
+            leadType: nil,
+            leadId: nil
         )
         try await client.deleteProject(id: "p1", workspaceId: "w1")
 
@@ -893,7 +907,16 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(requests[0].body?["description"] as? String, "**Docs**")
         XCTAssertEqual(requests[0].body?["status"] as? String, "paused")
         XCTAssertEqual(requests[0].body?["priority"] as? String, "high")
+        XCTAssertEqual(requests[0].body?["icon"] as? String, "📱")
+        XCTAssertEqual(requests[0].body?["lead_type"] as? String, "agent")
+        XCTAssertEqual(requests[0].body?["lead_id"] as? String, "a1")
+        let resources = requests[0].body?["resources"] as? [[String: Any]]
+        XCTAssertEqual(resources?.first?["resource_type"] as? String, "github_repo")
+        XCTAssertEqual((resources?.first?["resource_ref"] as? [String: Any])?["url"] as? String, "https://github.com/multica-ai/multica")
         XCTAssertTrue(requests[1].body?["description"] is NSNull)
+        XCTAssertTrue(requests[1].body?["icon"] is NSNull)
+        XCTAssertTrue(requests[1].body?["lead_type"] is NSNull)
+        XCTAssertTrue(requests[1].body?["lead_id"] is NSNull)
     }
 
     func test_pinEndpointsUseDesktopPathsAndWorkspaceSlugHeader() async throws {
@@ -989,7 +1012,9 @@ final class APIClientTests: XCTestCase {
 
     func test_createAgent_sendsDesktopFields() async throws {
         var body: [String: Any] = [:]
+        var capturedURL: URL?
         MockURLProtocol.handler = { req in
+            capturedURL = req.url
             XCTAssertEqual(req.httpMethod, "POST")
             XCTAssertEqual(req.url?.path, "/api/agents")
             body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
@@ -1004,10 +1029,12 @@ final class APIClientTests: XCTestCase {
             runtimeId: "r1",
             visibility: "workspace",
             maxConcurrentTasks: 2,
-            model: "gpt-5"
+            model: "gpt-5",
+            workspaceId: "w1"
         )
 
         XCTAssertEqual(agent.name, "Codex")
+        XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
         XCTAssertEqual(body["name"] as? String, "Codex")
         XCTAssertEqual(body["description"] as? String, "Helps with code")
         XCTAssertEqual(body["instructions"] as? String, "Be concise")
@@ -1019,8 +1046,10 @@ final class APIClientTests: XCTestCase {
 
     func test_updateArchiveRestoreAndCancelAgentUseDesktopEndpoints() async throws {
         var requests: [(String, String)] = []
+        var requestURLs: [URL] = []
         MockURLProtocol.handler = { req in
             requests.append((req.httpMethod ?? "", req.url?.path ?? ""))
+            requestURLs.append(req.url!)
             let body: Data
             if req.url?.path == "/api/agents/a1/cancel-tasks" {
                 body = #"{"cancelled":2}"#.data(using: .utf8)!
@@ -1030,10 +1059,10 @@ final class APIClientTests: XCTestCase {
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
         }
 
-        _ = try await client.updateAgent(id: "a1", name: "Updated", description: "", instructions: "", visibility: "private", maxConcurrentTasks: 1, model: "gpt-5")
-        _ = try await client.archiveAgent(id: "a1")
-        _ = try await client.restoreAgent(id: "a1")
-        let cancelled = try await client.cancelAgentTasks(id: "a1")
+        _ = try await client.updateAgent(id: "a1", name: "Updated", description: "", instructions: "", visibility: "private", maxConcurrentTasks: 1, model: "gpt-5", workspaceId: "w1")
+        _ = try await client.archiveAgent(id: "a1", workspaceId: "w1")
+        _ = try await client.restoreAgent(id: "a1", workspaceId: "w1")
+        let cancelled = try await client.cancelAgentTasks(id: "a1", workspaceId: "w1")
 
         XCTAssertEqual(requests.map { "\($0.0) \($0.1)" }, [
             "PUT /api/agents/a1",
@@ -1041,6 +1070,7 @@ final class APIClientTests: XCTestCase {
             "POST /api/agents/a1/restore",
             "POST /api/agents/a1/cancel-tasks",
         ])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertEqual(cancelled.count, 2)
     }
 
@@ -1070,16 +1100,19 @@ final class APIClientTests: XCTestCase {
             return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data("{}".utf8))
         }
 
-        try await client.deleteRuntime(id: "r1")
+        try await client.deleteRuntime(id: "r1", workspaceId: "w1")
 
         XCTAssertEqual(capturedRequest?.httpMethod, "DELETE")
         XCTAssertEqual(capturedRequest?.url?.path, "/api/runtimes/r1")
+        XCTAssertTrue(capturedRequest?.url?.absoluteString.contains("workspace_id=w1") ?? false)
     }
 
     func test_skillEndpointsUseDesktopPaths() async throws {
         var requests: [String] = []
+        var requestURLs: [URL] = []
         MockURLProtocol.handler = { req in
             requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            requestURLs.append(req.url!)
             if req.httpMethod == "DELETE" {
                 return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data("{}".utf8))
             }
@@ -1092,12 +1125,12 @@ final class APIClientTests: XCTestCase {
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
         }
 
-        let skills = try await client.listSkills()
-        _ = try await client.getSkill(id: "s1")
-        _ = try await client.createSkill(name: "Writer", description: "D", content: "C")
-        _ = try await client.updateSkill(id: "s1", name: "Writer", description: "D2", content: "C2")
-        _ = try await client.importSkill(url: "https://example.com/skill")
-        try await client.deleteSkill(id: "s1")
+        let skills = try await client.listSkills(workspaceId: "w1")
+        _ = try await client.getSkill(id: "s1", workspaceId: "w1")
+        _ = try await client.createSkill(name: "Writer", description: "D", content: "C", workspaceId: "w1")
+        _ = try await client.updateSkill(id: "s1", name: "Writer", description: "D2", content: "C2", workspaceId: "w1")
+        _ = try await client.importSkill(url: "https://example.com/skill", workspaceId: "w1")
+        try await client.deleteSkill(id: "s1", workspaceId: "w1")
 
         XCTAssertEqual(skills.map(\.id), ["s1"])
         XCTAssertEqual(requests, [
@@ -1108,12 +1141,15 @@ final class APIClientTests: XCTestCase {
             "POST /api/skills/import",
             "DELETE /api/skills/s1",
         ])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
     }
 
     func test_autopilotEndpointsUseDesktopPaths() async throws {
         var requests: [String] = []
+        var requestURLs: [URL] = []
         MockURLProtocol.handler = { req in
             requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")?\(req.url?.query ?? "")")
+            requestURLs.append(req.url!)
             let path = req.url?.path
             if req.httpMethod == "DELETE" {
                 return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
@@ -1142,31 +1178,32 @@ final class APIClientTests: XCTestCase {
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
         }
 
-        let list = try await client.listAutopilots(status: "active")
-        _ = try await client.getAutopilot(id: "ap1")
-        _ = try await client.createAutopilot(title: "Daily triage", description: "D", assigneeId: "a1", executionMode: "create_issue", issueTitleTemplate: "T")
-        _ = try await client.updateAutopilot(id: "ap1", title: "Daily triage", description: nil, assigneeId: "a1", status: "paused", executionMode: "run_only", issueTitleTemplate: nil)
-        try await client.deleteAutopilot(id: "ap1")
-        _ = try await client.triggerAutopilot(id: "ap1")
-        let runs = try await client.listAutopilotRuns(id: "ap1", limit: 10, offset: 20)
-        _ = try await client.createAutopilotTrigger(autopilotId: "ap1", kind: "schedule", cronExpression: "0 9 * * *", timezone: "UTC", label: "Morning")
-        _ = try await client.updateAutopilotTrigger(autopilotId: "ap1", triggerId: "tr1", enabled: false, cronExpression: nil, timezone: nil, label: nil)
-        try await client.deleteAutopilotTrigger(autopilotId: "ap1", triggerId: "tr1")
+        let list = try await client.listAutopilots(status: "active", workspaceId: "w1")
+        _ = try await client.getAutopilot(id: "ap1", workspaceId: "w1")
+        _ = try await client.createAutopilot(title: "Daily triage", description: "D", assigneeId: "a1", executionMode: "create_issue", issueTitleTemplate: "T", workspaceId: "w1")
+        _ = try await client.updateAutopilot(id: "ap1", title: "Daily triage", description: nil, assigneeId: "a1", status: "paused", executionMode: "run_only", issueTitleTemplate: nil, workspaceId: "w1")
+        try await client.deleteAutopilot(id: "ap1", workspaceId: "w1")
+        _ = try await client.triggerAutopilot(id: "ap1", workspaceId: "w1")
+        let runs = try await client.listAutopilotRuns(id: "ap1", workspaceId: "w1", limit: 10, offset: 20)
+        _ = try await client.createAutopilotTrigger(autopilotId: "ap1", kind: "schedule", cronExpression: "0 9 * * *", timezone: "UTC", label: "Morning", workspaceId: "w1")
+        _ = try await client.updateAutopilotTrigger(autopilotId: "ap1", triggerId: "tr1", enabled: false, cronExpression: nil, timezone: nil, label: nil, workspaceId: "w1")
+        try await client.deleteAutopilotTrigger(autopilotId: "ap1", triggerId: "tr1", workspaceId: "w1")
 
         XCTAssertEqual(list.autopilots.map(\.id), ["ap1"])
         XCTAssertEqual(runs.runs.map(\.id), ["run1"])
-        XCTAssertEqual(requests, [
-            "GET /api/autopilots?status=active",
-            "GET /api/autopilots/ap1?",
-            "POST /api/autopilots?",
-            "PATCH /api/autopilots/ap1?",
-            "DELETE /api/autopilots/ap1?",
-            "POST /api/autopilots/ap1/trigger?",
-            "GET /api/autopilots/ap1/runs?limit=10&offset=20",
-            "POST /api/autopilots/ap1/triggers?",
-            "PATCH /api/autopilots/ap1/triggers/tr1?",
-            "DELETE /api/autopilots/ap1/triggers/tr1?",
+        XCTAssertEqual(requests.map { $0.split(separator: "?").first.map(String.init) ?? $0 }, [
+            "GET /api/autopilots",
+            "GET /api/autopilots/ap1",
+            "POST /api/autopilots",
+            "PATCH /api/autopilots/ap1",
+            "DELETE /api/autopilots/ap1",
+            "POST /api/autopilots/ap1/trigger",
+            "GET /api/autopilots/ap1/runs",
+            "POST /api/autopilots/ap1/triggers",
+            "PATCH /api/autopilots/ap1/triggers/tr1",
+            "DELETE /api/autopilots/ap1/triggers/tr1",
         ])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
     }
 
     func test_labelEndpointsUseDesktopPaths() async throws {
@@ -1261,9 +1298,11 @@ final class APIClientTests: XCTestCase {
 
     func test_reactionEndpointsUseDesktopPaths() async throws {
         var requests: [String] = []
+        var requestURLs: [URL] = []
         var bodies: [[String: Any]] = []
         MockURLProtocol.handler = { req in
             requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            requestURLs.append(req.url!)
             switch req.url?.path {
             case "/api/comments/c1/reactions":
                 bodies.append(try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:])
@@ -1290,8 +1329,8 @@ final class APIClientTests: XCTestCase {
             }
         }
 
-        let commentReaction = try await client.addReaction(commentId: "c1", emoji: "👍")
-        try await client.removeReaction(commentId: "c1", emoji: "👍")
+        let commentReaction = try await client.addReaction(commentId: "c1", emoji: "👍", workspaceId: "w1")
+        try await client.removeReaction(commentId: "c1", emoji: "👍", workspaceId: "w1")
         let issueReaction = try await client.addIssueReaction(issueId: "i1", emoji: "👀", workspaceId: "w1")
         try await client.removeIssueReaction(issueId: "i1", emoji: "👀", workspaceId: "w1")
 
@@ -1304,13 +1343,16 @@ final class APIClientTests: XCTestCase {
             "POST /api/issues/i1/reactions",
             "DELETE /api/issues/i1/reactions",
         ])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
     }
 
     func test_commentMutationEndpointsUseDesktopPaths() async throws {
         var requests: [String] = []
+        var requestURLs: [URL] = []
         var updateBody: [String: Any] = [:]
         MockURLProtocol.handler = { req in
             requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            requestURLs.append(req.url!)
             switch (req.httpMethod, req.url?.path) {
             case ("PUT", "/api/comments/c1"):
                 updateBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
@@ -1326,8 +1368,8 @@ final class APIClientTests: XCTestCase {
             }
         }
 
-        let comment = try await client.updateComment(commentId: "c1", content: "Updated **markdown**")
-        try await client.deleteComment(commentId: "c1")
+        let comment = try await client.updateComment(commentId: "c1", content: "Updated **markdown**", workspaceId: "w1")
+        try await client.deleteComment(commentId: "c1", workspaceId: "w1")
 
         XCTAssertEqual(comment.content, "Updated **markdown**")
         XCTAssertEqual(updateBody["content"] as? String, "Updated **markdown**")
@@ -1335,6 +1377,7 @@ final class APIClientTests: XCTestCase {
             "PUT /api/comments/c1",
             "DELETE /api/comments/c1",
         ])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
     }
 
     private static func agentJSON(id: String, name: String) -> Data {

@@ -23,6 +23,7 @@ final class RuntimesViewModelTests: XCTestCase {
         let client = makeClient { req in
             XCTAssertEqual(req.httpMethod, "DELETE")
             XCTAssertEqual(req.url?.path, "/api/runtimes/r1")
+            XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
             return Self.response(for: req, body: Data("{}".utf8), status: 204)
         }
         let vm = RuntimesViewModel(api: client, authSession: makeSession())

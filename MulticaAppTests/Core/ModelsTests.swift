@@ -422,11 +422,11 @@ final class ModelsTests: XCTestCase {
             "workspace_id": "w1",
             "title": "iOS MVP",
             "description": "Mobile client",
-            "icon": null,
+            "icon": "📱",
             "status": "in_progress",
             "priority": "none",
-            "lead_type": null,
-            "lead_id": null,
+            "lead_type": "agent",
+            "lead_id": "a1",
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": "2026-01-02T00:00:00Z",
             "issue_count": 8,
@@ -437,11 +437,34 @@ final class ModelsTests: XCTestCase {
         let project = try decoder.decode(Project.self, from: json)
 
         XCTAssertEqual(project.name, "iOS MVP")
+        XCTAssertEqual(project.icon, "📱")
         XCTAssertEqual(project.status, .inProgress)
         XCTAssertEqual(project.priority, .noPriority)
+        XCTAssertEqual(project.leadType, "agent")
+        XCTAssertEqual(project.leadId, "a1")
         XCTAssertEqual(project.workspaceId, "w1")
         XCTAssertEqual(project.issueCount, 8)
         XCTAssertEqual(project.doneCount, 3)
+    }
+
+    func test_workspace_decodesReposFromDesktopShape() throws {
+        let json = """
+        {
+            "id": "w1",
+            "name": "Workspace",
+            "slug": "workspace",
+            "issue_prefix": "PAR",
+            "repos": [{
+                "url": "https://github.com/multica-ai/multica",
+                "default_branch_hint": "main"
+            }]
+        }
+        """.data(using: .utf8)!
+
+        let workspace = try decoder.decode(Workspace.self, from: json)
+
+        XCTAssertEqual(workspace.repos.map(\.url), ["https://github.com/multica-ai/multica"])
+        XCTAssertEqual(workspace.repos.first?.defaultBranchHint, "main")
     }
 
     func test_projectStatus_allCases_haveDisplayName() {

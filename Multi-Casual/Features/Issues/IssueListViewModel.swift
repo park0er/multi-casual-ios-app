@@ -117,7 +117,7 @@ public final class IssueListViewModel {
         assigneeType: String? = nil,
         assigneeId: String? = nil
     ) async {
-        guard authSession.currentWorkspace?.id != nil else {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
             lastError = UserVisibleError("Pick a workspace before updating Issues.")
             return
         }
@@ -126,6 +126,7 @@ public final class IssueListViewModel {
         do {
             _ = try await api.batchUpdateIssues(
                 ids: ids,
+                workspaceId: workspaceId,
                 status: status,
                 priority: priority,
                 assigneeType: assigneeType,
@@ -190,14 +191,14 @@ public final class IssueListViewModel {
     }
 
     public func batchDeleteSelected() async {
-        guard authSession.currentWorkspace?.id != nil else {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
             lastError = UserVisibleError("Pick a workspace before updating Issues.")
             return
         }
         let ids = selectedIssueIds.sorted()
         guard !ids.isEmpty else { return }
         do {
-            _ = try await api.batchDeleteIssues(ids: ids)
+            _ = try await api.batchDeleteIssues(ids: ids, workspaceId: workspaceId)
             removeIssues(withIds: Set(ids))
             clearSelection()
             lastError = nil

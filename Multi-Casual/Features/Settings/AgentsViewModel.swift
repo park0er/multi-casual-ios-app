@@ -48,7 +48,11 @@ public final class AgentsViewModel {
         maxConcurrentTasks: Int,
         model: String
     ) async -> Agent? {
-        await mutate {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before managing agents."
+            return nil
+        }
+        return await mutate {
             try await api.createAgent(
                 name: name,
                 description: description,
@@ -56,7 +60,8 @@ public final class AgentsViewModel {
                 runtimeId: runtimeId,
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
-                model: model
+                model: model,
+                workspaceId: workspaceId
             )
         }
     }
@@ -70,7 +75,11 @@ public final class AgentsViewModel {
         maxConcurrentTasks: Int,
         model: String
     ) async -> Agent? {
-        await mutate {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before managing agents."
+            return nil
+        }
+        return await mutate {
             try await api.updateAgent(
                 id: id,
                 name: name,
@@ -78,24 +87,37 @@ public final class AgentsViewModel {
                 instructions: instructions,
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
-                model: model
+                model: model,
+                workspaceId: workspaceId
             )
         }
     }
 
     public func archiveAgent(id: String) async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before managing agents."
+            return
+        }
         _ = await mutate {
-            try await api.archiveAgent(id: id)
+            try await api.archiveAgent(id: id, workspaceId: workspaceId)
         }
     }
 
     public func restoreAgent(id: String) async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before managing agents."
+            return
+        }
         _ = await mutate {
-            try await api.restoreAgent(id: id)
+            try await api.restoreAgent(id: id, workspaceId: workspaceId)
         }
     }
 
     public func cancelAgentTasks(id: String) async -> Int? {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before managing agents."
+            return nil
+        }
         guard !isMutating else { return nil }
         isMutating = true
         errorMessage = nil
@@ -103,7 +125,7 @@ public final class AgentsViewModel {
         defer { isMutating = false }
 
         do {
-            let response = try await api.cancelAgentTasks(id: id)
+            let response = try await api.cancelAgentTasks(id: id, workspaceId: workspaceId)
             lastActionMessage = "Cancelled \(response.count) tasks."
             return response.count
         } catch {

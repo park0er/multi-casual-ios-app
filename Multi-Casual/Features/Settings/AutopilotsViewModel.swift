@@ -20,22 +20,20 @@ public final class AutopilotsViewModel {
     }
 
     public func load() async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before managing autopilots."
+            return
+        }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
         do {
-            async let loadedAutopilots = api.listAutopilots()
-            if let workspaceId = authSession.currentWorkspace?.id {
-                async let loadedAgents = api.listAgents(workspaceId: workspaceId)
-                let (autopilotResponse, agentList) = try await (loadedAutopilots, loadedAgents)
-                autopilots = autopilotResponse.autopilots.sorted(by: autopilotSort)
-                agents = agentList.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-            } else {
-                let autopilotResponse = try await loadedAutopilots
-                autopilots = autopilotResponse.autopilots.sorted(by: autopilotSort)
-                agents = []
-            }
+            async let loadedAutopilots = api.listAutopilots(workspaceId: workspaceId)
+            async let loadedAgents = api.listAgents(workspaceId: workspaceId)
+            let (autopilotResponse, agentList) = try await (loadedAutopilots, loadedAgents)
+            autopilots = autopilotResponse.autopilots.sorted(by: autopilotSort)
+            agents = agentList.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -48,13 +46,18 @@ public final class AutopilotsViewModel {
         executionMode: String,
         issueTitleTemplate: String?
     ) async -> Autopilot? {
-        await mutate {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before managing autopilots."
+            return nil
+        }
+        return await mutate {
             try await api.createAutopilot(
                 title: title,
                 description: description,
                 assigneeId: assigneeId,
                 executionMode: executionMode,
-                issueTitleTemplate: issueTitleTemplate
+                issueTitleTemplate: issueTitleTemplate,
+                workspaceId: workspaceId
             )
         }
     }
@@ -68,7 +71,11 @@ public final class AutopilotsViewModel {
         executionMode: String,
         issueTitleTemplate: String?
     ) async -> Autopilot? {
-        await mutate {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before managing autopilots."
+            return nil
+        }
+        return await mutate {
             try await api.updateAutopilot(
                 id: id,
                 title: title,
@@ -76,12 +83,17 @@ public final class AutopilotsViewModel {
                 assigneeId: assigneeId,
                 status: status,
                 executionMode: executionMode,
-                issueTitleTemplate: issueTitleTemplate
+                issueTitleTemplate: issueTitleTemplate,
+                workspaceId: workspaceId
             )
         }
     }
 
     public func triggerAutopilot(id: String) async -> AutopilotRun? {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before managing autopilots."
+            return nil
+        }
         guard !isMutating else { return nil }
         isMutating = true
         errorMessage = nil
@@ -89,7 +101,7 @@ public final class AutopilotsViewModel {
         defer { isMutating = false }
 
         do {
-            let run = try await api.triggerAutopilot(id: id)
+            let run = try await api.triggerAutopilot(id: id, workspaceId: workspaceId)
             lastActionMessage = "Triggered \(run.status.replacingOccurrences(of: "_", with: " "))."
             return run
         } catch {
@@ -99,6 +111,10 @@ public final class AutopilotsViewModel {
     }
 
     public func deleteAutopilot(id: String) async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before managing autopilots."
+            return
+        }
         guard !isMutating else { return }
         isMutating = true
         errorMessage = nil
@@ -106,7 +122,7 @@ public final class AutopilotsViewModel {
         defer { isMutating = false }
 
         do {
-            try await api.deleteAutopilot(id: id)
+            try await api.deleteAutopilot(id: id, workspaceId: workspaceId)
             autopilots.removeAll { $0.id == id }
         } catch {
             errorMessage = error.localizedDescription

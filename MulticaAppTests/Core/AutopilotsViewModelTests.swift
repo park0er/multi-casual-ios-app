@@ -6,7 +6,9 @@ final class AutopilotsViewModelTests: XCTestCase {
     private let workspace = Workspace(id: "w1", name: "Workspace", slug: "workspace", issuePrefix: "PAR")
 
     func test_loadFetchesAutopilotsAndAgents() async throws {
+        var requestURLs: [URL] = []
         let client = makeClient { req in
+            requestURLs.append(req.url!)
             switch req.url?.path {
             case "/api/autopilots":
                 return Self.response(for: req, body: Self.autopilotListJSON())
@@ -23,13 +25,16 @@ final class AutopilotsViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.autopilots.map(\.id), ["ap1"])
         XCTAssertEqual(vm.agents.map(\.id), ["a1"])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertNil(vm.errorMessage)
     }
 
     func test_createUpdateDeleteAndTriggerKeepListInSync() async throws {
         var requests: [String] = []
+        var requestURLs: [URL] = []
         let client = makeClient { req in
             requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            requestURLs.append(req.url!)
             if req.httpMethod == "DELETE" {
                 return Self.response(for: req, body: Data(), status: 204)
             }
@@ -54,6 +59,7 @@ final class AutopilotsViewModelTests: XCTestCase {
             "POST /api/autopilots/ap1/trigger",
             "DELETE /api/autopilots/ap1",
         ])
+        XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertNil(vm.errorMessage)
     }
 

@@ -21,19 +21,27 @@ public struct ProjectsView: View {
                     }
                     ForEach(vm.loader.items) { project in
                         NavigationLink(destination: ProjectDetailView(project: project)) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                MarkdownText(project.name).font(.body)
-                                if let desc = project.description {
-                                    MarkdownText(desc).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            HStack(alignment: .top, spacing: 10) {
+                                if let icon = project.icon, !icon.isEmpty {
+                                    MarkdownText(icon)
+                                        .font(.title3)
+                                        .frame(width: 28, alignment: .center)
                                 }
-                                HStack(spacing: 8) {
-                                    Label(project.status.displayName, systemImage: project.status.icon)
-                                    Label(project.priority.displayName, systemImage: "flag")
-                                    MarkdownText("\(project.doneCount)/\(project.issueCount) done")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    MarkdownText(project.name).font(.body)
+                                    if let desc = project.description {
+                                        MarkdownText(desc).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                    HStack(spacing: 8) {
+                                        Label(project.status.displayName, systemImage: project.status.icon)
+                                        Label(project.priority.displayName, systemImage: "flag")
+                                        MarkdownText("\(project.doneCount)/\(project.issueCount) done")
+                                    }
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                                 }
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            }.padding(.vertical, 4)
+                            }
+                            .padding(.vertical, 4)
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
@@ -119,7 +127,12 @@ private struct ProjectFormSheet: View {
     @State private var description: String
     @State private var status: ProjectStatus
     @State private var priority: IssuePriority
+    @State private var icon: String
+    @State private var selectedLeadOptionId: String
+    @State private var selectedRepoURLs: Set<String> = []
+    @State private var customRepoURLs = ""
 
+    private static let noLeadId = "none"
     private let statusOptions = ProjectStatus.allCases.filter { $0 != .unknown }
     private let priorityOptions = IssuePriority.allCases.filter { $0 != .unknown }
 
@@ -130,6 +143,10 @@ private struct ProjectFormSheet: View {
         _description = State(initialValue: project?.description ?? "")
         _status = State(initialValue: project?.status == .unknown ? .planned : (project?.status ?? .planned))
         _priority = State(initialValue: project?.priority == .unknown ? .noPriority : (project?.priority ?? .noPriority))
+        _icon = State(initialValue: project?.icon ?? "")
+        _selectedLeadOptionId = State(initialValue: project?.leadType.flatMap { type in
+            project?.leadId.map { "\(type):\($0)" }
+        } ?? Self.noLeadId)
     }
 
     var body: some View {
@@ -138,6 +155,9 @@ private struct ProjectFormSheet: View {
                 Section("Project") {
                     TextField("Project title", text: $title)
                         .accessibilityIdentifier("ProjectTitleField")
+                    TextField("Icon", text: $icon)
+                        .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("ProjectIconField")
                     TextEditor(text: $description)
                         .frame(minHeight: 120)
                         .accessibilityIdentifier("ProjectDescriptionEditor")
@@ -152,6 +172,59 @@ private struct ProjectFormSheet: View {
                     Picker("Priority", selection: $priority) {
                         ForEach(priorityOptions, id: \.self) { priority in
                             Text(priority.displayName).tag(priority)
+                        }
+                    }
+                    Picker("Lead", selection: $selectedLeadOptionId) {
+                        Text("No Lead").tag(Self.noLeadId)
+                        ForEach(viewModel.projectLeadOptions) { option in
+                            MarkdownText(option.displayName).tag(option.id)
+                        }
+                    }
+                    .pickerStyle(.navigationLink)
+                    .disabled(viewModel.isLoadingProjectOptions)
+                    .accessibilityIdentifier("ProjectLeadPicker")
+                    .accessibilityValue(
+                        viewModel.isLoadingProjectOptions
+                            ? "Loading leads"
+                            : "Lead options loaded: \(viewModel.projectLeadOptions.count)"
+                    )
+                }
+
+                if project == nil {
+                    Section("Resources") {
+                        if !viewModel.workspaceRepoURLs.isEmpty {
+                            ForEach(viewModel.workspaceRepoURLs, id: \.self) { repoURL in
+                                Toggle(isOn: Binding(
+                                    get: { selectedRepoURLs.contains(repoURL) },
+                                    set: { isSelected in
+                                        if isSelected {
+                                            selectedRepoURLs.insert(repoURL)
+                                        } else {
+                                            selectedRepoURLs.remove(repoURL)
+                                        }
+                                    }
+                                )) {
+                                    MarkdownText(repoURL).lineLimit(1)
+                                }
+                            }
+                        }
+
+                        TextEditor(text: $customRepoURLs)
+                            .frame(minHeight: 72)
+                            .accessibilityIdentifier("ProjectCustomRepoURLsEditor")
+
+                        MarkdownText("Add one GitHub repo URL per line.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if viewModel.isLoadingProjectOptions {
+                    Section {
+                        HStack {
+                            ProgressView()
+                            MarkdownText("Loading workspace options")
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -184,6 +257,9 @@ private struct ProjectFormSheet: View {
                     .accessibilityIdentifier("ProjectSaveButton")
                 }
             }
+            .task {
+                await viewModel.loadProjectOptions()
+            }
         }
     }
 
@@ -194,7 +270,9 @@ private struct ProjectFormSheet: View {
     private func submit() async {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedIcon = icon.trimmingCharacters(in: .whitespacesAndNewlines)
         let descriptionValue = trimmedDescription.isEmpty ? nil : trimmedDescription
+        let lead = selectedLead
         let saved: Project?
         if let project {
             saved = await viewModel.updateProject(
@@ -202,19 +280,39 @@ private struct ProjectFormSheet: View {
                 title: trimmedTitle,
                 description: descriptionValue,
                 status: status,
-                priority: priority
+                priority: priority,
+                icon: trimmedIcon,
+                leadType: lead?.type,
+                leadId: lead?.assigneeId
             )
         } else {
             saved = await viewModel.createProject(
                 title: trimmedTitle,
                 description: descriptionValue,
                 status: status,
-                priority: priority
+                priority: priority,
+                icon: trimmedIcon,
+                leadType: lead?.type,
+                leadId: lead?.assigneeId,
+                resourceURLs: resourceURLs
             )
         }
         if saved != nil {
             dismiss()
         }
+    }
+
+    private var selectedLead: IssueAssigneeOption? {
+        guard selectedLeadOptionId != Self.noLeadId else { return nil }
+        return viewModel.projectLeadOptions.first { $0.id == selectedLeadOptionId }
+    }
+
+    private var resourceURLs: [String] {
+        let custom = customRepoURLs
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return Array(Set(selectedRepoURLs).union(custom)).sorted()
     }
 }
 #endif

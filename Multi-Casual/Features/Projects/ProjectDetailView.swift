@@ -15,11 +15,17 @@ public struct ProjectDetailView: View {
             if let vm = viewModel {
                 List {
                     Section("Details") {
+                        if let icon = vm.project.icon, !icon.isEmpty {
+                            MarkdownLabeledContent("Icon", value: icon)
+                        }
                         if let desc = vm.project.description {
                             MarkdownText(desc).foregroundStyle(.secondary)
                         }
                         MarkdownLabeledContent("Status", value: vm.project.status.displayName)
                         MarkdownLabeledContent("Priority", value: vm.project.priority.displayName)
+                        if let leadText {
+                            MarkdownLabeledContent("Lead", value: leadText)
+                        }
                         MarkdownLabeledContent("Progress", value: vm.progressText)
                     }
 
@@ -89,6 +95,15 @@ public struct ProjectDetailView: View {
                 await vm.load()
             }
         }
+    }
+
+    private var leadText: String? {
+        guard let type = viewModel?.project.leadType,
+              let id = viewModel?.project.leadId,
+              !type.isEmpty,
+              !id.isEmpty
+        else { return nil }
+        return "\(type.capitalized) \(id.prefix(8))"
     }
 }
 

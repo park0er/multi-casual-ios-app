@@ -38,13 +38,17 @@ public final class RuntimesViewModel {
     }
 
     public func deleteRuntime(id: String) async {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before managing runtimes."
+            return
+        }
         guard !isMutating else { return }
         isMutating = true
         errorMessage = nil
         defer { isMutating = false }
 
         do {
-            try await api.deleteRuntime(id: id)
+            try await api.deleteRuntime(id: id, workspaceId: workspaceId)
             runtimes.removeAll { $0.id == id }
         } catch {
             errorMessage = error.localizedDescription

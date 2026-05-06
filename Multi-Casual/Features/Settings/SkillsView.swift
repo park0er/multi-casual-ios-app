@@ -3,6 +3,7 @@ import SwiftUI
 
 public struct SkillsView: View {
     @Environment(APIClient.self) private var api
+    @Environment(AuthSession.self) private var authSession
     @State private var viewModel: SkillsViewModel?
     @State private var showCreateSheet = false
     @State private var showImportSheet = false
@@ -83,10 +84,13 @@ public struct SkillsView: View {
         .navigationTitle("Skills")
         .onAppear {
             if viewModel == nil {
-                let vm = SkillsViewModel(api: api)
+                let vm = SkillsViewModel(api: api, authSession: authSession)
                 viewModel = vm
                 Task { await vm.load() }
             }
+        }
+        .onChange(of: authSession.currentWorkspace?.id) { _, _ in
+            Task { await viewModel?.load() }
         }
     }
 }

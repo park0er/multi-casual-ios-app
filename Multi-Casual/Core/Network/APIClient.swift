@@ -258,15 +258,41 @@ public final class APIClient: @unchecked Sendable {
         let description: String?
         let status: ProjectStatus
         let priority: IssuePriority
+        let icon: String?
+        let leadType: String?
+        let leadId: String?
+        let resources: [CreateProjectResourceRequest]?
+
+        enum CodingKeys: String, CodingKey {
+            case title, description, status, priority, icon, resources
+            case leadType = "lead_type"
+            case leadId = "lead_id"
+        }
     }
+
+    private struct CreateProjectResourceRequest: Encodable {
+        let resourceType: String
+        let resourceRef: [String: JSONValue]
+
+        enum CodingKeys: String, CodingKey {
+            case resourceType = "resource_type"
+            case resourceRef = "resource_ref"
+        }
+    }
+
     private struct UpdateProjectRequest: Encodable {
         let title: String
         let description: String?
         let status: ProjectStatus
         let priority: IssuePriority
+        let icon: String?
+        let leadType: String?
+        let leadId: String?
 
         enum CodingKeys: String, CodingKey {
-            case title, description, status, priority
+            case title, description, status, priority, icon
+            case leadType = "lead_type"
+            case leadId = "lead_id"
         }
 
         func encode(to encoder: Encoder) throws {
@@ -279,6 +305,21 @@ public final class APIClient: @unchecked Sendable {
             }
             try container.encode(status, forKey: .status)
             try container.encode(priority, forKey: .priority)
+            if let icon {
+                try container.encode(icon, forKey: .icon)
+            } else {
+                try container.encodeNil(forKey: .icon)
+            }
+            if let leadType {
+                try container.encode(leadType, forKey: .leadType)
+            } else {
+                try container.encodeNil(forKey: .leadType)
+            }
+            if let leadId {
+                try container.encode(leadId, forKey: .leadId)
+            } else {
+                try container.encodeNil(forKey: .leadId)
+            }
         }
     }
     private struct CreatePinRequest: Encodable {
@@ -568,16 +609,17 @@ public final class APIClient: @unchecked Sendable {
         try await request("GET", path: "api/issues/\(issueId)/usage", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func updateComment(commentId: String, content: String) async throws -> Comment {
+    public func updateComment(commentId: String, content: String, workspaceId: String? = nil) async throws -> Comment {
         try await request(
             "PUT",
             path: "api/comments/\(commentId)",
+            queryItems: workspaceQuery(workspaceId),
             body: UpdateCommentRequest(content: content)
         )
     }
 
-    public func deleteComment(commentId: String) async throws {
-        let _: EmptyResponse = try await request("DELETE", path: "api/comments/\(commentId)")
+    public func deleteComment(commentId: String, workspaceId: String? = nil) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/comments/\(commentId)", queryItems: workspaceQuery(workspaceId))
     }
 
     public func updateIssue(
@@ -629,6 +671,7 @@ public final class APIClient: @unchecked Sendable {
 
     public func batchUpdateIssues(
         ids: [String],
+        workspaceId: String? = nil,
         status: IssueStatus? = nil,
         priority: IssuePriority? = nil,
         assigneeType: String? = nil,
@@ -637,6 +680,7 @@ public final class APIClient: @unchecked Sendable {
         try await request(
             "POST",
             path: "api/issues/batch-update",
+            queryItems: workspaceQuery(workspaceId),
             body: BatchUpdateIssuesRequest(
                 issueIds: ids,
                 updates: BatchIssueUpdates(
@@ -649,10 +693,11 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
-    public func batchDeleteIssues(ids: [String]) async throws -> BatchDeleteIssuesResponse {
+    public func batchDeleteIssues(ids: [String], workspaceId: String? = nil) async throws -> BatchDeleteIssuesResponse {
         try await request(
             "POST",
             path: "api/issues/batch-delete",
+            queryItems: workspaceQuery(workspaceId),
             body: BatchDeleteIssuesRequest(issueIds: ids)
         )
     }
@@ -765,18 +810,20 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
-    public func addReaction(commentId: String, emoji: String) async throws -> Reaction {
+    public func addReaction(commentId: String, emoji: String, workspaceId: String? = nil) async throws -> Reaction {
         try await request(
             "POST",
             path: "api/comments/\(commentId)/reactions",
+            queryItems: workspaceQuery(workspaceId),
             body: ReactionRequest(emoji: emoji)
         )
     }
 
-    public func removeReaction(commentId: String, emoji: String) async throws {
+    public func removeReaction(commentId: String, emoji: String, workspaceId: String? = nil) async throws {
         let _: EmptyResponse = try await request(
             "DELETE",
             path: "api/comments/\(commentId)/reactions",
+            queryItems: workspaceQuery(workspaceId),
             body: ReactionRequest(emoji: emoji)
         )
     }
@@ -874,11 +921,13 @@ public final class APIClient: @unchecked Sendable {
         runtimeId: String,
         visibility: String,
         maxConcurrentTasks: Int,
-        model: String
+        model: String,
+        workspaceId: String? = nil
     ) async throws -> Agent {
         try await request(
             "POST",
             path: "api/agents",
+            queryItems: workspaceQuery(workspaceId),
             body: AgentMutationRequest(
                 name: name,
                 description: description,
@@ -898,11 +947,13 @@ public final class APIClient: @unchecked Sendable {
         instructions: String,
         visibility: String,
         maxConcurrentTasks: Int,
-        model: String
+        model: String,
+        workspaceId: String? = nil
     ) async throws -> Agent {
         try await request(
             "PUT",
             path: "api/agents/\(id)",
+            queryItems: workspaceQuery(workspaceId),
             body: AgentMutationRequest(
                 name: name,
                 description: description,
@@ -915,72 +966,79 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
-    public func archiveAgent(id: String) async throws -> Agent {
-        try await request("POST", path: "api/agents/\(id)/archive")
+    public func archiveAgent(id: String, workspaceId: String? = nil) async throws -> Agent {
+        try await request("POST", path: "api/agents/\(id)/archive", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func restoreAgent(id: String) async throws -> Agent {
-        try await request("POST", path: "api/agents/\(id)/restore")
+    public func restoreAgent(id: String, workspaceId: String? = nil) async throws -> Agent {
+        try await request("POST", path: "api/agents/\(id)/restore", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func cancelAgentTasks(id: String) async throws -> AgentCancelResponse {
-        try await request("POST", path: "api/agents/\(id)/cancel-tasks")
+    public func cancelAgentTasks(id: String, workspaceId: String? = nil) async throws -> AgentCancelResponse {
+        try await request("POST", path: "api/agents/\(id)/cancel-tasks", queryItems: workspaceQuery(workspaceId))
     }
 
     public func listRuntimes(workspaceId: String) async throws -> [AgentRuntime] {
         try await request("GET", path: "api/runtimes", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func deleteRuntime(id: String) async throws {
-        let _: EmptyResponse = try await request("DELETE", path: "api/runtimes/\(id)")
+    public func deleteRuntime(id: String, workspaceId: String? = nil) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/runtimes/\(id)", queryItems: workspaceQuery(workspaceId))
     }
 
     // MARK: - Skills
 
-    public func listSkills() async throws -> [Skill] {
-        try await request("GET", path: "api/skills")
+    public func listSkills(workspaceId: String? = nil) async throws -> [Skill] {
+        try await request("GET", path: "api/skills", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func getSkill(id: String) async throws -> Skill {
-        try await request("GET", path: "api/skills/\(id)")
+    public func getSkill(id: String, workspaceId: String? = nil) async throws -> Skill {
+        try await request("GET", path: "api/skills/\(id)", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func createSkill(name: String, description: String, content: String) async throws -> Skill {
+    public func createSkill(name: String, description: String, content: String, workspaceId: String? = nil) async throws -> Skill {
         try await request(
             "POST",
             path: "api/skills",
+            queryItems: workspaceQuery(workspaceId),
             body: SkillMutationRequest(name: name, description: description, content: content)
         )
     }
 
-    public func updateSkill(id: String, name: String, description: String, content: String) async throws -> Skill {
+    public func updateSkill(id: String, name: String, description: String, content: String, workspaceId: String? = nil) async throws -> Skill {
         try await request(
             "PUT",
             path: "api/skills/\(id)",
+            queryItems: workspaceQuery(workspaceId),
             body: SkillMutationRequest(name: name, description: description, content: content)
         )
     }
 
-    public func importSkill(url: String) async throws -> Skill {
-        try await request("POST", path: "api/skills/import", body: SkillImportRequest(url: url))
+    public func importSkill(url: String, workspaceId: String? = nil) async throws -> Skill {
+        try await request(
+            "POST",
+            path: "api/skills/import",
+            queryItems: workspaceQuery(workspaceId),
+            body: SkillImportRequest(url: url)
+        )
     }
 
-    public func deleteSkill(id: String) async throws {
-        let _: EmptyResponse = try await request("DELETE", path: "api/skills/\(id)")
+    public func deleteSkill(id: String, workspaceId: String? = nil) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/skills/\(id)", queryItems: workspaceQuery(workspaceId))
     }
 
     // MARK: - Autopilots
 
-    public func listAutopilots(status: String? = nil) async throws -> ListAutopilotsResponse {
-        var queryItems: [URLQueryItem] = []
+    public func listAutopilots(status: String? = nil, workspaceId: String? = nil) async throws -> ListAutopilotsResponse {
+        var queryItems = workspaceQuery(workspaceId)
         if let status, !status.isEmpty {
             queryItems.append(.init(name: "status", value: status))
         }
         return try await request("GET", path: "api/autopilots", queryItems: queryItems)
     }
 
-    public func getAutopilot(id: String) async throws -> GetAutopilotResponse {
-        try await request("GET", path: "api/autopilots/\(id)")
+    public func getAutopilot(id: String, workspaceId: String? = nil) async throws -> GetAutopilotResponse {
+        try await request("GET", path: "api/autopilots/\(id)", queryItems: workspaceQuery(workspaceId))
     }
 
     public func createAutopilot(
@@ -988,11 +1046,13 @@ public final class APIClient: @unchecked Sendable {
         description: String?,
         assigneeId: String,
         executionMode: String,
-        issueTitleTemplate: String?
+        issueTitleTemplate: String?,
+        workspaceId: String? = nil
     ) async throws -> Autopilot {
         try await request(
             "POST",
             path: "api/autopilots",
+            queryItems: workspaceQuery(workspaceId),
             body: CreateAutopilotRequest(
                 title: title,
                 description: description,
@@ -1010,11 +1070,13 @@ public final class APIClient: @unchecked Sendable {
         assigneeId: String,
         status: String,
         executionMode: String,
-        issueTitleTemplate: String?
+        issueTitleTemplate: String?,
+        workspaceId: String? = nil
     ) async throws -> Autopilot {
         try await request(
             "PATCH",
             path: "api/autopilots/\(id)",
+            queryItems: workspaceQuery(workspaceId),
             body: UpdateAutopilotRequest(
                 title: title,
                 description: description,
@@ -1026,16 +1088,16 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
-    public func deleteAutopilot(id: String) async throws {
-        let _: EmptyResponse = try await request("DELETE", path: "api/autopilots/\(id)")
+    public func deleteAutopilot(id: String, workspaceId: String? = nil) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "api/autopilots/\(id)", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func triggerAutopilot(id: String) async throws -> AutopilotRun {
-        try await request("POST", path: "api/autopilots/\(id)/trigger")
+    public func triggerAutopilot(id: String, workspaceId: String? = nil) async throws -> AutopilotRun {
+        try await request("POST", path: "api/autopilots/\(id)/trigger", queryItems: workspaceQuery(workspaceId))
     }
 
-    public func listAutopilotRuns(id: String, limit: Int = 50, offset: Int = 0) async throws -> ListAutopilotRunsResponse {
-        try await request("GET", path: "api/autopilots/\(id)/runs", queryItems: [
+    public func listAutopilotRuns(id: String, workspaceId: String? = nil, limit: Int = 50, offset: Int = 0) async throws -> ListAutopilotRunsResponse {
+        try await request("GET", path: "api/autopilots/\(id)/runs", queryItems: workspaceQuery(workspaceId) + [
             .init(name: "limit", value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
         ])
@@ -1046,11 +1108,13 @@ public final class APIClient: @unchecked Sendable {
         kind: String,
         cronExpression: String?,
         timezone: String?,
-        label: String?
+        label: String?,
+        workspaceId: String? = nil
     ) async throws -> AutopilotTrigger {
         try await request(
             "POST",
             path: "api/autopilots/\(autopilotId)/triggers",
+            queryItems: workspaceQuery(workspaceId),
             body: CreateAutopilotTriggerRequest(
                 kind: kind,
                 cronExpression: cronExpression,
@@ -1066,11 +1130,13 @@ public final class APIClient: @unchecked Sendable {
         enabled: Bool?,
         cronExpression: String?,
         timezone: String?,
-        label: String?
+        label: String?,
+        workspaceId: String? = nil
     ) async throws -> AutopilotTrigger {
         try await request(
             "PATCH",
             path: "api/autopilots/\(autopilotId)/triggers/\(triggerId)",
+            queryItems: workspaceQuery(workspaceId),
             body: UpdateAutopilotTriggerRequest(
                 enabled: enabled,
                 cronExpression: cronExpression,
@@ -1080,8 +1146,12 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
-    public func deleteAutopilotTrigger(autopilotId: String, triggerId: String) async throws {
-        let _: EmptyResponse = try await request("DELETE", path: "api/autopilots/\(autopilotId)/triggers/\(triggerId)")
+    public func deleteAutopilotTrigger(autopilotId: String, triggerId: String, workspaceId: String? = nil) async throws {
+        let _: EmptyResponse = try await request(
+            "DELETE",
+            path: "api/autopilots/\(autopilotId)/triggers/\(triggerId)",
+            queryItems: workspaceQuery(workspaceId)
+        )
     }
 
     // MARK: - Inbox
@@ -1134,7 +1204,11 @@ public final class APIClient: @unchecked Sendable {
         description: String?,
         workspaceId: String,
         status: ProjectStatus,
-        priority: IssuePriority
+        priority: IssuePriority,
+        icon: String? = nil,
+        leadType: String? = nil,
+        leadId: String? = nil,
+        resourceURLs: [String] = []
     ) async throws -> Project {
         try await request(
             "POST",
@@ -1144,7 +1218,11 @@ public final class APIClient: @unchecked Sendable {
                 title: title,
                 description: description,
                 status: status,
-                priority: priority
+                priority: priority,
+                icon: icon,
+                leadType: leadType,
+                leadId: leadId,
+                resources: projectResourceRequests(from: resourceURLs)
             )
         )
     }
@@ -1155,7 +1233,10 @@ public final class APIClient: @unchecked Sendable {
         title: String,
         description: String?,
         status: ProjectStatus,
-        priority: IssuePriority
+        priority: IssuePriority,
+        icon: String? = nil,
+        leadType: String? = nil,
+        leadId: String? = nil
     ) async throws -> Project {
         try await request(
             "PUT",
@@ -1165,7 +1246,10 @@ public final class APIClient: @unchecked Sendable {
                 title: title,
                 description: description,
                 status: status,
-                priority: priority
+                priority: priority,
+                icon: icon,
+                leadType: leadType,
+                leadId: leadId
             )
         )
     }
@@ -1180,6 +1264,19 @@ public final class APIClient: @unchecked Sendable {
 
     public func listProjectResources(projectId: String, workspaceId: String? = nil) async throws -> PageResponse<ProjectResource> {
         try await request("GET", path: "api/projects/\(projectId)/resources", queryItems: workspaceQuery(workspaceId))
+    }
+
+    private func projectResourceRequests(from urls: [String]) -> [CreateProjectResourceRequest]? {
+        let resources = urls
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map {
+                CreateProjectResourceRequest(
+                    resourceType: "github_repo",
+                    resourceRef: ["url": .string($0)]
+                )
+            }
+        return resources.isEmpty ? nil : resources
     }
 
     private func workspaceQuery(_ workspaceId: String?) -> [URLQueryItem] {

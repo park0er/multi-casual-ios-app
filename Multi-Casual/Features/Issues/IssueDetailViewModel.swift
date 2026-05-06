@@ -270,14 +270,14 @@ public final class IssueDetailViewModel {
 
         do {
             if existing != nil {
-                try await api.removeReaction(commentId: commentId, emoji: emoji)
+                try await api.removeReaction(commentId: commentId, emoji: emoji, workspaceId: effectiveWorkspaceId)
                 commentLoader.items[index] = comment.replacingReactions(
                     comment.reactions.filter {
                         !($0.emoji == emoji && $0.actorType == "member" && $0.actorId == currentUserId)
                     }
                 )
             } else {
-                let reaction = try await api.addReaction(commentId: commentId, emoji: emoji)
+                let reaction = try await api.addReaction(commentId: commentId, emoji: emoji, workspaceId: effectiveWorkspaceId)
                 commentLoader.items[index] = comment.replacingReactions(comment.reactions + [reaction])
             }
         } catch {
@@ -461,7 +461,7 @@ public final class IssueDetailViewModel {
         guard !trimmed.isEmpty else { return false }
         error = nil
         do {
-            let updated = try await api.updateComment(commentId: commentId, content: trimmed)
+            let updated = try await api.updateComment(commentId: commentId, content: trimmed, workspaceId: effectiveWorkspaceId)
             if let index = commentLoader.items.firstIndex(where: { $0.id == commentId }) {
                 commentLoader.items[index] = updated
             }
@@ -476,7 +476,7 @@ public final class IssueDetailViewModel {
     public func deleteComment(commentId: String) async -> Bool {
         error = nil
         do {
-            try await api.deleteComment(commentId: commentId)
+            try await api.deleteComment(commentId: commentId, workspaceId: effectiveWorkspaceId)
             let removedIds = descendantCommentIds(of: commentId).union([commentId])
             commentLoader.items.removeAll { removedIds.contains($0.id) }
             await DataStore.shared.invalidateIssue(issueId)
