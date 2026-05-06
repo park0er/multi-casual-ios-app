@@ -27,10 +27,10 @@ public final class ProjectDetailViewModel {
     private static let pageSize = 50
 
     public func load() async {
-        guard let workspaceId = authSession.currentWorkspace?.id else {
-            errorMessage = "Pick a workspace before opening project details."
-            return
-        }
+        guard let workspaceId = currentProjectWorkspaceId(
+            action: "view it",
+            missingMessage: "Pick a workspace before opening project details."
+        ) else { return }
 
         isLoading = true
         errorMessage = nil
@@ -87,10 +87,10 @@ public final class ProjectDetailViewModel {
     public func attachGitHubResource(url: String) async {
         let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        guard let workspaceId = authSession.currentWorkspace?.id else {
-            errorMessage = "Pick a workspace before editing project resources."
-            return
-        }
+        guard let workspaceId = currentProjectWorkspaceId(
+            action: "edit its resources",
+            missingMessage: "Pick a workspace before editing project resources."
+        ) else { return }
 
         isMutatingResource = true
         errorMessage = nil
@@ -110,10 +110,10 @@ public final class ProjectDetailViewModel {
     }
 
     public func removeResource(id: String) async {
-        guard let workspaceId = authSession.currentWorkspace?.id else {
-            errorMessage = "Pick a workspace before editing project resources."
-            return
-        }
+        guard let workspaceId = currentProjectWorkspaceId(
+            action: "edit its resources",
+            missingMessage: "Pick a workspace before editing project resources."
+        ) else { return }
 
         isMutatingResource = true
         errorMessage = nil
@@ -134,5 +134,21 @@ public final class ProjectDetailViewModel {
             resources.append(resource)
         }
         resources.sort { $0.position < $1.position }
+    }
+
+    private func currentProjectWorkspaceId(action: String, missingMessage: String) -> String? {
+        guard let currentWorkspace = authSession.currentWorkspace else {
+            errorMessage = missingMessage
+            return nil
+        }
+        guard currentWorkspace.id == project.workspaceId else {
+            errorMessage = "This project belongs to another workspace. Switch back to \(projectWorkspaceName) to \(action)."
+            return nil
+        }
+        return currentWorkspace.id
+    }
+
+    private var projectWorkspaceName: String {
+        authSession.workspaces.first { $0.id == project.workspaceId }?.name ?? "its workspace"
     }
 }

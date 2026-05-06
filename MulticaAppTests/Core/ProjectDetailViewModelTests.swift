@@ -99,6 +99,25 @@ final class ProjectDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_load_doesNotRequestProjectDataWhenCurrentWorkspaceDiffersFromProject() async throws {
+        var didRequest = false
+        let client = makeClient { req in
+            didRequest = true
+            XCTFail("Unexpected request for stale project route: \(req.url?.absoluteString ?? "")")
+            return Self.response(for: req, body: Data("{}".utf8), status: 404)
+        }
+        let otherWorkspace = Workspace(id: "w2", name: "Other", slug: "other", issuePrefix: "OTH")
+        let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.project-detail.workspace-mismatch.test"))
+        session.currentWorkspace = otherWorkspace
+        session.workspaces = [workspace, otherWorkspace]
+        let vm = ProjectDetailViewModel(project: project, api: client, authSession: session)
+
+        await vm.load()
+
+        XCTAssertFalse(didRequest)
+        XCTAssertEqual(vm.errorMessage, "This project belongs to another workspace. Switch back to Workspace to view it.")
+    }
+
     func test_attachAndRemoveGitHubResourceUpdatesResources() async throws {
         var requests: [(method: String?, path: String, workspaceId: String?, body: [String: Any]?)] = []
         let client = makeClient { req in
