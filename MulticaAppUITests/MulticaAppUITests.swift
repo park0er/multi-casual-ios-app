@@ -99,6 +99,81 @@ final class Multi-CasualUITests: XCTestCase {
         })
     }
 
+    func testWorkspaceSwitchRefreshesAlreadyLoadedResourceTabsWhenAvailable() throws {
+        let app = launchApp(initialTab: "issues", useWorkspaceOverride: false)
+
+        try waitForWorkspaceResourceState(
+            title: "Issues",
+            emptyTitle: "No Issues",
+            timeoutReason: "Issues endpoint timed out before workspace refresh coverage could run.",
+            in: app
+        )
+        addScreenshot(named: "issues-before-workspace-switch", from: app)
+
+        tapTab("Projects", in: app)
+        try waitForWorkspaceResourceState(
+            title: "Projects",
+            emptyTitle: "No Projects",
+            timeoutReason: "Projects endpoint timed out before workspace refresh coverage could run.",
+            in: app
+        )
+        addScreenshot(named: "projects-before-workspace-switch", from: app)
+
+        tapTab("Settings", in: app)
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        let workspacePicker = app.buttons["SettingsWorkspacePicker"]
+        XCTAssertTrue(workspacePicker.waitForExistence(timeout: 10))
+        let initialValue = waitForWorkspacePickerValue(workspacePicker, timeout: 10)
+        let initialWorkspace = currentWorkspaceName(from: initialValue) ?? workspaceName
+        guard (workspaceOptionCount(from: initialValue) ?? 0) > 1 else {
+            throw XCTSkip("Only one workspace is available for this account.")
+        }
+
+        workspacePicker.tap()
+        XCTAssertTrue(app.navigationBars["Workspace"].waitForExistence(timeout: 10))
+        let alternate = try alternateWorkspaceButton(in: app, excluding: initialWorkspace)
+        let alternateName = alternate.label
+        alternate.tap()
+        XCTAssertTrue(waitForValue(workspacePicker, timeout: 10) { value in
+            value.contains("Current workspace: \(alternateName)")
+        })
+
+        tapTab("Issues", in: app)
+        try waitForWorkspaceResourceState(
+            title: "Issues",
+            emptyTitle: "No Issues",
+            timeoutReason: "Issues endpoint timed out after switching workspace.",
+            in: app
+        )
+        addScreenshot(named: "issues-after-switch-to-\(alternateName)", from: app)
+
+        tapTab("Projects", in: app)
+        try waitForWorkspaceResourceState(
+            title: "Projects",
+            emptyTitle: "No Projects",
+            timeoutReason: "Projects endpoint timed out after switching workspace.",
+            in: app
+        )
+        addScreenshot(named: "projects-after-switch-to-\(alternateName)", from: app)
+
+        app.terminate()
+        let relaunchedApp = launchApp(initialTab: "settings", useWorkspaceOverride: false)
+        XCTAssertTrue(relaunchedApp.staticTexts["Settings"].waitForExistence(timeout: 20))
+        let restoredPicker = relaunchedApp.buttons["SettingsWorkspacePicker"]
+        XCTAssertTrue(restoredPicker.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForValue(restoredPicker, timeout: 10) { value in
+            value.contains("Current workspace: \(alternateName)")
+        })
+
+        restoredPicker.tap()
+        XCTAssertTrue(relaunchedApp.navigationBars["Workspace"].waitForExistence(timeout: 10))
+        XCTAssertTrue(relaunchedApp.buttons[initialWorkspace].waitForExistence(timeout: 10))
+        relaunchedApp.buttons[initialWorkspace].tap()
+        XCTAssertTrue(waitForValue(restoredPicker, timeout: 10) { value in
+            value.contains("Current workspace: \(initialWorkspace)")
+        })
+    }
+
     func testSettingsWorkspaceRestoresAcrossRelaunchWithoutDebugWorkspaceOverride() {
         let app = launchApp(initialTab: "settings")
 
@@ -788,6 +863,43 @@ final class Multi-CasualUITests: XCTestCase {
             throw XCTSkip("No alternate workspace row is hittable.")
         }
         return button
+    }
+
+    private func tapTab(_ title: String, in app: XCUIApplication) {
+        let tab = app.tabBars.buttons[title]
+        XCTAssertTrue(tab.waitForExistence(timeout: 10))
+        tab.tap()
+    }
+
+    private func waitForWorkspaceResourceState(
+        title: String,
+        emptyTitle: String,
+        timeoutReason: String,
+        in app: XCUIApplication,
+        timeout: TimeInterval = 30
+    ) throws {
+        XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: timeout))
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if app.staticTexts[emptyTitle].exists {
+                return
+            }
+            if app.staticTexts[backendTimeoutMessage].exists {
+                throw XCTSkip(timeoutReason)
+            }
+            if app.cells.count > 0 {
+                return
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        XCTFail("Timed out waiting for \(title) to load rows, empty state, or a retryable timeout.")
+    }
+
+    private func addScreenshot(named name: String, from app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func firstInboxNotificationCell(in app: XCUIApplication, timeout: TimeInterval = 20) throws -> XCUIElement {
