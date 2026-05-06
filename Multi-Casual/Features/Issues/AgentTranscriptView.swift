@@ -43,7 +43,7 @@ public struct AgentTranscriptView: View {
                                 Image(systemName: iconForType(item.type)).foregroundStyle(.secondary)
                                 Text(labelForType(item.type)).font(.caption.bold()).foregroundStyle(.secondary)
                                 Spacer()
-                                Text("#\(item.id)").font(.caption2).foregroundStyle(.tertiary)
+                                MarkdownText("#\(item.id)").font(.caption2).foregroundStyle(.tertiary)
                             }
                             MarkdownText(item.summary).font(.system(.caption, design: .monospaced))
                         }.padding(.vertical, 2)

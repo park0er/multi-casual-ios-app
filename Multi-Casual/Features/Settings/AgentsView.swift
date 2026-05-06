@@ -322,8 +322,7 @@ private struct AgentDetailView: View {
                 ProgressView()
             }
         }
-        .navigationTitle("Agent Detail")
-        .navigationBarTitleDisplayMode(.inline)
+        .markdownNavigationTitle(currentAgent.name)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

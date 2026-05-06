@@ -27,7 +27,7 @@ public struct IssueDetailView: View {
             if let vm = viewModel { content(vm: vm) }
             else { ProgressView() }
         }
-        .navigationTitle(viewModel?.issue?.identifier ?? "")
+        .markdownNavigationTitle(viewModel?.issue?.identifier ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if viewModel == nil {
@@ -246,7 +246,7 @@ public struct IssueDetailView: View {
                         Text("Sub-issue of")
                             .font(.caption.weight(.medium))
                         Image(systemName: parentIssue.status.icon)
-                        Text(parentIssue.identifier)
+                        MarkdownText(parentIssue.identifier)
                             .font(.caption.monospacedDigit())
                         MarkdownText(parentIssue.title)
                             .font(.caption)
@@ -397,7 +397,7 @@ public struct IssueDetailView: View {
                         Image(systemName: child.status.icon)
                             .foregroundStyle(child.status == .done ? Color.green : Color.secondary)
                             .frame(width: 18)
-                        Text(child.identifier)
+                        MarkdownText(child.identifier)
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                         MarkdownText(child.title)

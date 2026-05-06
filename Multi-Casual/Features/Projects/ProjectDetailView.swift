@@ -82,7 +82,7 @@ public struct ProjectDetailView: View {
                 ProgressView()
             }
         }
-        .navigationTitle(project.name)
+        .markdownNavigationTitle(project.name)
         .sheet(isPresented: $isAddingResource) {
             if let vm = viewModel {
                 ProjectResourceAddSheet(

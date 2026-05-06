@@ -63,7 +63,7 @@ private struct IssueCreateForm: View {
 
                 if let parentIssueIdentifier = viewModel.parentIssueIdentifier {
                     Section("Parent Issue") {
-                        Label(parentIssueIdentifier, systemImage: "arrow.triangle.branch")
+                        MarkdownIconLabel(parentIssueIdentifier, systemImage: "arrow.triangle.branch")
                     }
                 }
 

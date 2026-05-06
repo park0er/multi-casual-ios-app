@@ -346,7 +346,7 @@ public struct IssueRowView: View {
         HStack(spacing: 10) {
             Image(systemName: issue.status.icon).foregroundStyle(.secondary).frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
-                Text(issue.identifier).font(.caption).foregroundStyle(.secondary)
+                MarkdownText(issue.identifier).font(.caption).foregroundStyle(.secondary)
                 MarkdownText(issue.title).font(.body)
             }
             Spacer(minLength: 8)
@@ -384,7 +384,7 @@ struct BoardCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(issue.identifier).font(.caption).foregroundStyle(.secondary)
+                MarkdownText(issue.identifier).font(.caption).foregroundStyle(.secondary)
                 Spacer(minLength: 6)
                 if let childProgressText {
                     Label(childProgressText, systemImage: "checklist")

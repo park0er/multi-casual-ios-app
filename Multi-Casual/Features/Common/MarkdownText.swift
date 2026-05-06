@@ -64,4 +64,28 @@ public struct MarkdownIconLabel: View {
         }
     }
 }
+
+public extension View {
+    @ViewBuilder
+    func markdownNavigationTitle(_ title: String) -> some View {
+        #if os(iOS)
+        self.navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .markdownNavigationPrincipalTitle(title)
+        #else
+        self.navigationTitle("")
+            .markdownNavigationPrincipalTitle(title)
+        #endif
+    }
+
+    private func markdownNavigationPrincipalTitle(_ title: String) -> some View {
+        toolbar {
+            ToolbarItem(placement: .principal) {
+                MarkdownText(title)
+                    .font(.headline)
+                    .lineLimit(1)
+            }
+        }
+    }
+}
 #endif

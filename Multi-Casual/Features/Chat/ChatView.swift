@@ -174,8 +174,7 @@ private struct ChatSessionDetailView: View {
                 .accessibilityIdentifier("ChatArchiveButton")
             }
         }
-        .navigationTitle(session.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .markdownNavigationTitle(session.title)
         .task { await viewModel.selectSession(session) }
     }
 }
@@ -229,7 +228,7 @@ private struct ChatCreateSheet: View {
                 Section("Agent") {
                     Picker("Agent", selection: $selectedAgentId) {
                         ForEach(viewModel.agents) { agent in
-                            Text(agent.name).tag(agent.id)
+                            MarkdownText(agent.name).tag(agent.id)
                         }
                     }
                     .accessibilityIdentifier("ChatCreateAgentPicker")

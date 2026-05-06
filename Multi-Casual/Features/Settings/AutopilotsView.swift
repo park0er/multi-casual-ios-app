@@ -167,7 +167,7 @@ private struct AutopilotDetailView: View {
                 }
             }
         }
-        .navigationTitle(item.title)
+        .markdownNavigationTitle(item.title)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {

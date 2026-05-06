@@ -71,7 +71,7 @@ public struct WorkspaceAccessView: View {
                     Button("Cancel", role: .cancel) { pendingDestructiveAction = nil }
                 } message: {
                     if let action = pendingDestructiveAction {
-                        Text(action.message)
+                        MarkdownText(action.message)
                     }
                 }
             } else {

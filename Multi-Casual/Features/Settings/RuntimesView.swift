@@ -177,8 +177,7 @@ private struct RuntimeDetailView: View {
                 ProgressView()
             }
         }
-        .navigationTitle(runtime.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .markdownNavigationTitle(runtime.name)
         .onAppear {
             if viewModel == nil {
                 let vm = RuntimeDetailViewModel(runtime: runtime, api: api, authSession: authSession)
