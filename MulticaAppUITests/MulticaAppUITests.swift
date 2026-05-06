@@ -48,6 +48,27 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons[workspaceName].waitForExistence(timeout: 10))
     }
 
+    func testSettingsWorkspaceRestoresAcrossRelaunchWithoutDebugWorkspaceOverride() {
+        let app = launchApp(initialTab: "settings")
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        let workspacePicker = app.buttons["SettingsWorkspacePicker"]
+        XCTAssertTrue(workspacePicker.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForValue(workspacePicker, timeout: 10) { value in
+            value.contains("Current workspace: \(workspaceName)")
+        })
+
+        app.terminate()
+
+        let relaunchedApp = launchApp(initialTab: "settings", useWorkspaceOverride: false)
+        XCTAssertTrue(relaunchedApp.staticTexts["Settings"].waitForExistence(timeout: 20))
+        let restoredWorkspacePicker = relaunchedApp.buttons["SettingsWorkspacePicker"]
+        XCTAssertTrue(restoredWorkspacePicker.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForValue(restoredWorkspacePicker, timeout: 10) { value in
+            value.contains("Current workspace: \(workspaceName)")
+        })
+    }
+
     func testCreateIssueSheetRendersRequiredFields() {
         let app = launchApp(initialTab: "issues", openCreateSheet: true)
 
@@ -318,11 +339,14 @@ final class Multi-CasualUITests: XCTestCase {
         projectId: String? = nil,
         taskId: String? = nil,
         openCreateSheet: Bool = false,
+        useWorkspaceOverride: Bool = true,
         createDefaults: [String: String] = [:]
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["MULTICA_DEBUG_SKIP_PUSH_PROMPT"] = "1"
-        app.launchEnvironment["MULTICA_DEBUG_WORKSPACE_ID"] = workspaceId
+        if useWorkspaceOverride {
+            app.launchEnvironment["MULTICA_DEBUG_WORKSPACE_ID"] = workspaceId
+        }
         app.launchEnvironment["MULTICA_DEBUG_INITIAL_TAB"] = initialTab
         if let issueId {
             app.launchEnvironment["MULTICA_DEBUG_INITIAL_ISSUE_ID"] = issueId
