@@ -124,7 +124,8 @@ public final class APIClient: @unchecked Sendable {
         #if DEBUG
         let debugNetworkLog = ProcessInfo.processInfo.environment["MULTICA_DEBUG_NETWORK_LOG"] == "1"
         if debugNetworkLog {
-            NSLog("MulticaAPI request \(method) \(url.path) query=\(url.query ?? "") headers=\(headers.keys.sorted().joined(separator: ","))")
+            let headerKeys = req.allHTTPHeaderFields?.keys.sorted().joined(separator: ",") ?? ""
+            NSLog("MulticaAPI request \(method) \(url.path) query=\(url.query ?? "") headers=\(headerKeys)")
         }
         #endif
 
@@ -200,6 +201,13 @@ public final class APIClient: @unchecked Sendable {
     private struct RegisterPushTokenRequest: Encodable {
         let token: String
         let platform: String = "apns"
+    }
+    private struct CreateMemberRequest: Encodable {
+        let email: String
+        let role: String
+    }
+    private struct UpdateMemberRequest: Encodable {
+        let role: String
     }
     private struct SkillMutationRequest: Encodable {
         let name: String
@@ -905,7 +913,53 @@ public final class APIClient: @unchecked Sendable {
     // MARK: - Workspace people and agents
 
     public func listMembers(workspaceId: String) async throws -> [WorkspaceMember] {
-        try await request("GET", path: "api/workspaces/\(workspaceId)/members")
+        try await request(
+            "GET",
+            path: "api/workspaces/\(workspaceId)/members",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func createMember(workspaceId: String, email: String, role: String) async throws -> Invitation {
+        try await request(
+            "POST",
+            path: "api/workspaces/\(workspaceId)/members",
+            queryItems: workspaceQuery(workspaceId),
+            body: CreateMemberRequest(email: email, role: role)
+        )
+    }
+
+    public func updateMember(workspaceId: String, memberId: String, role: String) async throws -> WorkspaceMember {
+        try await request(
+            "PATCH",
+            path: "api/workspaces/\(workspaceId)/members/\(memberId)",
+            queryItems: workspaceQuery(workspaceId),
+            body: UpdateMemberRequest(role: role)
+        )
+    }
+
+    public func deleteMember(workspaceId: String, memberId: String) async throws {
+        let _: EmptyResponse = try await request(
+            "DELETE",
+            path: "api/workspaces/\(workspaceId)/members/\(memberId)",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func listWorkspaceInvitations(workspaceId: String) async throws -> [Invitation] {
+        try await request(
+            "GET",
+            path: "api/workspaces/\(workspaceId)/invitations",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func revokeInvitation(workspaceId: String, invitationId: String) async throws {
+        let _: EmptyResponse = try await request(
+            "DELETE",
+            path: "api/workspaces/\(workspaceId)/invitations/\(invitationId)",
+            queryItems: workspaceQuery(workspaceId)
+        )
     }
 
     private struct AgentMutationRequest: Encodable {

@@ -125,6 +125,23 @@ public struct WorkspaceMember: Codable, Identifiable, Sendable {
     }
 }
 
+public struct Invitation: Codable, Identifiable, Sendable {
+    public let id: String
+    public let workspaceId: String
+    public let email: String
+    public let role: String
+    public let status: String
+    public let createdAt: String?
+    public let expiresAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, email, role, status
+        case workspaceId = "workspace_id"
+        case createdAt = "created_at"
+        case expiresAt = "expires_at"
+    }
+}
+
 public struct Agent: Codable, Identifiable, Sendable {
     public let id: String
     public let workspaceId: String

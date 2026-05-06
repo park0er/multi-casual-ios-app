@@ -1004,12 +1004,89 @@ final class APIClientTests: XCTestCase {
         """.data(using: .utf8)!
         MockURLProtocol.handler = { req in
             XCTAssertEqual(req.url?.path, "/api/workspaces/w1/members")
+            XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
         let members = try await client.listMembers(workspaceId: "w1")
 
         XCTAssertEqual(members.first?.name, "Parker")
+    }
+
+    func test_workspaceMemberMutationEndpointsUseDesktopPaths() async throws {
+        var requests: [(method: String?, path: String, query: String?, body: [String: Any]?)] = []
+        let memberJSON = """
+        {"id":"m1","workspace_id":"w1","user_id":"u1","role":"admin",
+         "created_at":"2026-01-01T00:00:00Z","name":"Parker",
+         "email":"p@example.com","avatar_url":null}
+        """.data(using: .utf8)!
+        let invitationJSON = """
+        {"id":"inv1","workspace_id":"w1","email":"new@example.com","role":"member",
+         "status":"pending","created_at":"2026-01-01T00:00:00Z","expires_at":null}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            let bodyData = MockURLProtocol.bodyData(for: req)
+            let body = bodyData.isEmpty ? nil : try JSONSerialization.jsonObject(with: bodyData) as? [String: Any]
+            requests.append((req.httpMethod, req.url?.path ?? "", req.url?.query, body))
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/workspaces/w1/members"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, invitationJSON)
+            case ("PATCH", "/api/workspaces/w1/members/m1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, memberJSON)
+            case ("DELETE", "/api/workspaces/w1/members/m1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data())
+            }
+        }
+
+        let invitation = try await client.createMember(workspaceId: "w1", email: "new@example.com", role: "member")
+        let member = try await client.updateMember(workspaceId: "w1", memberId: "m1", role: "admin")
+        try await client.deleteMember(workspaceId: "w1", memberId: "m1")
+
+        XCTAssertEqual(invitation.email, "new@example.com")
+        XCTAssertEqual(member.role, "admin")
+        XCTAssertEqual(requests.map(\.method), ["POST", "PATCH", "DELETE"])
+        XCTAssertEqual(requests.map(\.path), [
+            "/api/workspaces/w1/members",
+            "/api/workspaces/w1/members/m1",
+            "/api/workspaces/w1/members/m1",
+        ])
+        XCTAssertTrue(requests.allSatisfy { $0.query == "workspace_id=w1" })
+        XCTAssertEqual(requests[0].body?["email"] as? String, "new@example.com")
+        XCTAssertEqual(requests[0].body?["role"] as? String, "member")
+        XCTAssertEqual(requests[1].body?["role"] as? String, "admin")
+    }
+
+    func test_workspaceInvitationEndpointsUseDesktopPaths() async throws {
+        var requests: [(method: String?, path: String, query: String?)] = []
+        let invitationJSON = """
+        {"id":"inv1","workspace_id":"w1","email":"new@example.com","role":"member",
+         "status":"pending","created_at":"2026-01-01T00:00:00Z","expires_at":null}
+        """.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            requests.append((req.httpMethod, req.url?.path ?? "", req.url?.query))
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/workspaces/w1/invitations"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data("[\(String(data: invitationJSON, encoding: .utf8)!)]".utf8))
+            case ("DELETE", "/api/workspaces/w1/invitations/inv1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data())
+            }
+        }
+
+        let invitations = try await client.listWorkspaceInvitations(workspaceId: "w1")
+        try await client.revokeInvitation(workspaceId: "w1", invitationId: "inv1")
+
+        XCTAssertEqual(invitations.map(\.id), ["inv1"])
+        XCTAssertEqual(requests.map { "\($0.method ?? "") \($0.path)" }, [
+            "GET /api/workspaces/w1/invitations",
+            "DELETE /api/workspaces/w1/invitations/inv1",
+        ])
+        XCTAssertTrue(requests.allSatisfy { $0.query == "workspace_id=w1" })
     }
 
     func test_listAgents_decodesWorkspaceAgents() async throws {

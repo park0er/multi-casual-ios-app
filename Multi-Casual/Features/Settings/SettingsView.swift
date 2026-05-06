@@ -34,6 +34,7 @@ public struct SettingsView: View {
             }
 
             Section("Configure") {
+                NavigationLink("Members") { WorkspaceMembersView() }
                 NavigationLink("Agents") { AgentsView() }
                 NavigationLink("Autopilots") { AutopilotsView() }
                 NavigationLink("Runtimes") { RuntimesView() }
