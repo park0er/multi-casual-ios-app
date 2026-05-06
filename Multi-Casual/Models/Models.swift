@@ -542,6 +542,58 @@ public struct IssueLabelsResponse: Codable, Sendable {
     public let labels: [IssueLabel]
 }
 
+public struct IssueReaction: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let issueId: String
+    public let actorType: String
+    public let actorId: String
+    public let emoji: String
+    public let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, emoji
+        case issueId = "issue_id"
+        case actorType = "actor_type"
+        case actorId = "actor_id"
+        case createdAt = "created_at"
+    }
+
+    public init(id: String, issueId: String, actorType: String, actorId: String, emoji: String, createdAt: Date) {
+        self.id = id
+        self.issueId = issueId
+        self.actorType = actorType
+        self.actorId = actorId
+        self.emoji = emoji
+        self.createdAt = createdAt
+    }
+}
+
+public struct Reaction: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let commentId: String
+    public let actorType: String
+    public let actorId: String
+    public let emoji: String
+    public let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, emoji
+        case commentId = "comment_id"
+        case actorType = "actor_type"
+        case actorId = "actor_id"
+        case createdAt = "created_at"
+    }
+
+    public init(id: String, commentId: String, actorType: String, actorId: String, emoji: String, createdAt: Date) {
+        self.id = id
+        self.commentId = commentId
+        self.actorType = actorType
+        self.actorId = actorId
+        self.emoji = emoji
+        self.createdAt = createdAt
+    }
+}
+
 public struct IssueSubscriber: Codable, Identifiable, Hashable, Sendable {
     public let issueId: String
     public let userType: String
@@ -583,6 +635,7 @@ public struct Issue: Codable, Identifiable, Sendable {
     public let workspaceId: String
     public let attachments: [Attachment]
     public let labels: [IssueLabel]
+    public let reactions: [IssueReaction]
     public let createdAt: Date
     public let updatedAt: Date
 
@@ -593,7 +646,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         case projectId = "project_id"
         case dueDate = "due_date"
         case workspaceId = "workspace_id"
-        case attachments, labels
+        case attachments, labels, reactions
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -602,6 +655,7 @@ public struct Issue: Codable, Identifiable, Sendable {
                 status: IssueStatus, priority: IssuePriority, assigneeId: String?,
                 assigneeType: String?, projectId: String?, workspaceId: String,
                 dueDate: String? = nil, attachments: [Attachment] = [], labels: [IssueLabel] = [],
+                reactions: [IssueReaction] = [],
                 createdAt: Date, updatedAt: Date) {
         self.id = id
         self.identifier = identifier
@@ -617,6 +671,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         self.workspaceId = workspaceId
         self.attachments = attachments
         self.labels = labels
+        self.reactions = reactions
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -637,6 +692,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         workspaceId = try c.decode(String.self, forKey: .workspaceId)
         attachments = try c.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
         labels = try c.decodeIfPresent([IssueLabel].self, forKey: .labels) ?? []
+        reactions = try c.decodeIfPresent([IssueReaction].self, forKey: .reactions) ?? []
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         updatedAt = try c.decode(Date.self, forKey: .updatedAt)
     }
@@ -657,6 +713,29 @@ public struct Issue: Codable, Identifiable, Sendable {
             dueDate: dueDate,
             attachments: attachments,
             labels: labels,
+            reactions: reactions,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+
+    public func replacingReactions(_ reactions: [IssueReaction]) -> Issue {
+        Issue(
+            id: id,
+            identifier: identifier,
+            number: number,
+            title: title,
+            description: description,
+            status: status,
+            priority: priority,
+            assigneeId: assigneeId,
+            assigneeType: assigneeType,
+            projectId: projectId,
+            workspaceId: workspaceId,
+            dueDate: dueDate,
+            attachments: attachments,
+            labels: labels,
+            reactions: reactions,
             createdAt: createdAt,
             updatedAt: updatedAt
         )
@@ -671,6 +750,7 @@ public struct Comment: Codable, Identifiable, Sendable {
     public let parentId: String?
     public let issueId: String
     public let attachments: [Attachment]
+    public let reactions: [Reaction]
     public let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
@@ -679,12 +759,13 @@ public struct Comment: Codable, Identifiable, Sendable {
         case authorType = "author_type"
         case parentId = "parent_id"
         case issueId = "issue_id"
-        case attachments
+        case attachments, reactions
         case createdAt = "created_at"
     }
 
     public init(id: String, content: String, authorId: String, authorType: String,
-                parentId: String?, issueId: String, attachments: [Attachment] = [], createdAt: Date) {
+                parentId: String?, issueId: String, attachments: [Attachment] = [],
+                reactions: [Reaction] = [], createdAt: Date) {
         self.id = id
         self.content = content
         self.authorId = authorId
@@ -692,6 +773,7 @@ public struct Comment: Codable, Identifiable, Sendable {
         self.parentId = parentId
         self.issueId = issueId
         self.attachments = attachments
+        self.reactions = reactions
         self.createdAt = createdAt
     }
 
@@ -704,7 +786,22 @@ public struct Comment: Codable, Identifiable, Sendable {
         parentId = try c.decodeIfPresent(String.self, forKey: .parentId)
         issueId = try c.decode(String.self, forKey: .issueId)
         attachments = try c.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
+        reactions = try c.decodeIfPresent([Reaction].self, forKey: .reactions) ?? []
         createdAt = try c.decode(Date.self, forKey: .createdAt)
+    }
+
+    public func replacingReactions(_ reactions: [Reaction]) -> Comment {
+        Comment(
+            id: id,
+            content: content,
+            authorId: authorId,
+            authorType: authorType,
+            parentId: parentId,
+            issueId: issueId,
+            attachments: attachments,
+            reactions: reactions,
+            createdAt: createdAt
+        )
     }
 }
 

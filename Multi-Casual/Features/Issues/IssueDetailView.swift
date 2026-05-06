@@ -76,7 +76,9 @@ public struct IssueDetailView: View {
                             Task { await vm.loadIssueAndMetadata() }
                         }
                     }
-                    if let issue = vm.issue { issueHeader(issue: issue, vm: vm) }
+                    if let issue = vm.issue {
+                        issueHeader(issue: issue, vm: vm, currentUserId: authSession.currentUser?.id)
+                    }
                     Divider()
                     subscribersSection(vm: vm, currentUserId: authSession.currentUser?.id)
                     Divider()
@@ -94,7 +96,17 @@ public struct IssueDetailView: View {
                         ContentUnavailableView("No Comments", systemImage: "text.bubble", description: Text("This issue has no comments yet."))
                             .padding(.horizontal)
                     }
-                    ForEach(vm.commentLoader.items) { comment in CommentRowView(comment: comment) }
+                    ForEach(vm.commentLoader.items) { comment in
+                        CommentRowView(comment: comment, currentUserId: authSession.currentUser?.id) { emoji in
+                            Task {
+                                await vm.toggleCommentReaction(
+                                    commentId: comment.id,
+                                    emoji: emoji,
+                                    currentUserId: authSession.currentUser?.id
+                                )
+                            }
+                        }
+                    }
                     if vm.commentLoader.hasMore { ProgressView().onAppear {
                         Task { await vm.loadMoreComments() }
                     }}
@@ -105,7 +117,7 @@ public struct IssueDetailView: View {
         }
     }
 
-    private func issueHeader(issue: Issue, vm: IssueDetailViewModel) -> some View {
+    private func issueHeader(issue: Issue, vm: IssueDetailViewModel, currentUserId: String?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             MarkdownText(issue.title).font(.title2.bold())
             HStack(spacing: 12) {
@@ -143,6 +155,9 @@ public struct IssueDetailView: View {
             }
             if let desc = issue.description, !desc.isEmpty {
                 MarkdownText(desc).font(.body)
+            }
+            ReactionBarView(badges: issueReactionBadges(issue.reactions, currentUserId: currentUserId)) { emoji in
+                Task { await vm.toggleIssueReaction(emoji: emoji, currentUserId: currentUserId) }
             }
             if !issue.labels.isEmpty {
                 LabelWrapView(labels: issue.labels)
@@ -206,6 +221,18 @@ public struct IssueDetailView: View {
             return "No Project"
         }
         return vm.projectDisplayName ?? String(projectId.prefix(8))
+    }
+
+    private func issueReactionBadges(_ reactions: [IssueReaction], currentUserId: String?) -> [ReactionBadge] {
+        let emojis = Array(Set(reactions.map(\.emoji))).sorted()
+        return emojis.map { emoji in
+            let matching = reactions.filter { $0.emoji == emoji }
+            return ReactionBadge(
+                emoji: emoji,
+                count: matching.count,
+                isSelected: matching.contains { $0.actorType == "member" && $0.actorId == currentUserId }
+            )
+        }
     }
 
     private func subscribersSection(vm: IssueDetailViewModel, currentUserId: String?) -> some View {
@@ -331,7 +358,19 @@ private struct ErrorMessageRow: View {
 
 public struct CommentRowView: View {
     public let comment: Comment
-    public init(comment: Comment) { self.comment = comment }
+    let currentUserId: String?
+    let onToggleReaction: (String) -> Void
+
+    public init(
+        comment: Comment,
+        currentUserId: String? = nil,
+        onToggleReaction: @escaping (String) -> Void = { _ in }
+    ) {
+        self.comment = comment
+        self.currentUserId = currentUserId
+        self.onToggleReaction = onToggleReaction
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
@@ -344,7 +383,70 @@ public struct CommentRowView: View {
             if !comment.attachments.isEmpty {
                 AttachmentListView(attachments: comment.attachments)
             }
+            ReactionBarView(badges: commentReactionBadges(comment.reactions), onToggle: onToggleReaction)
         }.padding(.horizontal).padding(.vertical, 6)
+    }
+
+    private func commentReactionBadges(_ reactions: [Reaction]) -> [ReactionBadge] {
+        let emojis = Array(Set(reactions.map(\.emoji))).sorted()
+        return emojis.map { emoji in
+            let matching = reactions.filter { $0.emoji == emoji }
+            return ReactionBadge(
+                emoji: emoji,
+                count: matching.count,
+                isSelected: matching.contains { $0.actorType == "member" && $0.actorId == currentUserId }
+            )
+        }
+    }
+}
+
+private let quickReactionEmojis = ["👍", "👀", "🚀", "❤️", "🎉"]
+
+private struct ReactionBadge: Identifiable {
+    let emoji: String
+    let count: Int
+    let isSelected: Bool
+
+    var id: String { emoji }
+}
+
+private struct ReactionBarView: View {
+    let badges: [ReactionBadge]
+    let onToggle: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(badges) { badge in
+                Button {
+                    onToggle(badge.emoji)
+                } label: {
+                    Text("\(badge.emoji) \(badge.count)")
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            badge.isSelected ? Color.blue.opacity(0.16) : Color.secondary.opacity(0.1),
+                            in: Capsule()
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            Menu {
+                ForEach(quickReactionEmojis, id: \.self) { emoji in
+                    Button(emoji) {
+                        onToggle(emoji)
+                    }
+                }
+            } label: {
+                Image(systemName: "face.smiling")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(.secondary.opacity(0.08), in: Capsule())
+            }
+            .accessibilityLabel("Add Reaction")
+        }
     }
 }
 

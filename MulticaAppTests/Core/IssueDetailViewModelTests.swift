@@ -287,6 +287,93 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.subscribersError)
     }
 
+    func test_toggleIssueReactionAddsAndRemovesCurrentUserReaction() async throws {
+        var requests: [String] = []
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/i1"):
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-01T00:00:00Z"))
+            case ("POST", "/api/issues/i1/reactions"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                XCTAssertEqual(body["emoji"] as? String, "👍")
+                let json = """
+                {"id":"ir1","issue_id":"i1","actor_type":"member","actor_id":"u1",
+                 "emoji":"👍","created_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("DELETE", "/api/issues/i1/reactions"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                XCTAssertEqual(body["emoji"] as? String, "👍")
+                return Self.response(for: req, body: Data(), status: 204)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadIssue()
+        await vm.toggleIssueReaction(emoji: "👍", currentUserId: "u1")
+        XCTAssertEqual(vm.issue?.reactions.map(\.id), ["ir1"])
+
+        await vm.toggleIssueReaction(emoji: "👍", currentUserId: "u1")
+        XCTAssertEqual(vm.issue?.reactions.map(\.id), [])
+        XCTAssertEqual(requests, [
+            "GET /api/issues/i1",
+            "POST /api/issues/i1/reactions",
+            "DELETE /api/issues/i1/reactions",
+        ])
+        XCTAssertNil(vm.error)
+    }
+
+    func test_toggleCommentReactionAddsAndRemovesCurrentUserReaction() async throws {
+        var requests: [String] = []
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/comments/c1/reactions"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                XCTAssertEqual(body["emoji"] as? String, "👀")
+                let json = """
+                {"id":"r1","comment_id":"c1","actor_type":"member","actor_id":"u1",
+                 "emoji":"👀","created_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("DELETE", "/api/comments/c1/reactions"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                XCTAssertEqual(body["emoji"] as? String, "👀")
+                return Self.response(for: req, body: Data(), status: 204)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+        vm.commentLoader.items = [
+            Comment(
+                id: "c1",
+                content: "Ship it",
+                authorId: "u2",
+                authorType: "member",
+                parentId: nil,
+                issueId: "i1",
+                createdAt: ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z")!
+            )
+        ]
+
+        await vm.toggleCommentReaction(commentId: "c1", emoji: "👀", currentUserId: "u1")
+        XCTAssertEqual(vm.commentLoader.items.first?.reactions.map(\.id), ["r1"])
+
+        await vm.toggleCommentReaction(commentId: "c1", emoji: "👀", currentUserId: "u1")
+        XCTAssertEqual(vm.commentLoader.items.first?.reactions.map(\.id), [])
+        XCTAssertEqual(requests, [
+            "POST /api/comments/c1/reactions",
+            "DELETE /api/comments/c1/reactions",
+        ])
+        XCTAssertNil(vm.error)
+    }
+
     func test_loadComments_marksLoadedForEmptyResponse() async throws {
         let client = makeClient { req in
             XCTAssertEqual(req.url?.path, "/api/issues/i1/comments")

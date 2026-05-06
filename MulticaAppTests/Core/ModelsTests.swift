@@ -109,6 +109,40 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(issue.labels.first?.color, "#ef4444")
     }
 
+    func test_issue_decodesReactionsFromDesktopDetailResponse() throws {
+        let json = """
+        {
+            "id": "abc123",
+            "identifier": "PAR-71",
+            "number": 71,
+            "title": "Tech Stack Selection",
+            "description": "Determine iOS tech stack",
+            "status": "in_progress",
+            "priority": "high",
+            "assignee_id": null,
+            "assignee_type": null,
+            "project_id": null,
+            "workspace_id": "ws1",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-02T00:00:00Z",
+            "reactions": [{
+                "id": "ir1",
+                "issue_id": "abc123",
+                "actor_type": "member",
+                "actor_id": "u1",
+                "emoji": "👍",
+                "created_at": "2026-01-01T00:00:00Z"
+            }]
+        }
+        """.data(using: .utf8)!
+
+        let issue = try decoder.decode(Issue.self, from: json)
+
+        XCTAssertEqual(issue.reactions.map(\.id), ["ir1"])
+        XCTAssertEqual(issue.reactions.first?.emoji, "👍")
+        XCTAssertEqual(issue.reactions.first?.actorId, "u1")
+    }
+
     func test_issueSubscriber_decodesDesktopShape() throws {
         let json = """
         {
@@ -209,6 +243,35 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(comment.attachments.count, 1)
         XCTAssertEqual(comment.attachments.first?.filename, "screen.png")
         XCTAssertEqual(comment.attachments.first?.contentType, "image/png")
+    }
+
+    func test_comment_decodesReactionsFromDesktopShape() throws {
+        let json = """
+        {
+            "id": "c1",
+            "content": "Looks good",
+            "author_id": "u1",
+            "author_type": "member",
+            "parent_id": null,
+            "issue_id": "i1",
+            "reactions": [{
+                "id": "r1",
+                "comment_id": "c1",
+                "actor_type": "member",
+                "actor_id": "u2",
+                "emoji": "👀",
+                "created_at": "2026-01-01T00:00:00Z"
+            }],
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let comment = try decoder.decode(Comment.self, from: json)
+
+        XCTAssertEqual(comment.reactions.map(\.id), ["r1"])
+        XCTAssertEqual(comment.reactions.first?.emoji, "👀")
+        XCTAssertEqual(comment.reactions.first?.actorId, "u2")
     }
 
     func test_pageResponse_decodesIssuesKey() throws {

@@ -909,6 +909,53 @@ final class APIClientTests: XCTestCase {
         ])
     }
 
+    func test_reactionEndpointsUseDesktopPaths() async throws {
+        var requests: [String] = []
+        var bodies: [[String: Any]] = []
+        MockURLProtocol.handler = { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch req.url?.path {
+            case "/api/comments/c1/reactions":
+                bodies.append(try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:])
+                if req.httpMethod == "DELETE" {
+                    return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+                }
+                let body = """
+                {"id":"r1","comment_id":"c1","actor_type":"member","actor_id":"u1",
+                 "emoji":"👍","created_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+            case "/api/issues/i1/reactions":
+                bodies.append(try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:])
+                if req.httpMethod == "DELETE" {
+                    return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+                }
+                let body = """
+                {"id":"ir1","issue_id":"i1","actor_type":"member","actor_id":"u1",
+                 "emoji":"👀","created_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+            default:
+                return (HTTPURLResponse(url: req.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!, Data())
+            }
+        }
+
+        let commentReaction = try await client.addReaction(commentId: "c1", emoji: "👍")
+        try await client.removeReaction(commentId: "c1", emoji: "👍")
+        let issueReaction = try await client.addIssueReaction(issueId: "i1", emoji: "👀")
+        try await client.removeIssueReaction(issueId: "i1", emoji: "👀")
+
+        XCTAssertEqual(commentReaction.id, "r1")
+        XCTAssertEqual(issueReaction.id, "ir1")
+        XCTAssertEqual(bodies.compactMap { $0["emoji"] as? String }, ["👍", "👍", "👀", "👀"])
+        XCTAssertEqual(requests, [
+            "POST /api/comments/c1/reactions",
+            "DELETE /api/comments/c1/reactions",
+            "POST /api/issues/i1/reactions",
+            "DELETE /api/issues/i1/reactions",
+        ])
+    }
+
     private static func agentJSON(id: String, name: String) -> Data {
         """
         {"id":"\(id)","workspace_id":"w1","runtime_id":"r1","name":"\(name)",

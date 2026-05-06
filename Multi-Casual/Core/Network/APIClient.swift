@@ -462,6 +462,10 @@ public final class APIClient: @unchecked Sendable {
         }
     }
 
+    private struct ReactionRequest: Encodable {
+        let emoji: String
+    }
+
     public func addComment(issueId: String, content: String, parentId: String? = nil, workspaceId: String? = nil) async throws -> Comment {
         try await request("POST", path: "api/issues/\(issueId)/comments",
                           queryItems: workspaceQuery(workspaceId),
@@ -560,6 +564,38 @@ public final class APIClient: @unchecked Sendable {
             "POST",
             path: "api/issues/\(issueId)/unsubscribe",
             body: IssueSubscriberMutationRequest(userId: userId, userType: userType)
+        )
+    }
+
+    public func addReaction(commentId: String, emoji: String) async throws -> Reaction {
+        try await request(
+            "POST",
+            path: "api/comments/\(commentId)/reactions",
+            body: ReactionRequest(emoji: emoji)
+        )
+    }
+
+    public func removeReaction(commentId: String, emoji: String) async throws {
+        let _: EmptyResponse = try await request(
+            "DELETE",
+            path: "api/comments/\(commentId)/reactions",
+            body: ReactionRequest(emoji: emoji)
+        )
+    }
+
+    public func addIssueReaction(issueId: String, emoji: String) async throws -> IssueReaction {
+        try await request(
+            "POST",
+            path: "api/issues/\(issueId)/reactions",
+            body: ReactionRequest(emoji: emoji)
+        )
+    }
+
+    public func removeIssueReaction(issueId: String, emoji: String) async throws {
+        let _: EmptyResponse = try await request(
+            "DELETE",
+            path: "api/issues/\(issueId)/reactions",
+            body: ReactionRequest(emoji: emoji)
         )
     }
 

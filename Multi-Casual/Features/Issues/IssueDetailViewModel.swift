@@ -157,6 +157,57 @@ public final class IssueDetailViewModel {
         }
     }
 
+    public func toggleIssueReaction(emoji: String, currentUserId: String?) async {
+        guard let currentUserId, let currentIssue = issue else { return }
+        error = nil
+        let existing = currentIssue.reactions.first {
+            $0.emoji == emoji && $0.actorType == "member" && $0.actorId == currentUserId
+        }
+
+        do {
+            if existing != nil {
+                try await api.removeIssueReaction(issueId: issueId, emoji: emoji)
+                issue = currentIssue.replacingReactions(
+                    currentIssue.reactions.filter {
+                        !($0.emoji == emoji && $0.actorType == "member" && $0.actorId == currentUserId)
+                    }
+                )
+            } else {
+                let reaction = try await api.addIssueReaction(issueId: issueId, emoji: emoji)
+                issue = currentIssue.replacingReactions(currentIssue.reactions + [reaction])
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    public func toggleCommentReaction(commentId: String, emoji: String, currentUserId: String?) async {
+        guard let currentUserId,
+              let index = commentLoader.items.firstIndex(where: { $0.id == commentId })
+        else { return }
+        error = nil
+        let comment = commentLoader.items[index]
+        let existing = comment.reactions.first {
+            $0.emoji == emoji && $0.actorType == "member" && $0.actorId == currentUserId
+        }
+
+        do {
+            if existing != nil {
+                try await api.removeReaction(commentId: commentId, emoji: emoji)
+                commentLoader.items[index] = comment.replacingReactions(
+                    comment.reactions.filter {
+                        !($0.emoji == emoji && $0.actorType == "member" && $0.actorId == currentUserId)
+                    }
+                )
+            } else {
+                let reaction = try await api.addReaction(commentId: commentId, emoji: emoji)
+                commentLoader.items[index] = comment.replacingReactions(comment.reactions + [reaction])
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     public func loadComments() async {
         didLoadComments = false
         commentLoader.reset()
