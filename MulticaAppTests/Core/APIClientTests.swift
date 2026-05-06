@@ -1925,6 +1925,26 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(buckets.first?.failedCount, 1)
     }
 
+    func test_getAgentTaskSnapshot_usesDesktopEndpoint() async throws {
+        var capturedRequest: URLRequest?
+        MockURLProtocol.handler = { req in
+            capturedRequest = req
+            let body = """
+            [{"id":"t1","agent_id":"a1","issue_id":"i1","status":"running",
+              "started_at":"2026-05-06T00:00:00Z","completed_at":null,"error":null}]
+            """.data(using: .utf8)!
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, body)
+        }
+
+        let tasks = try await client.getAgentTaskSnapshot(workspaceId: "w1")
+
+        XCTAssertEqual(capturedRequest?.httpMethod, "GET")
+        XCTAssertEqual(capturedRequest?.url?.path, "/api/agent-task-snapshot")
+        XCTAssertTrue(capturedRequest?.url?.absoluteString.contains("workspace_id=w1") ?? false)
+        XCTAssertEqual(tasks.first?.agentId, "a1")
+        XCTAssertEqual(tasks.first?.status, "running")
+    }
+
     func test_runtimeModelAndLocalSkillRequestEndpointsUseDesktopPaths() async throws {
         var requests: [String] = []
         var queries: [String] = []

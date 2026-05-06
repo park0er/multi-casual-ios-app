@@ -25,7 +25,7 @@ public struct AgentsView: View {
                             NavigationLink {
                                 AgentDetailView(agent: agent, listViewModel: vm)
                             } label: {
-                                AgentRow(agent: agent)
+                                AgentRow(agent: agent, presence: vm.presenceByAgentId[agent.id])
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 if agent.archivedAt == nil {
@@ -147,6 +147,7 @@ public struct AgentsView: View {
 
 private struct AgentRow: View {
     let agent: Agent
+    let presence: AgentPresenceSummary?
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -171,6 +172,9 @@ private struct AgentRow: View {
                 HStack(spacing: 8) {
                     MarkdownText(agent.status.capitalized)
                     MarkdownText(agent.visibility.capitalized)
+                    if let presence {
+                        MarkdownText(presence.displayText)
+                    }
                     if let model = agent.model, !model.isEmpty {
                         MarkdownText(model)
                     }
@@ -209,6 +213,9 @@ private struct AgentDetailView: View {
                             MarkdownLabeledContent("Description", value: currentAgent.description)
                         }
                         MarkdownLabeledContent("Status", value: currentAgent.status.capitalized)
+                        if let presence = listViewModel.presenceByAgentId[currentAgent.id] {
+                            MarkdownLabeledContent("Presence", value: presence.displayText)
+                        }
                         if let runtimeName = vm.runtimeName {
                             MarkdownLabeledContent("Runtime", value: runtimeName)
                         } else if !currentAgent.runtimeId.isEmpty {

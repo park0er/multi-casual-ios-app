@@ -15,6 +15,8 @@ final class AgentsViewModelTests: XCTestCase {
                 return Self.response(for: req, body: Self.agentListJSON())
             case "/api/runtimes":
                 return Self.response(for: req, body: Self.runtimeListJSON())
+            case "/api/agent-task-snapshot":
+                return Self.response(for: req, body: Self.agentTasksJSON())
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -26,6 +28,9 @@ final class AgentsViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.agents.map(\.id), ["a1"])
         XCTAssertEqual(vm.runtimes.map(\.id), ["r1"])
+        XCTAssertEqual(vm.presenceByAgentId["a1"]?.availability, .online)
+        XCTAssertEqual(vm.presenceByAgentId["a1"]?.workload, .working)
+        XCTAssertEqual(vm.presenceByAgentId["a1"]?.runningCount, 1)
         XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertNil(vm.errorMessage)
     }
@@ -208,6 +213,29 @@ final class AgentsViewModelTests: XCTestCase {
         XCTAssertEqual(summary.averageDurationSeconds, 600)
     }
 
+    func test_agentPresenceSummaryDerivesAvailabilityAndWorkload() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let onlineAgent = try decoder.decode(Agent.self, from: Self.agentJSON(id: "a1", name: "Codex"))
+        let offlineAgent = try decoder.decode(Agent.self, from: Self.agentJSON(id: "a2", name: "Reviewer", runtimeId: "r2"))
+        let runningTask = AgentTask(id: "t1", issueId: "i1", status: "running", startedAt: nil, completedAt: nil, error: nil, agentId: "a1")
+        let queuedTask = AgentTask(id: "t2", issueId: "i2", status: "queued", startedAt: nil, completedAt: nil, error: nil, agentId: "a2")
+        let summaries = AgentPresenceSummary.buildMap(
+            agents: [onlineAgent, offlineAgent],
+            runtimes: [
+                AgentRuntime(id: "r1", workspaceId: "w1", name: "MacBook", runtimeMode: "local", provider: "claude", status: "online")
+            ],
+            tasks: [runningTask, queuedTask]
+        )
+
+        XCTAssertEqual(summaries["a1"]?.availability, .online)
+        XCTAssertEqual(summaries["a1"]?.workload, .working)
+        XCTAssertEqual(summaries["a1"]?.displayText, "Online • Working 1/1")
+        XCTAssertEqual(summaries["a2"]?.availability, .offline)
+        XCTAssertEqual(summaries["a2"]?.workload, .queued)
+        XCTAssertEqual(summaries["a2"]?.displayText, "Offline • Queued 1/1")
+    }
+
     func test_updateAgentSavesSkillAssignments() async throws {
         var requests: [String] = []
         var skillBody: [String: Any] = [:]
@@ -315,10 +343,10 @@ final class AgentsViewModelTests: XCTestCase {
         "[\(String(data: agentJSON(id: "a1", name: "Codex"), encoding: .utf8)!)]".data(using: .utf8)!
     }
 
-    private static func agentJSON(id: String, name: String, ownerId: String? = nil) -> Data {
+    private static func agentJSON(id: String, name: String, ownerId: String? = nil, runtimeId: String = "r1") -> Data {
         let ownerJSON = ownerId.map { "\"\($0)\"" } ?? "null"
         return """
-        {"id":"\(id)","workspace_id":"w1","runtime_id":"r1","name":"\(name)",
+        {"id":"\(id)","workspace_id":"w1","runtime_id":"\(runtimeId)","name":"\(name)",
           "description":"**Markdown** description","instructions":"Be useful","avatar_url":null,"runtime_mode":"cloud",
           "runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,
           "visibility":"workspace","status":"idle","max_concurrent_tasks":1,

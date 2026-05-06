@@ -755,6 +755,97 @@ public struct AgentActivitySummary: Sendable, Hashable {
     }
 }
 
+public enum AgentAvailability: String, Sendable, Hashable {
+    case online
+    case unstable
+    case offline
+
+    public var displayName: String {
+        switch self {
+        case .online: "Online"
+        case .unstable: "Unstable"
+        case .offline: "Offline"
+        }
+    }
+}
+
+public enum AgentWorkload: String, Sendable, Hashable {
+    case working
+    case queued
+    case idle
+
+    public var displayName: String {
+        switch self {
+        case .working: "Working"
+        case .queued: "Queued"
+        case .idle: "Idle"
+        }
+    }
+}
+
+public struct AgentPresenceSummary: Sendable, Hashable {
+    public let availability: AgentAvailability
+    public let workload: AgentWorkload
+    public let runningCount: Int
+    public let queuedCount: Int
+    public let capacity: Int
+
+    public var displayText: String {
+        let activeCount = runningCount > 0 ? runningCount : queuedCount
+        return "\(availability.displayName) • \(workload.displayName) \(activeCount)/\(capacity)"
+    }
+
+    public static func buildMap(
+        agents: [Agent],
+        runtimes: [AgentRuntime],
+        tasks: [AgentTask]
+    ) -> [String: AgentPresenceSummary] {
+        var tasksByAgentId: [String: [AgentTask]] = [:]
+        for task in tasks {
+            guard let agentId = task.agentId, !agentId.isEmpty else { continue }
+            tasksByAgentId[agentId, default: []].append(task)
+        }
+
+        let runtimesById = Dictionary(uniqueKeysWithValues: runtimes.map { ($0.id, $0) })
+        return Dictionary(uniqueKeysWithValues: agents.map { agent in
+            (
+                agent.id,
+                derive(agent: agent, runtime: runtimesById[agent.runtimeId], tasks: tasksByAgentId[agent.id] ?? [])
+            )
+        })
+    }
+
+    public static func derive(agent: Agent, runtime: AgentRuntime?, tasks: [AgentTask]) -> AgentPresenceSummary {
+        let runningCount = tasks.filter { $0.status == "running" }.count
+        let queuedCount = tasks.filter { $0.status == "queued" || $0.status == "dispatched" }.count
+        let workload: AgentWorkload = if runningCount > 0 {
+            .working
+        } else if queuedCount > 0 {
+            .queued
+        } else {
+            .idle
+        }
+
+        let availability: AgentAvailability
+        switch runtime?.status {
+        case "online":
+            availability = .online
+        case "recently_lost":
+            availability = .unstable
+        default:
+            availability = .offline
+        }
+
+        return AgentPresenceSummary(
+            availability: availability,
+            workload: workload,
+            runningCount: runningCount,
+            queuedCount: queuedCount,
+            capacity: max(1, agent.maxConcurrentTasks)
+        )
+    }
+}
+
 public struct RuntimeModelInfo: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let name: String

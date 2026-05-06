@@ -8,6 +8,7 @@ public final class AgentsViewModel {
     public var runtimes: [AgentRuntime] = []
     public var skills: [Skill] = []
     public var assignedSkillIdsByAgentId: [String: Set<String>] = [:]
+    public var presenceByAgentId: [String: AgentPresenceSummary] = [:]
     public var isLoading = false
     public var isMutating = false
     public var errorMessage: String?
@@ -34,8 +35,19 @@ public final class AgentsViewModel {
         do {
             async let loadedAgents = api.listAgents(workspaceId: workspaceId, includeArchived: true)
             async let loadedRuntimes = api.listRuntimes(workspaceId: workspaceId)
+            async let loadedSnapshot = api.getAgentTaskSnapshot(workspaceId: workspaceId)
             agents = try await loadedAgents.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             runtimes = try await loadedRuntimes
+            do {
+                let snapshot = try await loadedSnapshot
+                presenceByAgentId = AgentPresenceSummary.buildMap(
+                    agents: agents,
+                    runtimes: runtimes,
+                    tasks: snapshot
+                )
+            } catch {
+                presenceByAgentId = [:]
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
