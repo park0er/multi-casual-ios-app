@@ -51,7 +51,7 @@ public extension View {
             Button(confirmation.confirmTitle, role: .destructive, action: onConfirm)
             Button(confirmation.cancelTitle, role: .cancel, action: onCancel)
         } message: {
-            Text(confirmation.message)
+            Text(MarkdownRenderer.attributedString(from: confirmation.message))
         }
     }
 }

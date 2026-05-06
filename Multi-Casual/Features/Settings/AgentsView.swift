@@ -55,7 +55,7 @@ public struct AgentsView: View {
 
                     if let lastActionMessage = vm.lastActionMessage {
                         Section {
-                            Text(lastActionMessage).font(.caption).foregroundStyle(.secondary)
+                            MarkdownText(lastActionMessage).font(.caption).foregroundStyle(.secondary)
                         }
                     }
 
@@ -133,7 +133,7 @@ private struct AgentRow: View {
                     Text(agent.status.capitalized)
                     Text(agent.visibility.capitalized)
                     if let model = agent.model, !model.isEmpty {
-                        Text(model)
+                        MarkdownText(model)
                     }
                 }
                 .font(.caption2)
@@ -188,7 +188,7 @@ private struct AgentFormSheet: View {
                     if agent == nil {
                         Picker("Runtime", selection: $runtimeId) {
                             ForEach(viewModel.runtimes) { runtime in
-                                Text("\(runtime.name) (\(runtime.status))").tag(runtime.id)
+                                MarkdownText("\(runtime.name) (\(runtime.status))").tag(runtime.id)
                             }
                         }
                     } else {
@@ -205,7 +205,7 @@ private struct AgentFormSheet: View {
 
                 if let errorMessage = viewModel.errorMessage {
                     Section {
-                        Text(errorMessage).font(.caption).foregroundStyle(.red)
+                        MarkdownText(errorMessage).font(.caption).foregroundStyle(.red)
                     }
                 }
             }

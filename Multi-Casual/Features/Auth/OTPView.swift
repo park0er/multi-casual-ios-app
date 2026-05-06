@@ -19,7 +19,7 @@ public struct OTPView: View {
             .disabled(viewModel.isLoading)
 
             if let error = viewModel.errorMessage {
-                Text(error).font(.caption).foregroundStyle(.red)
+                MarkdownText(error).font(.caption).foregroundStyle(.red)
             }
             if viewModel.isLoading { ProgressView() }
 

@@ -14,8 +14,8 @@ public struct SettingsView: View {
                     HStack {
                         Image(systemName: "person.circle.fill").font(.title2).foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(user.name).font(.body.bold())
-                            Text(user.email).font(.caption).foregroundStyle(.secondary)
+                            MarkdownText(user.name).font(.body.bold())
+                            MarkdownText(user.email).font(.caption).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 4)
                 }
@@ -24,7 +24,7 @@ public struct SettingsView: View {
                 } else {
                     Picker("Workspace", selection: workspaceSelection) {
                         ForEach(authSession.workspaces) { workspace in
-                            Text(workspace.name).tag(workspace.id)
+                            MarkdownText(workspace.name).tag(workspace.id)
                         }
                     }
                     .pickerStyle(.navigationLink)

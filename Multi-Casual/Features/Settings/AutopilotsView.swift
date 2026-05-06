@@ -48,7 +48,7 @@ public struct AutopilotsView: View {
 
                     if let lastActionMessage = vm.lastActionMessage {
                         Section {
-                            Text(lastActionMessage).font(.caption).foregroundStyle(.secondary)
+                            MarkdownText(lastActionMessage).font(.caption).foregroundStyle(.secondary)
                         }
                     }
 
@@ -121,7 +121,7 @@ private struct AutopilotRow: View {
                 HStack(spacing: 8) {
                     Text(autopilot.status.capitalized)
                     Text(autopilot.executionMode.replacingOccurrences(of: "_", with: " ").capitalized)
-                    Text(assigneeName)
+                    MarkdownText(assigneeName)
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -168,7 +168,7 @@ private struct AutopilotFormSheet: View {
                 Section("Execution") {
                     Picker("Agent", selection: $assigneeId) {
                         ForEach(viewModel.agents) { agent in
-                            Text(agent.name).tag(agent.id)
+                            MarkdownText(agent.name).tag(agent.id)
                         }
                     }
                     .pickerStyle(.navigationLink)
@@ -193,7 +193,7 @@ private struct AutopilotFormSheet: View {
 
                 if let errorMessage = viewModel.errorMessage {
                     Section {
-                        Text(errorMessage).font(.caption).foregroundStyle(.red)
+                        MarkdownText(errorMessage).font(.caption).foregroundStyle(.red)
                     }
                 }
             }

@@ -203,7 +203,7 @@ public struct IssueDetailView: View {
             Text(title)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(value)
+            MarkdownText(value)
                 .multilineTextAlignment(.trailing)
         }
         .font(.caption)
@@ -347,7 +347,7 @@ private struct ErrorMessageRow: View {
             if let retry {
                 ErrorRetryView(message: message, retry: retry)
             } else {
-                Text(message)
+                MarkdownText(message)
                     .font(.caption)
                     .foregroundStyle(.red)
             }
@@ -567,7 +567,7 @@ private struct SubscriberToggleRow: View {
                     MarkdownText(title)
                         .font(.body)
                         .lineLimit(1)
-                    Text(subtitle)
+                    MarkdownText(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

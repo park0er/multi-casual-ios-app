@@ -12,7 +12,7 @@ public struct ErrorRetryView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(message)
+            MarkdownText(message)
                 .font(.caption)
                 .foregroundStyle(.red)
             Button(action: retry) {

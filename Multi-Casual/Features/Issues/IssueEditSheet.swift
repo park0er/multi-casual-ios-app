@@ -60,7 +60,7 @@ public struct IssueEditSheet: View {
                             )) {
                                 Text("Unassigned").tag(IssueEditViewModel.noAssigneeId)
                                 ForEach(vm.assigneeOptions) { option in
-                                    Text(option.displayName).tag(option.id)
+                                    MarkdownText(option.displayName).tag(option.id)
                                 }
                             }
                             .disabled(vm.isLoadingOptions)
@@ -72,7 +72,7 @@ public struct IssueEditSheet: View {
                             )) {
                                 Text("No Project").tag(IssueEditViewModel.noProjectId)
                                 ForEach(vm.projects) { project in
-                                    Text(project.name).tag(project.id)
+                                    MarkdownText(project.name).tag(project.id)
                                 }
                             }
                             .disabled(vm.isLoadingOptions)

@@ -43,7 +43,7 @@ public struct LoginView: View {
                     .accessibilityIdentifier("LoginEmailField")
 
                 if let error = vm.errorMessage {
-                    Text(error).font(.caption).foregroundStyle(.red)
+                    MarkdownText(error).font(.caption).foregroundStyle(.red)
                 }
 
                 Button {

@@ -158,7 +158,7 @@ private struct SkillFormSheet: View {
 
                 if let errorMessage = viewModel.errorMessage {
                     Section {
-                        Text(errorMessage).font(.caption).foregroundStyle(.red)
+                        MarkdownText(errorMessage).font(.caption).foregroundStyle(.red)
                     }
                 }
             }
@@ -236,7 +236,7 @@ private struct SkillImportSheet: View {
 
                 if let errorMessage = viewModel.errorMessage {
                     Section {
-                        Text(errorMessage).font(.caption).foregroundStyle(.red)
+                        MarkdownText(errorMessage).font(.caption).foregroundStyle(.red)
                     }
                 }
             }

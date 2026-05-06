@@ -18,7 +18,11 @@ public struct AgentTranscriptView: View {
                         ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if let error = viewModel.errorMessage {
                         VStack(spacing: 12) {
-                            ContentUnavailableView("Transcript Unavailable", systemImage: "exclamationmark.triangle", description: Text(error))
+                            ContentUnavailableView(
+                                "Transcript Unavailable",
+                                systemImage: "exclamationmark.triangle",
+                                description: Text(MarkdownRenderer.attributedString(from: error))
+                            )
                             Button {
                                 Task { await viewModel.loadHistory() }
                             } label: {

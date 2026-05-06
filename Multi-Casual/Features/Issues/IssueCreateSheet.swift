@@ -74,7 +74,7 @@ private struct IssueCreateForm: View {
                     Picker("Assignee", selection: $viewModel.selectedAssigneeOptionId) {
                         Text("Unassigned").tag(IssueCreateViewModel.noAssigneeId)
                         ForEach(viewModel.assigneeOptions) { option in
-                            Text(option.displayName).tag(option.id)
+                            MarkdownText(option.displayName).tag(option.id)
                         }
                     }
                     .accessibilityIdentifier("IssueCreateAssigneePicker")
@@ -97,7 +97,7 @@ private struct IssueCreateForm: View {
                     Picker("Project", selection: $viewModel.selectedProjectId) {
                         Text("No Project").tag(IssueCreateViewModel.noProjectId)
                         ForEach(viewModel.projects) { project in
-                            Text(project.name).tag(project.id)
+                            MarkdownText(project.name).tag(project.id)
                         }
                     }
                 }
