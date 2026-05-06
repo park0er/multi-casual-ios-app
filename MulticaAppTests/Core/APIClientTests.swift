@@ -1740,6 +1740,7 @@ final class APIClientTests: XCTestCase {
             visibility: "workspace",
             maxConcurrentTasks: 2,
             model: "gpt-5",
+            avatarUrl: "https://cdn.example/agents/codex.png",
             customEnv: ["ANTHROPIC_BASE_URL": "https://example.com"],
             customArgs: ["--verbose", "--model", "gpt-5"],
             workspaceId: "w1"
@@ -1754,6 +1755,7 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(body["visibility"] as? String, "workspace")
         XCTAssertEqual(body["max_concurrent_tasks"] as? Int, 2)
         XCTAssertEqual(body["model"] as? String, "gpt-5")
+        XCTAssertEqual(body["avatar_url"] as? String, "https://cdn.example/agents/codex.png")
         XCTAssertEqual((body["custom_env"] as? [String: String])?["ANTHROPIC_BASE_URL"], "https://example.com")
         XCTAssertEqual(body["custom_args"] as? [String], ["--verbose", "--model", "gpt-5"])
     }
@@ -1786,6 +1788,7 @@ final class APIClientTests: XCTestCase {
             visibility: "private",
             maxConcurrentTasks: 1,
             model: "gpt-5",
+            avatarUrl: "https://cdn.example/agents/updated.png",
             customEnv: ["OPENAI_API_KEY": "sk-test"],
             customArgs: ["--debug"],
             workspaceId: "w1"
@@ -1803,6 +1806,7 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
         XCTAssertEqual(cancelled.count, 2)
         XCTAssertEqual(updateBody["runtime_id"] as? String, "r2")
+        XCTAssertEqual(updateBody["avatar_url"] as? String, "https://cdn.example/agents/updated.png")
         XCTAssertEqual((updateBody["custom_env"] as? [String: String])?["OPENAI_API_KEY"], "sk-test")
         XCTAssertEqual(updateBody["custom_args"] as? [String], ["--debug"])
     }

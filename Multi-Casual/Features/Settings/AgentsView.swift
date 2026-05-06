@@ -160,9 +160,7 @@ private struct AgentRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: agent.archivedAt == nil ? "bolt.circle" : "archivebox")
-                .foregroundStyle(agent.archivedAt == nil ? Color.accentColor : Color.secondary)
-                .frame(width: 22)
+            AgentAvatarView(agent: agent, size: 30)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     MarkdownText(agent.name).font(.body.weight(.semibold))
@@ -220,6 +218,11 @@ private struct AgentDetailView: View {
             if let vm = detailViewModel {
                 List {
                     Section("Agent Detail") {
+                        HStack {
+                            Spacer()
+                            AgentAvatarView(agent: currentAgent, size: 72)
+                            Spacer()
+                        }
                         MarkdownLabeledContent("Name", value: currentAgent.name)
                         if !currentAgent.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             MarkdownLabeledContent("Description", value: currentAgent.description)
@@ -395,6 +398,44 @@ private struct AgentDetailView: View {
     }
 }
 
+private struct AgentAvatarView: View {
+    let agent: Agent
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let avatarUrl = agent.avatarUrl,
+               let url = URL(string: avatarUrl),
+               !avatarUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        fallback
+                    }
+                }
+            } else {
+                fallback
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var fallback: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(agent.archivedAt == nil ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.12))
+            Image(systemName: agent.archivedAt == nil ? "bolt.fill" : "archivebox.fill")
+                .font(.system(size: size * 0.46, weight: .semibold))
+                .foregroundStyle(agent.archivedAt == nil ? Color.accentColor : Color.secondary)
+        }
+    }
+}
+
 private struct AgentTaskRow: View {
     let task: AgentTask
 
@@ -456,6 +497,7 @@ private struct AgentFormSheet: View {
     @State private var visibility: String
     @State private var maxConcurrentTasks: Int
     @State private var model: String
+    @State private var avatarUrl: String
     @State private var customEnvText: String
     @State private var customArgsText: String
     @State private var selectedSkillIds: Set<String>
@@ -473,6 +515,7 @@ private struct AgentFormSheet: View {
         _visibility = State(initialValue: agent?.visibility ?? "workspace")
         _maxConcurrentTasks = State(initialValue: agent?.maxConcurrentTasks ?? 1)
         _model = State(initialValue: agent?.model ?? "gpt")
+        _avatarUrl = State(initialValue: agent?.avatarUrl ?? "")
         _customEnvText = State(initialValue: AgentFormDraft.environmentText(from: agent?.customEnv ?? [:]))
         _customArgsText = State(initialValue: AgentFormDraft.argsText(from: agent?.customArgs ?? []))
         _selectedSkillIds = State(initialValue: agent.flatMap { viewModel.assignedSkillIdsByAgentId[$0.id] } ?? [])
@@ -485,6 +528,10 @@ private struct AgentFormSheet: View {
                     TextField("Name", text: $name)
                         .accessibilityIdentifier("AgentNameField")
                     TextField("Model", text: $model)
+                    TextField("Avatar URL", text: $avatarUrl)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.URL)
+                        .accessibilityIdentifier("AgentAvatarURLField")
                     TextEditor(text: $description)
                         .frame(minHeight: 80)
                         .accessibilityIdentifier("AgentDescriptionEditor")
@@ -601,6 +648,7 @@ private struct AgentFormSheet: View {
         let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedInstructions = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAvatarUrl = avatarUrl.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedCustomEnvText = customEnvText.trimmingCharacters(in: .whitespacesAndNewlines)
         let customEnv: [String: String]?
         let customArgs = AgentFormDraft.parseCustomArgs(customArgsText)
@@ -628,6 +676,7 @@ private struct AgentFormSheet: View {
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
                 model: trimmedModel,
+                avatarUrl: trimmedAvatarUrl.isEmpty ? nil : trimmedAvatarUrl,
                 customEnv: customEnv,
                 customArgs: customArgs,
                 skillIds: selectedSkillIds
@@ -641,6 +690,7 @@ private struct AgentFormSheet: View {
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
                 model: trimmedModel,
+                avatarUrl: trimmedAvatarUrl.isEmpty ? nil : trimmedAvatarUrl,
                 customEnv: customEnv,
                 customArgs: customArgs,
                 skillIds: selectedSkillIds

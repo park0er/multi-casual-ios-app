@@ -83,6 +83,7 @@ public final class AgentsViewModel {
         visibility: String,
         maxConcurrentTasks: Int,
         model: String,
+        avatarUrl: String? = nil,
         customEnv: [String: String]? = nil,
         customArgs: [String]? = nil,
         skillIds: Set<String>? = nil
@@ -100,6 +101,7 @@ public final class AgentsViewModel {
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
                 model: model,
+                avatarUrl: avatarUrl,
                 customEnv: customEnv,
                 customArgs: customArgs,
                 workspaceId: workspaceId
@@ -116,6 +118,7 @@ public final class AgentsViewModel {
         visibility: String,
         maxConcurrentTasks: Int,
         model: String,
+        avatarUrl: String? = nil,
         customEnv: [String: String]? = nil,
         customArgs: [String]? = nil,
         skillIds: Set<String>? = nil
@@ -134,6 +137,7 @@ public final class AgentsViewModel {
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
                 model: model,
+                avatarUrl: avatarUrl,
                 customEnv: customEnv,
                 customArgs: customArgs,
                 workspaceId: workspaceId

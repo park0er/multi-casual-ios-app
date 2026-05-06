@@ -1399,6 +1399,7 @@ public final class APIClient: @unchecked Sendable {
         let visibility: String
         let maxConcurrentTasks: Int
         let model: String
+        let avatarUrl: String?
         let customEnv: [String: String]?
         let customArgs: [String]?
 
@@ -1406,6 +1407,7 @@ public final class APIClient: @unchecked Sendable {
             case name, description, instructions, visibility, model
             case runtimeId = "runtime_id"
             case maxConcurrentTasks = "max_concurrent_tasks"
+            case avatarUrl = "avatar_url"
             case customEnv = "custom_env"
             case customArgs = "custom_args"
         }
@@ -1427,6 +1429,7 @@ public final class APIClient: @unchecked Sendable {
         visibility: String,
         maxConcurrentTasks: Int,
         model: String,
+        avatarUrl: String? = nil,
         customEnv: [String: String]? = nil,
         customArgs: [String]? = nil,
         workspaceId: String? = nil
@@ -1443,6 +1446,7 @@ public final class APIClient: @unchecked Sendable {
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
                 model: model,
+                avatarUrl: avatarUrl,
                 customEnv: customEnv,
                 customArgs: customArgs
             )
@@ -1458,6 +1462,7 @@ public final class APIClient: @unchecked Sendable {
         visibility: String,
         maxConcurrentTasks: Int,
         model: String,
+        avatarUrl: String? = nil,
         customEnv: [String: String]? = nil,
         customArgs: [String]? = nil,
         workspaceId: String? = nil
@@ -1474,6 +1479,7 @@ public final class APIClient: @unchecked Sendable {
                 visibility: visibility,
                 maxConcurrentTasks: maxConcurrentTasks,
                 model: model,
+                avatarUrl: avatarUrl,
                 customEnv: customEnv,
                 customArgs: customArgs
             )

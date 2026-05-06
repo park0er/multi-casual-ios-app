@@ -61,6 +61,7 @@ final class AgentsViewModelTests: XCTestCase {
             visibility: "workspace",
             maxConcurrentTasks: 1,
             model: "gpt",
+            avatarUrl: "https://cdn.example/agents/created.png",
             customEnv: ["ANTHROPIC_BASE_URL": "https://example.com"],
             customArgs: ["--verbose"]
         )
@@ -73,6 +74,7 @@ final class AgentsViewModelTests: XCTestCase {
             visibility: "private",
             maxConcurrentTasks: 2,
             model: "gpt-5",
+            avatarUrl: "https://cdn.example/agents/updated.png",
             customEnv: ["OPENAI_API_KEY": "sk-test"],
             customArgs: ["--debug"]
         )
@@ -82,9 +84,11 @@ final class AgentsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.agents.map(\.name), ["Updated"])
         XCTAssertEqual(requests.map { "\($0.0) \($0.1)" }, ["POST /api/agents", "PUT /api/agents/a1"])
         XCTAssertTrue(requestURLs.allSatisfy { $0.absoluteString.contains("workspace_id=w1") })
+        XCTAssertEqual(bodies[0]["avatar_url"] as? String, "https://cdn.example/agents/created.png")
         XCTAssertEqual((bodies[0]["custom_env"] as? [String: String])?["ANTHROPIC_BASE_URL"], "https://example.com")
         XCTAssertEqual(bodies[0]["custom_args"] as? [String], ["--verbose"])
         XCTAssertEqual(bodies[1]["runtime_id"] as? String, "r2")
+        XCTAssertEqual(bodies[1]["avatar_url"] as? String, "https://cdn.example/agents/updated.png")
         XCTAssertEqual((bodies[1]["custom_env"] as? [String: String])?["OPENAI_API_KEY"], "sk-test")
         XCTAssertEqual(bodies[1]["custom_args"] as? [String], ["--debug"])
         XCTAssertNil(vm.errorMessage)
