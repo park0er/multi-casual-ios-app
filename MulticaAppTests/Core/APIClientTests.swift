@@ -299,6 +299,29 @@ final class APIClientTests: XCTestCase {
         _ = try await client.getIssue(id: "i1")
     }
 
+    func test_authSessionInitializerInjectsCurrentWorkspaceScope() async throws {
+        let json = """
+        {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
+         "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+         "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+         "updated_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+        let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.api-client.init-workspace.test"))
+        session.currentWorkspace = Workspace(id: "w1", name: "park0er", slug: "park0er", issuePrefix: "PAR")
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let scopedClient = APIClient(session: URLSession(configuration: config), authSession: session)
+
+        MockURLProtocol.handler = { req in
+            let components = try XCTUnwrap(URLComponents(url: req.url!, resolvingAgainstBaseURL: false))
+            XCTAssertEqual(components.queryItems?.first(where: { $0.name == "workspace_id" })?.value, "w1")
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await scopedClient.getIssue(id: "i1")
+    }
+
     func test_configuredClientDoesNotInjectWorkspaceIdForUserScopedRequests() async throws {
         let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.api-client.user-scope.test"))
         session.currentWorkspace = Workspace(id: "w1", name: "park0er", slug: "park0er", issuePrefix: "PAR")
@@ -2097,6 +2120,54 @@ final class APIClientTests: XCTestCase {
         """.data(using: .utf8)!
     }
 
+    private static func response(_ request: URLRequest, body: Data, status: Int = 200) -> (HTTPURLResponse, Data) {
+        (
+            HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!,
+            body
+        )
+    }
+
+    private static func chatSessionJSON(id: String) -> Data {
+        """
+        {"id":"\(id)","workspace_id":"w1","agent_id":"a1","creator_id":"u1",
+         "title":"Launch **Plan**","status":"active","has_unread":true,
+         "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:01:00Z"}
+        """.data(using: .utf8)!
+    }
+
+    private static func chatSessionsJSON() -> Data {
+        "[\(String(data: chatSessionJSON(id: "c1"), encoding: .utf8)!)]".data(using: .utf8)!
+    }
+
+    private static func chatMessagesJSON() -> Data {
+        """
+        [
+          {"id":"m1","chat_session_id":"c1","role":"user","content":"Hello **agent**",
+           "task_id":null,"created_at":"2026-01-01T00:00:01Z","failure_reason":null,"elapsed_ms":null},
+          {"id":"m2","chat_session_id":"c1","role":"assistant","content":"Done",
+           "task_id":"t1","created_at":"2026-01-01T00:00:02Z","failure_reason":null,"elapsed_ms":1000}
+        ]
+        """.data(using: .utf8)!
+    }
+
+    private static func sendChatMessageJSON() -> Data {
+        """
+        {"message_id":"m3","task_id":"t2","created_at":"2026-01-01T00:00:03Z"}
+        """.data(using: .utf8)!
+    }
+
+    private static func chatPendingTaskJSON() -> Data {
+        """
+        {"task_id":"t2","status":"running","created_at":"2026-01-01T00:00:03Z"}
+        """.data(using: .utf8)!
+    }
+
+    private static func pendingChatTasksJSON() -> Data {
+        """
+        {"tasks":[{"task_id":"t2","status":"running","chat_session_id":"c1"}]}
+        """.data(using: .utf8)!
+    }
+
     func test_sendCode_usesAuthSendCodePath() async throws {
         var capturedPath: String?
         MockURLProtocol.handler = { req in
@@ -2119,6 +2190,72 @@ final class APIClientTests: XCTestCase {
         }
         _ = try await client.verifyCode(email: "x@y.com", code: "123456")
         XCTAssertEqual(capturedPath, "/auth/verify-code")
+    }
+
+    func test_chatEndpointsUseDesktopPathsAndWorkspaceScope() async throws {
+        var requests: [(method: String?, path: String, workspaceId: String?, body: [String: Any]?)] = []
+        MockURLProtocol.handler = { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            let body = try? JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any]
+            requests.append((
+                req.httpMethod,
+                req.url?.path ?? "",
+                components?.queryItems?.first(where: { $0.name == "workspace_id" })?.value,
+                body ?? nil
+            ))
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/chat/sessions"):
+                return Self.response(req, body: Self.chatSessionsJSON())
+            case ("GET", "/api/chat/sessions/c1"):
+                return Self.response(req, body: Self.chatSessionJSON(id: "c1"))
+            case ("POST", "/api/chat/sessions"):
+                return Self.response(req, body: Self.chatSessionJSON(id: "c2"))
+            case ("DELETE", "/api/chat/sessions/c1"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            case ("GET", "/api/chat/sessions/c1/messages"):
+                return Self.response(req, body: Self.chatMessagesJSON())
+            case ("POST", "/api/chat/sessions/c1/messages"):
+                return Self.response(req, body: Self.sendChatMessageJSON())
+            case ("GET", "/api/chat/sessions/c1/pending-task"):
+                return Self.response(req, body: Self.chatPendingTaskJSON())
+            case ("GET", "/api/chat/pending-tasks"):
+                return Self.response(req, body: Self.pendingChatTasksJSON())
+            case ("POST", "/api/chat/sessions/c1/read"):
+                return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(req, body: Data("{}".utf8))
+            }
+        }
+
+        _ = try await client.listChatSessions(workspaceId: "w1")
+        _ = try await client.getChatSession(id: "c1", workspaceId: "w1")
+        _ = try await client.createChatSession(agentId: "a1", title: "Launch", workspaceId: "w1")
+        try await client.archiveChatSession(id: "c1", workspaceId: "w1")
+        _ = try await client.listChatMessages(sessionId: "c1", workspaceId: "w1")
+        _ = try await client.sendChatMessage(sessionId: "c1", content: "Hello **agent**", workspaceId: "w1")
+        _ = try await client.getPendingChatTask(sessionId: "c1", workspaceId: "w1")
+        _ = try await client.listPendingChatTasks(workspaceId: "w1")
+        try await client.markChatSessionRead(sessionId: "c1", workspaceId: "w1")
+
+        XCTAssertEqual(
+            requests.map { "\($0.method ?? "") \($0.path)" },
+            [
+                "GET /api/chat/sessions",
+                "GET /api/chat/sessions/c1",
+                "POST /api/chat/sessions",
+                "DELETE /api/chat/sessions/c1",
+                "GET /api/chat/sessions/c1/messages",
+                "POST /api/chat/sessions/c1/messages",
+                "GET /api/chat/sessions/c1/pending-task",
+                "GET /api/chat/pending-tasks",
+                "POST /api/chat/sessions/c1/read",
+            ]
+        )
+        XCTAssertTrue(requests.allSatisfy { $0.workspaceId == "w1" })
+        XCTAssertEqual(requests[2].body?["agent_id"] as? String, "a1")
+        XCTAssertEqual(requests[2].body?["title"] as? String, "Launch")
+        XCTAssertEqual(requests[5].body?["content"] as? String, "Hello **agent**")
     }
 
     // MARK: - APIError LocalizedError

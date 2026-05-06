@@ -49,10 +49,19 @@ public final class APIClient: @unchecked Sendable {
 
     // Production init: token provider runs off the main actor because
     // AuthSession.token() is nonisolated (Keychain access is thread-safe).
-    public convenience init(authSession: AuthSession) {
+    public convenience init(
+        session: URLSession = .shared,
+        baseURL: URL = URL(string: "https://api.multica.ai")!,
+        requestTimeout: TimeInterval = APIClient.defaultRequestTimeout,
+        authSession: AuthSession
+    ) {
         self.init(
-            session: .shared,
-            tokenProvider: { authSession.token() }
+            session: session,
+            baseURL: baseURL,
+            requestTimeout: requestTimeout,
+            tokenProvider: { authSession.token() },
+            workspaceSlugProvider: { await MainActor.run { authSession.currentWorkspace?.slug } },
+            workspaceIdProvider: { await MainActor.run { authSession.currentWorkspace?.id } }
         )
     }
 
@@ -63,7 +72,8 @@ public final class APIClient: @unchecked Sendable {
         requestTimeout: TimeInterval = APIClient.defaultRequestTimeout,
         token: String? = nil,
         tokenProvider: (@Sendable () -> String?)? = nil,
-        workspaceSlugProvider: (@Sendable () async -> String?)? = nil
+        workspaceSlugProvider: (@Sendable () async -> String?)? = nil,
+        workspaceIdProvider: (@Sendable () async -> String?)? = nil
     ) {
         self.session = session
         self.baseURL = baseURL
@@ -73,7 +83,7 @@ public final class APIClient: @unchecked Sendable {
         } else {
             self.tokenProvider = tokenProvider ?? { nil }
         }
-        self.workspaceIdProvider = { nil }
+        self.workspaceIdProvider = workspaceIdProvider ?? { nil }
         self.workspaceSlugProvider = workspaceSlugProvider ?? { nil }
     }
 
@@ -362,6 +372,18 @@ public final class APIClient: @unchecked Sendable {
             case name
             case expiresInDays = "expires_in_days"
         }
+    }
+    private struct CreateChatSessionRequest: Encodable {
+        let agentId: String
+        let title: String?
+
+        enum CodingKeys: String, CodingKey {
+            case agentId = "agent_id"
+            case title
+        }
+    }
+    private struct SendChatMessageRequest: Encodable {
+        let content: String
     }
     private struct CreateProjectRequest: Encodable {
         let title: String
@@ -1586,6 +1608,78 @@ public final class APIClient: @unchecked Sendable {
         let _: EmptyResponse = try await request(
             "DELETE",
             path: "api/autopilots/\(autopilotId)/triggers/\(triggerId)",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    // MARK: - Chat
+
+    public func listChatSessions(status: String? = nil, workspaceId: String? = nil) async throws -> [ChatSession] {
+        var queryItems = workspaceQuery(workspaceId)
+        if let status, !status.isEmpty {
+            queryItems.append(.init(name: "status", value: status))
+        }
+        return try await request("GET", path: "api/chat/sessions", queryItems: queryItems)
+    }
+
+    public func getChatSession(id: String, workspaceId: String? = nil) async throws -> ChatSession {
+        try await request("GET", path: "api/chat/sessions/\(id)", queryItems: workspaceQuery(workspaceId))
+    }
+
+    public func createChatSession(agentId: String, title: String? = nil, workspaceId: String? = nil) async throws -> ChatSession {
+        try await request(
+            "POST",
+            path: "api/chat/sessions",
+            queryItems: workspaceQuery(workspaceId),
+            body: CreateChatSessionRequest(agentId: agentId, title: title)
+        )
+    }
+
+    public func archiveChatSession(id: String, workspaceId: String? = nil) async throws {
+        let _: EmptyResponse = try await request(
+            "DELETE",
+            path: "api/chat/sessions/\(id)",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func listChatMessages(sessionId: String, workspaceId: String? = nil) async throws -> [ChatMessage] {
+        try await request(
+            "GET",
+            path: "api/chat/sessions/\(sessionId)/messages",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func sendChatMessage(
+        sessionId: String,
+        content: String,
+        workspaceId: String? = nil
+    ) async throws -> SendChatMessageResponse {
+        try await request(
+            "POST",
+            path: "api/chat/sessions/\(sessionId)/messages",
+            queryItems: workspaceQuery(workspaceId),
+            body: SendChatMessageRequest(content: content)
+        )
+    }
+
+    public func getPendingChatTask(sessionId: String, workspaceId: String? = nil) async throws -> ChatPendingTask {
+        try await request(
+            "GET",
+            path: "api/chat/sessions/\(sessionId)/pending-task",
+            queryItems: workspaceQuery(workspaceId)
+        )
+    }
+
+    public func listPendingChatTasks(workspaceId: String? = nil) async throws -> PendingChatTasksResponse {
+        try await request("GET", path: "api/chat/pending-tasks", queryItems: workspaceQuery(workspaceId))
+    }
+
+    public func markChatSessionRead(sessionId: String, workspaceId: String? = nil) async throws {
+        let _: EmptyResponse = try await request(
+            "POST",
+            path: "api/chat/sessions/\(sessionId)/read",
             queryItems: workspaceQuery(workspaceId)
         )
     }

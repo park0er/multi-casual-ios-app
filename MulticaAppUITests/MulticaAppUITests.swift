@@ -709,6 +709,19 @@ final class Multi-CasualUITests: XCTestCase {
         app.buttons["Cancel"].tap()
     }
 
+    func testChatCreateSheetOpensWithoutSubmitting() {
+        let app = launchStubbedAuthenticatedApp(initialTab: "chat")
+
+        XCTAssertTrue(app.navigationBars["Chat"].waitForExistence(timeout: 20))
+        let newChatButton = app.buttons["ChatNewButton"]
+        XCTAssertTrue(newChatButton.waitForExistence(timeout: 10))
+        newChatButton.tap()
+
+        XCTAssertTrue(app.navigationBars["New Chat"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+    }
+
     func testInboxMarksReadAndArchivesWhenMutationTestsEnabled() throws {
         try requireMutationTestsEnabled(reason: "mark a real inbox item read and archive it")
         guard mutationFlagEnabled(

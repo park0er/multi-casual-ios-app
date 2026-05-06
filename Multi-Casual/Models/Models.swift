@@ -1600,6 +1600,144 @@ public struct ProjectResource: Codable, Identifiable, Sendable {
     }
 }
 
+// MARK: - Chat
+
+public struct ChatSession: Codable, Identifiable, Sendable {
+    public enum Status: String, Codable, Sendable {
+        case active
+        case archived
+    }
+
+    public let id: String
+    public let workspaceId: String
+    public let agentId: String
+    public let creatorId: String
+    public let title: String
+    public let status: Status
+    public let hasUnread: Bool
+    public let createdAt: Date
+    public let updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, status
+        case workspaceId = "workspace_id"
+        case agentId = "agent_id"
+        case creatorId = "creator_id"
+        case hasUnread = "has_unread"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    public init(
+        id: String,
+        workspaceId: String,
+        agentId: String,
+        creatorId: String,
+        title: String,
+        status: Status,
+        hasUnread: Bool,
+        createdAt: Date,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.workspaceId = workspaceId
+        self.agentId = agentId
+        self.creatorId = creatorId
+        self.title = title
+        self.status = status
+        self.hasUnread = hasUnread
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+public struct PendingChatTaskItem: Codable, Identifiable, Sendable {
+    public let taskId: String
+    public let status: String
+    public let chatSessionId: String
+
+    public var id: String { taskId }
+
+    enum CodingKeys: String, CodingKey {
+        case taskId = "task_id"
+        case status
+        case chatSessionId = "chat_session_id"
+    }
+}
+
+public struct PendingChatTasksResponse: Codable, Sendable {
+    public let tasks: [PendingChatTaskItem]
+}
+
+public struct ChatMessage: Codable, Identifiable, Sendable {
+    public enum Role: String, Codable, Sendable {
+        case user
+        case assistant
+    }
+
+    public let id: String
+    public let chatSessionId: String
+    public let role: Role
+    public let content: String
+    public let taskId: String?
+    public let createdAt: Date
+    public let failureReason: String?
+    public let elapsedMs: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, role, content
+        case chatSessionId = "chat_session_id"
+        case taskId = "task_id"
+        case createdAt = "created_at"
+        case failureReason = "failure_reason"
+        case elapsedMs = "elapsed_ms"
+    }
+
+    public init(
+        id: String,
+        chatSessionId: String,
+        role: Role,
+        content: String,
+        taskId: String?,
+        createdAt: Date,
+        failureReason: String? = nil,
+        elapsedMs: Int? = nil
+    ) {
+        self.id = id
+        self.chatSessionId = chatSessionId
+        self.role = role
+        self.content = content
+        self.taskId = taskId
+        self.createdAt = createdAt
+        self.failureReason = failureReason
+        self.elapsedMs = elapsedMs
+    }
+}
+
+public struct SendChatMessageResponse: Codable, Sendable {
+    public let messageId: String
+    public let taskId: String
+    public let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case messageId = "message_id"
+        case taskId = "task_id"
+        case createdAt = "created_at"
+    }
+}
+
+public struct ChatPendingTask: Codable, Sendable {
+    public let taskId: String?
+    public let status: String?
+    public let createdAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case taskId = "task_id"
+        case status
+        case createdAt = "created_at"
+    }
+}
+
 // MARK: - Agent Tasks
 
 public struct AgentTask: Codable, Identifiable, Sendable {

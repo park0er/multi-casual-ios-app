@@ -9,7 +9,7 @@ struct RootView: View {
     @State private var selectedTab: AppTab = AppTab.debugInitialTab
 
     enum AppTab: Hashable {
-        case inbox, issues, myIssues, projects, settings
+        case inbox, issues, myIssues, projects, chat, settings
 
         static var debugInitialTab: AppTab {
             #if DEBUG
@@ -17,6 +17,7 @@ struct RootView: View {
             case "issues": return .issues
             case "my-issues": return .myIssues
             case "projects": return .projects
+            case "chat": return .chat
             case "settings": return .settings
             default: return .inbox
             }
@@ -78,6 +79,10 @@ struct RootView: View {
             NavigationStack { debugInitialProjectView }
                 .tabItem { Label("Projects", systemImage: "folder") }
                 .tag(AppTab.projects)
+
+            NavigationStack { ChatView() }
+                .tabItem { Label("Chat", systemImage: "message") }
+                .tag(AppTab.chat)
 
             NavigationStack { SettingsView() }
                 .tabItem { Label("Settings", systemImage: "gearshape") }
