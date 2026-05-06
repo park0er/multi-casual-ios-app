@@ -35,6 +35,7 @@ public struct IssueListView: View {
                         } label: {
                             Image(systemName: vm.priorityFilter == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
                         }
+                        .accessibilityIdentifier("IssuePriorityFilterMenu")
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
@@ -48,11 +49,13 @@ public struct IssueListView: View {
                         } label: {
                             Image(systemName: "arrow.up.arrow.down")
                         }
+                        .accessibilityIdentifier("IssueSortMenu")
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button { vm.viewMode = vm.viewMode == .list ? .board : .list } label: {
                             Image(systemName: vm.viewMode == .list ? "square.grid.2x2" : "list.bullet")
                         }
+                        .accessibilityIdentifier("IssueViewModeToggle")
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button { vm.showCreateSheet = true } label: {

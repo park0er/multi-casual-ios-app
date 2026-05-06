@@ -103,6 +103,34 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons[agentDisplayName].waitForExistence(timeout: 10))
     }
 
+    func testIssueListFilterSortAndBoardControlsAreReachable() {
+        let app = launchApp(initialTab: "issues")
+
+        XCTAssertTrue(app.staticTexts["Issues"].waitForExistence(timeout: 20))
+
+        let filterMenu = app.buttons["IssuePriorityFilterMenu"]
+        XCTAssertTrue(filterMenu.waitForExistence(timeout: 10))
+        filterMenu.tap()
+        XCTAssertTrue(app.buttons["All Priorities"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Urgent"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["No Priority"].waitForExistence(timeout: 5))
+        app.buttons["All Priorities"].tap()
+
+        let sortMenu = app.buttons["IssueSortMenu"]
+        XCTAssertTrue(sortMenu.waitForExistence(timeout: 10))
+        sortMenu.tap()
+        XCTAssertTrue(app.buttons["Default"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Priority"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Updated"].waitForExistence(timeout: 5))
+        app.buttons["Default"].tap()
+
+        let boardToggle = app.buttons["IssueViewModeToggle"]
+        XCTAssertTrue(boardToggle.waitForExistence(timeout: 10))
+        boardToggle.tap()
+        XCTAssertTrue(app.staticTexts["Backlog"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Todo"].waitForExistence(timeout: 10))
+    }
+
     func testCreateIssueSubmitsToBackendWhenMutationTestsEnabled() throws {
         try requireMutationTestsEnabled(reason: "create a real backend issue")
         guard mutationFlagEnabled(
