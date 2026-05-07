@@ -1029,8 +1029,10 @@ private struct ReactionBarView: View {
             }
             Menu {
                 ForEach(quickReactionEmojis, id: \.self) { emoji in
-                    Button(emoji) {
+                    Button {
                         onToggle(emoji)
+                    } label: {
+                        MarkdownText(emoji)
                     }
                 }
             } label: {

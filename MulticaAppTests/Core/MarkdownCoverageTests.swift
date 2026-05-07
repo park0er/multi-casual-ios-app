@@ -291,6 +291,10 @@ final class MarkdownCoverageTests: XCTestCase {
             (
                 "Multi-Casual/Core/DesignSystem/DestructiveConfirmation.swift",
                 "            Button(confirmation.cancelTitle, role: .cancel"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                "                    Button(emoji) {"
             )
         ]
 
