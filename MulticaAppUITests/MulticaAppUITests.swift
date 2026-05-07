@@ -798,6 +798,36 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Tool Use"].waitForExistence(timeout: 20))
     }
 
+    func testIssueDetailLiveAgentTimelineUpdatesWhenEnabled() throws {
+        try requireMutationTestsEnabled(reason: "observe a real running task WebSocket update")
+        guard mutationFlagEnabled(
+            environmentKey: "MULTICA_UI_MUTATION_RUNNING_TASK",
+            fileName: "running-task.enabled"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_RUNNING_TASK=1 or touch /tmp/multica-ui-mutation-tests/running-task.enabled to observe a real running task.")
+        }
+        guard let issueId = mutationValue(
+            environmentKey: "MULTICA_UI_MUTATION_RUNNING_ISSUE_ID",
+            fileName: "running-issue-id"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_RUNNING_ISSUE_ID or write a running issue id to /tmp/multica-ui-mutation-tests/running-issue-id.")
+        }
+
+        let app = launchApp(initialTab: "issues", issueId: issueId)
+
+        XCTAssertTrue(app.staticTexts["Agent"].waitForExistence(timeout: 30))
+        let initialCount = try waitForAgentEventCount(in: app, timeout: 30)
+        let deadline = Date().addingTimeInterval(90)
+        while Date() < deadline {
+            if let count = agentEventCount(in: app), count > initialCount {
+                return
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+        }
+
+        XCTFail("Timed out waiting for live agent timeline event count to increase from \(initialCount).")
+    }
+
     func testProjectDetailRendersResourcesAndIssues() {
         let app = launchApp(initialTab: "projects", projectId: projectId)
 
@@ -961,6 +991,30 @@ final class Multi-CasualUITests: XCTestCase {
 
     private func staticText(in app: XCUIApplication, contains text: String) -> XCUIElement {
         app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
+    private func agentEventCount(in app: XCUIApplication) -> Int? {
+        for element in app.staticTexts.allElementsBoundByIndex {
+            let label = element.label
+            guard label.hasSuffix(" events") else { continue }
+            let digits = label.prefix(while: { $0.isNumber })
+            if let count = Int(digits) {
+                return count
+            }
+        }
+        return nil
+    }
+
+    private func waitForAgentEventCount(in app: XCUIApplication, timeout: TimeInterval) throws -> Int {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let count = agentEventCount(in: app) {
+                return count
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        }
+
+        throw XCTSkip("No live agent timeline event count is visible for the supplied running issue.")
     }
 
     private func requireMutationTestsEnabled(reason: String) throws {
