@@ -267,6 +267,86 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Agents"].waitForExistence(timeout: 5))
     }
 
+    func testSettingsAgentCreateEditArchiveRestoreWhenMutationTestsEnabled() throws {
+        try requireMutationTestsEnabled(reason: "create, edit, archive, and restore a disposable agent")
+        guard mutationFlagEnabled(
+            environmentKey: "MULTICA_UI_MUTATION_AGENT_MANAGEMENT",
+            fileName: "agent-management.enabled"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_AGENT_MANAGEMENT=1 or touch /tmp/multica-ui-mutation-tests/agent-management.enabled to mutate a disposable agent.")
+        }
+
+        let baseName = mutationValue(
+            environmentKey: "MULTICA_UI_MUTATION_AGENT_NAME",
+            fileName: "agent-name"
+        ) ?? "iOS UI agent \(Int(Date().timeIntervalSince1970))"
+        let updatedName = "\(baseName) updated"
+        let app = launchApp(initialTab: "settings")
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Agents"].waitForExistence(timeout: 10))
+        app.buttons["Agents"].tap()
+
+        XCTAssertTrue(app.staticTexts["Agents"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["AgentsNewButton"].waitForExistence(timeout: 10))
+        app.buttons["AgentsNewButton"].tap()
+
+        let nameField = app.textFields["AgentNameField"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 10))
+        nameField.tap()
+        nameField.typeText(baseName)
+
+        let saveButton = app.buttons["AgentSaveButton"]
+        guard waitForEnabled(saveButton, timeout: 30) else {
+            throw XCTSkip("Agent form is not saveable, likely because no runtime is available.")
+        }
+        saveButton.tap()
+
+        XCTAssertTrue(waitForNonExistence(app.navigationBars["New Agent"], timeout: 30))
+        XCTAssertTrue(scrollUntilStaticTextExists(baseName, app: app, timeout: 45))
+
+        let createdCell = app.cells.containing(.staticText, identifier: baseName).element(boundBy: 0)
+        XCTAssertTrue(createdCell.waitForExistence(timeout: 10))
+        createdCell.tap()
+
+        XCTAssertTrue(app.staticTexts["Agent Detail"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["AgentDetailEditButton"].waitForExistence(timeout: 10))
+        app.buttons["AgentDetailEditButton"].tap()
+
+        let editNameField = app.textFields["AgentNameField"]
+        XCTAssertTrue(editNameField.waitForExistence(timeout: 10))
+        replaceText(in: editNameField, with: updatedName)
+        XCTAssertTrue(waitForEnabled(saveButton, timeout: 10))
+        saveButton.tap()
+
+        XCTAssertTrue(waitForNonExistence(app.navigationBars["Edit Agent"], timeout: 30))
+        XCTAssertTrue(app.staticTexts[updatedName].waitForExistence(timeout: 30))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        XCTAssertTrue(app.staticTexts["Agents"].waitForExistence(timeout: 10))
+        let updatedCell = app.cells.containing(.staticText, identifier: updatedName).element(boundBy: 0)
+        XCTAssertTrue(updatedCell.waitForExistence(timeout: 10))
+        revealTrailingActions(on: updatedCell)
+        XCTAssertTrue(app.buttons["Archive"].waitForExistence(timeout: 5))
+        app.buttons["Archive"].tap()
+        XCTAssertTrue(staticText(in: app, contains: "Archive").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Archive"].waitForExistence(timeout: 5))
+        app.buttons["Archive"].tap()
+
+        XCTAssertTrue(app.staticTexts["Archived"].waitForExistence(timeout: 30))
+        revealTrailingActions(on: updatedCell)
+        XCTAssertTrue(app.buttons["Restore"].waitForExistence(timeout: 5))
+        app.buttons["Restore"].tap()
+        XCTAssertTrue(waitForNonExistence(app.buttons["Restore"], timeout: 30))
+
+        revealTrailingActions(on: updatedCell)
+        XCTAssertTrue(app.buttons["Archive"].waitForExistence(timeout: 5))
+        app.buttons["Archive"].tap()
+        XCTAssertTrue(app.buttons["Archive"].waitForExistence(timeout: 5))
+        app.buttons["Archive"].tap()
+        XCTAssertTrue(app.staticTexts["Archived"].waitForExistence(timeout: 30))
+    }
+
     func testSettingsAutopilotsScreenRenders() {
         let app = launchStubbedAuthenticatedApp(initialTab: "settings")
 
@@ -896,6 +976,13 @@ final class Multi-CasualUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         return element.exists && element.isEnabled
+    }
+
+    private func replaceText(in element: XCUIElement, with text: String) {
+        let endCoordinate = element.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5))
+        endCoordinate.tap()
+        element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 120))
+        element.typeText(text)
     }
 
     private func waitForValue(_ element: XCUIElement, timeout: TimeInterval, matches predicate: (String) -> Bool) -> Bool {
