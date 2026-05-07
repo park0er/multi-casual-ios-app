@@ -670,6 +670,40 @@ final class Multi-CasualUITests: XCTestCase {
         app.buttons["Cancel"].tap()
     }
 
+    func testIssueDetailReassignsIssueWhenMutationTestsEnabled() throws {
+        try requireMutationTestsEnabled(reason: "reassign a disposable issue to a member and an agent")
+        guard mutationFlagEnabled(
+            environmentKey: "MULTICA_UI_MUTATION_ISSUE_REASSIGN",
+            fileName: "issue-reassign.enabled"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_ISSUE_REASSIGN=1 or touch /tmp/multica-ui-mutation-tests/issue-reassign.enabled to reassign a disposable issue.")
+        }
+        guard let issueId = mutationValue(
+            environmentKey: "MULTICA_UI_MUTATION_ISSUE_ID",
+            fileName: "issue-id"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_ISSUE_ID or write a disposable issue id to /tmp/multica-ui-mutation-tests/issue-id before reassigning it.")
+        }
+
+        let app = launchApp(initialTab: "issues", issueId: issueId)
+
+        try waitForElementOrBackendTimeout(
+            app.buttons["IssueDetailEditButton"],
+            in: app,
+            timeout: 20,
+            reason: "Issue detail endpoint timed out before reassign coverage could run."
+        )
+
+        try reassignIssue(in: app, to: memberDisplayName)
+        XCTAssertTrue(app.staticTexts[memberDisplayName].waitForExistence(timeout: 30))
+
+        try reassignIssue(in: app, to: agentDisplayName)
+        XCTAssertTrue(app.staticTexts[agentDisplayName].waitForExistence(timeout: 30))
+
+        try reassignIssue(in: app, to: "Unassigned")
+        XCTAssertTrue(app.staticTexts["Unassigned"].waitForExistence(timeout: 30))
+    }
+
     func testIssueDetailLongCommentsScrollKeepsComposerReachable() {
         let app = launchApp(initialTab: "issues", issueId: par73IssueId)
 
@@ -983,6 +1017,27 @@ final class Multi-CasualUITests: XCTestCase {
         endCoordinate.tap()
         element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 120))
         element.typeText(text)
+    }
+
+    private func reassignIssue(in app: XCUIApplication, to assigneeButtonLabel: String) throws {
+        XCTAssertTrue(app.buttons["IssueDetailEditButton"].waitForExistence(timeout: 10))
+        app.buttons["IssueDetailEditButton"].tap()
+        XCTAssertTrue(app.navigationBars["Edit Issue"].waitForExistence(timeout: 10))
+        let assigneePicker = app.buttons["IssueEditAssigneePicker"]
+        XCTAssertTrue(assigneePicker.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForValue(assigneePicker, timeout: 30) { value in
+            value.contains("Assignee options loaded:") && !value.contains("Assignee options loaded: 0")
+        })
+        assigneePicker.tap()
+        guard app.buttons[assigneeButtonLabel].waitForExistence(timeout: 10) else {
+            throw XCTSkip("Assignee option \(assigneeButtonLabel) is not available.")
+        }
+        app.buttons[assigneeButtonLabel].tap()
+
+        let saveButton = app.buttons["IssueEditSaveButton"]
+        XCTAssertTrue(waitForEnabled(saveButton, timeout: 10))
+        saveButton.tap()
+        XCTAssertTrue(waitForNonExistence(app.navigationBars["Edit Issue"], timeout: 30))
     }
 
     private func waitForValue(_ element: XCUIElement, timeout: TimeInterval, matches predicate: (String) -> Bool) -> Bool {
