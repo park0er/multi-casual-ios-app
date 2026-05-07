@@ -219,6 +219,66 @@ final class IssueEditViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_submitCanReassignIssueToDifferentMember() async throws {
+        var body: [String: Any] = [:]
+        let client = makeClient { req in
+            XCTAssertEqual(req.httpMethod, "PUT")
+            XCTAssertEqual(req.url?.path, "/api/issues/i1")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            let json = """
+            {"id":"i1","identifier":"PAR-1","number":1,"title":"Original","description":"Body",
+             "status":"todo","priority":"none","assignee_id":"u2","assignee_type":"member",
+             "project_id":null,"due_date":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+             "updated_at":"2026-01-02T00:00:00Z"}
+            """.data(using: .utf8)!
+            return Self.response(for: req, body: json)
+        }
+        let vm = IssueEditViewModel(issue: issue(assigneeType: "member", assigneeId: "u1", projectId: nil), api: client, authSession: makeSession())
+        vm.assigneeOptions = [
+            IssueAssigneeOption(id: "member:u1", type: "member", assigneeId: "u1", displayName: "Parker", subtitle: "p@example.com"),
+            IssueAssigneeOption(id: "member:u2", type: "member", assigneeId: "u2", displayName: "Alice", subtitle: "a@example.com"),
+        ]
+        vm.selectedAssigneeOptionId = "member:u2"
+
+        let updated = await vm.submit()
+
+        XCTAssertEqual(updated?.assigneeType, "member")
+        XCTAssertEqual(updated?.assigneeId, "u2")
+        XCTAssertEqual(body["assignee_type"] as? String, "member")
+        XCTAssertEqual(body["assignee_id"] as? String, "u2")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_submitCanReassignIssueToAgent() async throws {
+        var body: [String: Any] = [:]
+        let client = makeClient { req in
+            XCTAssertEqual(req.httpMethod, "PUT")
+            XCTAssertEqual(req.url?.path, "/api/issues/i1")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            let json = """
+            {"id":"i1","identifier":"PAR-1","number":1,"title":"Original","description":"Body",
+             "status":"todo","priority":"none","assignee_id":"a1","assignee_type":"agent",
+             "project_id":null,"due_date":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+             "updated_at":"2026-01-02T00:00:00Z"}
+            """.data(using: .utf8)!
+            return Self.response(for: req, body: json)
+        }
+        let vm = IssueEditViewModel(issue: issue(assigneeType: "member", assigneeId: "u1", projectId: nil), api: client, authSession: makeSession())
+        vm.assigneeOptions = [
+            IssueAssigneeOption(id: "member:u1", type: "member", assigneeId: "u1", displayName: "Parker", subtitle: "p@example.com"),
+            IssueAssigneeOption(id: "agent:a1", type: "agent", assigneeId: "a1", displayName: "Codex", subtitle: "Agent"),
+        ]
+        vm.selectedAssigneeOptionId = "agent:a1"
+
+        let updated = await vm.submit()
+
+        XCTAssertEqual(updated?.assigneeType, "agent")
+        XCTAssertEqual(updated?.assigneeId, "a1")
+        XCTAssertEqual(body["assignee_type"] as? String, "agent")
+        XCTAssertEqual(body["assignee_id"] as? String, "a1")
+        XCTAssertNil(vm.errorMessage)
+    }
+
     func test_submitPreservesExistingAssigneeAndProjectWhenOptionsFailToLoad() async throws {
         var body: [String: Any] = [:]
         let client = makeClient { req in
