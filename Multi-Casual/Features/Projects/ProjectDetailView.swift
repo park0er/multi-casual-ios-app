@@ -107,7 +107,7 @@ public struct ProjectDetailView: View {
                     Button {
                         Task { await pinViewModel.toggle() }
                     } label: {
-                        Label(
+                        MarkdownIconLabel(
                             pinViewModel.isPinned ? "Unpin Project" : "Pin Project",
                             systemImage: pinViewModel.isPinned ? "pin.slash" : "pin"
                         )

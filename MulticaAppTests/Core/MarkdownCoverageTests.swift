@@ -295,6 +295,14 @@ final class MarkdownCoverageTests: XCTestCase {
             (
                 "Multi-Casual/Features/Issues/IssueDetailView.swift",
                 "                    Button(emoji) {"
+            ),
+            (
+                "Multi-Casual/Features/Issues/IssueDetailView.swift",
+                "                            Label(\n                                pinViewModel.isPinned ? \"Unpin Issue\" : \"Pin Issue\","
+            ),
+            (
+                "Multi-Casual/Features/Projects/ProjectDetailView.swift",
+                "                        Label(\n                            pinViewModel.isPinned ? \"Unpin Project\" : \"Pin Project\","
             )
         ]
 

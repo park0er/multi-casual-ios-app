@@ -84,7 +84,7 @@ public struct IssueDetailView: View {
                         Button {
                             Task { await pinViewModel.toggle() }
                         } label: {
-                            Label(
+                            MarkdownIconLabel(
                                 pinViewModel.isPinned ? "Unpin Issue" : "Pin Issue",
                                 systemImage: pinViewModel.isPinned ? "pin.slash" : "pin"
                             )
