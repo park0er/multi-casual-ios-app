@@ -1,12 +1,12 @@
 # Multica iOS App
 
-An experimental SwiftUI iOS client for Multica, built to explore mobile parity with the Multica web app.
+A production-used SwiftUI iOS client for Multica, built to bring the Multica web app's core workspace and agent-management workflows to iPhone.
 
 > Status: public source review / upstream contribution proposal. This repository is not an official Multica app. The code is public for review only under the repository's source-review license; do not copy, redistribute, publish builds, or imply official Multica endorsement unless separate written permission is granted.
 
 ## What It Is
 
-Multica iOS App is a native iOS client that connects to Multica APIs and brings core workspace workflows to iPhone:
+Multica iOS App is a native iOS client that connects to Multica APIs and brings the web product's workspace workflows to iPhone. It is not a throwaway prototype: it has been used in our internal company workflow and is designed as a full mobile counterpart to the web app.
 
 - Inbox and Chat entry points.
 - Issues and My Issues workflows.
@@ -18,6 +18,12 @@ Multica iOS App is a native iOS client that connects to Multica APIs and brings 
 - English and Simplified Chinese language switching.
 
 The app is written in SwiftUI and organized as a Swift Package plus an Xcode host app.
+
+## Product Maturity
+
+This project aims for practical web parity rather than a narrow demo. The current implementation covers the everyday loop we use internally: monitor Inbox and Chat, triage Issues, inspect issue details and comments, create/edit/reassign work, review Projects, and manage Agents/Runtimes/Skills/Autopilots from Settings.
+
+The repository remains a contribution proposal, not an official Multica release. The point of opening it is to let Multica maintainers review a substantially complete iOS implementation and decide the right path: upstream, official companion app, or a separately maintained client.
 
 ## Demo Videos
 

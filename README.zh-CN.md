@@ -1,12 +1,12 @@
 # Multica iOS App
 
-这是一个实验性的 SwiftUI iOS 客户端，用来探索 Multica Web 端核心工作流在 iPhone 上的体验对齐。
+这是一个已经在内部业务中使用的 SwiftUI iOS 客户端，用来把 Multica Web 端核心 workspace 和 Agent 管理工作流带到 iPhone 上。
 
 > 当前状态：公开源码评审 / 上游贡献提案。这个仓库不是 Multica 官方 App。代码仅按仓库的 source-review license 公开用于评审；未经书面许可，不得复制、改造、再发布、分发 build，也不得暗示这是 Multica 官方 App。
 
 ## 项目是什么
 
-Multica iOS App 是一个原生 iOS 客户端，连接 Multica API，把核心 workspace 工作流带到手机上：
+Multica iOS App 是一个原生 iOS 客户端，连接 Multica API，把 Web 产品里的 workspace 工作流带到手机上。它不是一个半吊子的 demo：这个 App 已经进入我们的企业内部业务流程，并且目标是成为 Web 端的完整移动端对标实现。
 
 - Inbox 和 Chat 入口。
 - Issues 和 My Issues 工作流。
@@ -18,6 +18,12 @@ Multica iOS App 是一个原生 iOS 客户端，连接 Multica API，把核心 w
 - 英文和简体中文语言切换。
 
 项目主体是 SwiftUI，并用 Swift Package + Xcode host app 组织。
+
+## 产品成熟度
+
+这个项目追求的是实际可用的 Web parity，而不是狭窄的演示项目。当前实现覆盖了我们内部日常使用的闭环：查看 Inbox 和 Chat、处理 Issues、进入 Issue 详情和 comments、创建/编辑/重新分配工作、查看 Projects，并在 Settings 里管理 Agents、Runtimes、Skills、Autopilots 等能力。
+
+仓库目前仍然是贡献提案，不是 Multica 官方发布版本。公开它的目的，是让 Multica maintainers 能审阅一个已经相当完整的 iOS 实现，然后决定它应该 upstream、成为官方 companion app，还是作为单独维护的客户端继续推进。
 
 ## 演示视频
 
