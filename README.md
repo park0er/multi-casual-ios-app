@@ -23,10 +23,10 @@ The app is written in SwiftUI and organized as a Swift Package plus an Xcode hos
 
 Interactive simulator walkthroughs are generated with HyperFrames from real app interaction recordings:
 
-- English: `artifacts/videos/multica-ios-interactive-demo-en.mp4`
-- Chinese: `artifacts/videos/multica-ios-interactive-demo-zh.mp4`
+- English: https://github.com/park0er/Multi-Casual/releases/download/demo-2026-05-08/multica-ios-interactive-demo-en.mp4
+- Chinese: https://github.com/park0er/Multi-Casual/releases/download/demo-2026-05-08/multica-ios-interactive-demo-zh.mp4
 
-For upstream review, publish these walkthroughs through GitHub Releases, a public object store, or another stable video host.
+The files are published through the `demo-2026-05-08` GitHub Release.
 
 ## Repository Layout
 

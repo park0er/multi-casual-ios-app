@@ -23,10 +23,10 @@ Multica iOS App 是一个原生 iOS 客户端，连接 Multica API，把核心 w
 
 交互演示视频通过 HyperFrames 生成，素材来自真实 simulator 操作录屏：
 
-- 英文版：`artifacts/videos/multica-ios-interactive-demo-en.mp4`
-- 中文版：`artifacts/videos/multica-ios-interactive-demo-zh.mp4`
+- 英文版：https://github.com/park0er/Multi-Casual/releases/download/demo-2026-05-08/multica-ios-interactive-demo-en.mp4
+- 中文版：https://github.com/park0er/Multi-Casual/releases/download/demo-2026-05-08/multica-ios-interactive-demo-zh.mp4
 
-如果要给上游 review，建议通过 GitHub Releases、公开对象存储或其他稳定视频链接发布这些 walkthrough。
+这些 walkthrough 已通过 `demo-2026-05-08` GitHub Release 发布。
 
 ## 目录结构
 
