@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 public struct AgentsView: View {
     @Environment(APIClient.self) private var api
     @Environment(AuthSession.self) private var authSession
+    @Environment(\.appLanguage) private var appLanguage
     @State private var viewModel: AgentsViewModel?
     @State private var showCreateSheet = false
     @State private var editingAgent: Agent?
@@ -20,7 +21,11 @@ public struct AgentsView: View {
                     if vm.isLoading && vm.agents.isEmpty {
                         ProgressView()
                     } else if vm.agents.isEmpty && vm.errorMessage == nil {
-                        ContentUnavailableView("No Agents", systemImage: "bolt", description: Text("This workspace has no agents yet."))
+                        ContentUnavailableView(
+                            AppStrings.localized("No Agents", language: appLanguage),
+                            systemImage: "bolt",
+                            description: Text(AppStrings.localized("This workspace has no agents yet.", language: appLanguage))
+                        )
                     } else {
                         ForEach(vm.agents) { agent in
                             NavigationLink {
@@ -38,13 +43,13 @@ public struct AgentsView: View {
                                         Button(role: .destructive) {
                                             pendingArchiveAgent = agent
                                         } label: {
-                                            Label("Archive", systemImage: "archivebox")
+                                            Label(AppStrings.localized("Archive", language: appLanguage), systemImage: "archivebox")
                                         }
                                     } else {
                                         Button {
                                             Task { await vm.restoreAgent(id: agent.id) }
                                         } label: {
-                                            Label("Restore", systemImage: "arrow.uturn.backward")
+                                            Label(AppStrings.localized("Restore", language: appLanguage), systemImage: "arrow.uturn.backward")
                                         }
                                         .tint(.blue)
                                     }
@@ -55,7 +60,7 @@ public struct AgentsView: View {
                                     Button {
                                         pendingCancelTasksAgent = agent
                                     } label: {
-                                        Label("Cancel Tasks", systemImage: "xmark.circle")
+                                        Label(AppStrings.localized("Cancel Tasks", language: appLanguage), systemImage: "xmark.circle")
                                     }
                                     .tint(.orange)
                                 }
@@ -84,7 +89,7 @@ public struct AgentsView: View {
                         Button {
                             showCreateSheet = true
                         } label: {
-                            Label("New Agent", systemImage: "plus")
+                            Label(AppStrings.localized("New Agent", language: appLanguage), systemImage: "plus")
                         }
                         .accessibilityIdentifier("AgentsNewButton")
                     }
@@ -125,7 +130,7 @@ public struct AgentsView: View {
                 ProgressView()
             }
         }
-        .navigationTitle("Agents")
+        .navigationTitle(AppStrings.localized("Agents", language: appLanguage))
         .onAppear {
             if viewModel == nil {
                 let vm = AgentsViewModel(api: api, authSession: authSession)

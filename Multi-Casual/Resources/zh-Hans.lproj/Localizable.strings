@@ -62,7 +62,7 @@
 "GitHub Repos" = "GitHub 仓库";
 "Identity" = "身份";
 "Import" = "导入";
-"Import Skill" = "导入技能";
+"Import Skill" = "导入 Skill";
 "Inbox" = "收件箱";
 "Inbox Actions" = "收件箱操作";
 "Instructions" = "指令";
@@ -90,7 +90,7 @@
 "New Issue" = "新建 Issue";
 "New Label" = "新建标签";
 "New Project" = "新建项目";
-"New Skill" = "新建技能";
+"New Skill" = "新建 Skill";
 "New Workspace" = "新建工作区";
 "No API Tokens" = "没有 API 令牌";
 "No Active Tasks" = "没有运行中的任务";
@@ -107,7 +107,7 @@
 "No Project" = "无项目";
 "No Projects" = "没有项目";
 "No Runtimes" = "没有运行时";
-"No Skills" = "没有技能";
+"No Skills" = "没有 Skills";
 "No Usage" = "没有用量";
 "No agents available" = "没有可用 Agent";
 "No issues" = "没有 Issues";
@@ -155,8 +155,8 @@
 "Send to Agent" = "发送给 Agent";
 "Serving Agents" = "服务中的 Agents";
 "Sign in to Multica" = "登录 Multica";
-"Skill" = "技能";
-"Skills" = "技能";
+"Skill" = "Skill";
+"Skills" = "Skills";
 "Sort" = "排序";
 "Sort by" = "排序维度";
 "Start a chat with an agent in this workspace." = "在此工作区中与 Agent 开始聊天。";
@@ -179,7 +179,7 @@
 "This workspace has no labels yet." = "此工作区还没有标签。";
 "This workspace has no members yet." = "此工作区还没有成员。";
 "This workspace has no runtimes yet." = "此工作区还没有运行时。";
-"This workspace has no skills yet." = "此工作区还没有技能。";
+"This workspace has no skills yet." = "此工作区还没有 Skills。";
 "Title" = "标题";
 "Token Created" = "令牌已创建";
 "Tokens" = "令牌";

@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 public struct IssueListView: View {
     @Environment(AuthSession.self) private var authSession
     @Environment(APIClient.self) private var api
+    @Environment(\.appLanguage) private var appLanguage
     @State private var viewModel: IssueListViewModel?
     @State private var showingBatchDeleteConfirmation = false
     @State private var searchText = ""
@@ -20,13 +21,13 @@ public struct IssueListView: View {
             if let vm = viewModel {
                 VStack(spacing: 0) {
                     if initialScope.isPersonal {
-                        Picker("My Issues Scope", selection: Binding(
+                        Picker(AppStrings.localized("My Issues Scope", language: appLanguage), selection: Binding(
                             get: { vm.scope },
                             set: { nextScope in Task { await vm.setScope(nextScope) } }
                         )) {
-                            MarkdownText(IssueListViewModel.Scope.assignedToMe.displayName).tag(IssueListViewModel.Scope.assignedToMe)
-                            MarkdownText(IssueListViewModel.Scope.createdByMe.displayName).tag(IssueListViewModel.Scope.createdByMe)
-                            MarkdownText(IssueListViewModel.Scope.myAgents.displayName).tag(IssueListViewModel.Scope.myAgents)
+                            MarkdownText(AppStrings.localized(IssueListViewModel.Scope.assignedToMe.displayName, language: appLanguage)).tag(IssueListViewModel.Scope.assignedToMe)
+                            MarkdownText(AppStrings.localized(IssueListViewModel.Scope.createdByMe.displayName, language: appLanguage)).tag(IssueListViewModel.Scope.createdByMe)
+                            MarkdownText(AppStrings.localized(IssueListViewModel.Scope.myAgents.displayName, language: appLanguage)).tag(IssueListViewModel.Scope.myAgents)
                         }
                         .pickerStyle(.segmented)
                         .padding(.horizontal)
@@ -60,13 +61,13 @@ public struct IssueListView: View {
                             Button {
                                 Task { await vm.setPriorityFilter(nil) }
                             } label: {
-                                Label("All Priorities", systemImage: vm.priorityFilter == nil ? "checkmark" : "line.3.horizontal.decrease.circle")
+                                Label(AppStrings.localized("All Priorities", language: appLanguage), systemImage: vm.priorityFilter == nil ? "checkmark" : "line.3.horizontal.decrease.circle")
                             }
                             ForEach(IssuePriority.allCases.filter { $0 != .unknown }, id: \.self) { priority in
                                 Button {
                                     Task { await vm.setPriorityFilter(priority) }
                                 } label: {
-                                    MarkdownIconLabel(priority.displayName, systemImage: vm.priorityFilter == priority ? "checkmark" : "flag")
+                                    MarkdownIconLabel(AppStrings.localized(priority.displayName, language: appLanguage), systemImage: vm.priorityFilter == priority ? "checkmark" : "flag")
                                 }
                             }
                         } label: {
@@ -76,21 +77,21 @@ public struct IssueListView: View {
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
-                            Section("Sort by") {
+                            Section(AppStrings.localized("Sort by", language: appLanguage)) {
                                 ForEach(IssueListViewModel.SortOption.allCases, id: \.self) { option in
                                     Button {
                                         vm.setSortOption(option)
                                     } label: {
-                                        MarkdownIconLabel(option.displayName, systemImage: vm.sortOption == option ? "checkmark" : "arrow.up.arrow.down")
+                                        MarkdownIconLabel(AppStrings.localized(option.displayName, language: appLanguage), systemImage: vm.sortOption == option ? "checkmark" : "arrow.up.arrow.down")
                                     }
                                 }
                             }
-                            Section("Direction") {
+                            Section(AppStrings.localized("Direction", language: appLanguage)) {
                                 ForEach(IssueListViewModel.SortDirection.allCases, id: \.self) { direction in
                                     Button {
                                         vm.setSortDirection(direction)
                                     } label: {
-                                        MarkdownIconLabel(direction.displayName, systemImage: vm.sortDirection == direction ? "checkmark" : direction.icon)
+                                        MarkdownIconLabel(AppStrings.localized(direction.displayName, language: appLanguage), systemImage: vm.sortDirection == direction ? "checkmark" : direction.icon)
                                     }
                                     .accessibilityIdentifier("IssueSortDirection-\(direction.rawValue)")
                                 }
@@ -152,7 +153,7 @@ public struct IssueListView: View {
                 }
             } else { ProgressView() }
         }
-        .navigationTitle(initialScope.isPersonal ? "My Issues" : "Issues")
+        .navigationTitle(AppStrings.localized(initialScope.isPersonal ? "My Issues" : "Issues", language: appLanguage))
         .onAppear {
             if viewModel == nil {
                 viewModel = IssueListViewModel(api: api, authSession: authSession, scope: initialScope)
@@ -174,9 +175,9 @@ public struct IssueListView: View {
         List {
             if vm.loader.items.isEmpty && !vm.loader.hasMore && !vm.loader.isLoading && vm.lastError == nil {
                 ContentUnavailableView(
-                    vm.scope.emptyTitle,
+                    AppStrings.localized(vm.scope.emptyTitle, language: appLanguage),
                     systemImage: initialScope.isPersonal ? "person.crop.circle.badge.checkmark" : "checklist",
-                    description: Text(MarkdownRenderer.attributedString(from: vm.scope.emptyDescription))
+                    description: Text(MarkdownRenderer.attributedString(from: AppStrings.localized(vm.scope.emptyDescription, language: appLanguage)))
                 )
             }
             ForEach(IssueStatus.boardCases, id: \.self) { status in
@@ -196,7 +197,7 @@ public struct IssueListView: View {
                                 Image(systemName: collapsedStatusSections.contains(status) ? "chevron.right" : "chevron.down")
                                     .frame(width: 12)
                                 Image(systemName: status.icon)
-                                MarkdownText(status.displayName)
+                                MarkdownText(AppStrings.localized(status.displayName, language: appLanguage))
                                 MarkdownText("(\(issues.count))")
                                     .foregroundStyle(.secondary)
                                 Spacer(minLength: 0)
@@ -206,7 +207,7 @@ public struct IssueListView: View {
                         .buttonStyle(.plain)
                         .font(.caption.weight(.semibold))
                         .accessibilityIdentifier("IssueStatusSectionHeader-\(status.rawValue)")
-                        .accessibilityLabel("\(status.displayName) status section")
+                        .accessibilityLabel("\(AppStrings.localized(status.displayName, language: appLanguage)) status section")
                         .accessibilityValue(collapsedStatusSections.contains(status) ? "Collapsed" : "Expanded")
                     }
                 }
@@ -244,7 +245,7 @@ public struct IssueListView: View {
                     Button {
                         Task { await vm.updateStatus(issueId: issue.id, to: .done) }
                     } label: {
-                        Label("Done", systemImage: "checkmark.circle")
+                        Label(AppStrings.localized("Done", language: appLanguage), systemImage: "checkmark.circle")
                     }
                     .tint(.green)
                 }
@@ -260,7 +261,7 @@ public struct IssueListView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Image(systemName: status.icon)
-                            MarkdownText(status.displayName).font(.caption.bold())
+                            MarkdownText(AppStrings.localized(status.displayName, language: appLanguage)).font(.caption.bold())
                             MarkdownText("(\(issues.count))").font(.caption).foregroundStyle(.secondary)
                         }
                         .padding(.horizontal, 8)
@@ -284,7 +285,7 @@ public struct IssueListView: View {
                                     Button {
                                         Task { await vm.moveIssue(issueId: issue.id, to: status, beforeIssueId: issues[index - 1].id) }
                                     } label: {
-                                        MarkdownIconLabel("Move Up", systemImage: "arrow.up")
+                                        MarkdownIconLabel(AppStrings.localized("Move Up", language: appLanguage), systemImage: "arrow.up")
                                     }
                                     .accessibilityIdentifier("IssueBoardMoveUp-\(issue.identifier)")
                                 }
@@ -293,7 +294,7 @@ public struct IssueListView: View {
                                         let beforeIssueId = index + 2 < issues.count ? issues[index + 2].id : nil
                                         Task { await vm.moveIssue(issueId: issue.id, to: status, beforeIssueId: beforeIssueId) }
                                     } label: {
-                                        MarkdownIconLabel("Move Down", systemImage: "arrow.down")
+                                        MarkdownIconLabel(AppStrings.localized("Move Down", language: appLanguage), systemImage: "arrow.down")
                                     }
                                     .accessibilityIdentifier("IssueBoardMoveDown-\(issue.identifier)")
                                 }
@@ -302,11 +303,11 @@ public struct IssueListView: View {
                                         Button {
                                             Task { await vm.moveIssue(issueId: issue.id, to: targetStatus) }
                                         } label: {
-                                            MarkdownIconLabel(targetStatus.displayName, systemImage: targetStatus.icon)
+                                            MarkdownIconLabel(AppStrings.localized(targetStatus.displayName, language: appLanguage), systemImage: targetStatus.icon)
                                         }
                                     }
                                 } label: {
-                                    MarkdownIconLabel("Move to Status", systemImage: "arrow.left.arrow.right")
+                                    MarkdownIconLabel(AppStrings.localized("Move to Status", language: appLanguage), systemImage: "arrow.left.arrow.right")
                                 }
                             }
                         }

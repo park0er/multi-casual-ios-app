@@ -620,6 +620,81 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Delete Selected Issues"].waitForExistence(timeout: 5))
     }
 
+    func testDemoInteractiveWalkthroughForVideo() throws {
+        let language = uiConfigValue(
+            environmentKey: "MULTICA_UI_DEMO_LANGUAGE",
+            fileName: "demo-language",
+            defaultValue: "en"
+        )
+        let localized = DemoLabels(language: language)
+        let app = launchApp(initialTab: "inbox", language: language)
+
+        XCTAssertTrue(app.staticTexts[localized.inbox].waitForExistence(timeout: 30))
+        pauseForDemo(2)
+
+        tapTab(localized.issues, in: app)
+        XCTAssertTrue(app.staticTexts[localized.issues].waitForExistence(timeout: 30))
+        pauseForDemo(2)
+
+        if app.buttons["IssueSortMenu"].waitForExistence(timeout: 10) {
+            app.buttons["IssueSortMenu"].tap()
+            pauseForDemo(1)
+            if app.buttons[localized.descending].exists {
+                app.buttons[localized.descending].tap()
+            } else {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.52, dy: 0.35)).tap()
+            }
+        }
+        pauseForDemo(2)
+
+        if app.buttons["IssueViewModeToggle"].waitForExistence(timeout: 10) {
+            app.buttons["IssueViewModeToggle"].tap()
+            pauseForDemo(2)
+            app.buttons["IssueViewModeToggle"].tap()
+        }
+        pauseForDemo(1)
+
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.095)).tap()
+        if app.navigationBars[localized.newIssue].waitForExistence(timeout: 10) {
+            pauseForDemo(2)
+            app.buttons[localized.cancel].tap()
+            pauseForDemo(1)
+        }
+
+        let firstIssue = app.cells.element(boundBy: 0)
+        if firstIssue.waitForExistence(timeout: 20) {
+            firstIssue.tap()
+            pauseForDemo(4)
+            if app.buttons["IssueDetailEditButton"].waitForExistence(timeout: 8) {
+                app.buttons["IssueDetailEditButton"].tap()
+                pauseForDemo(2)
+                if app.buttons[localized.cancel].exists {
+                    app.buttons[localized.cancel].tap()
+                }
+                pauseForDemo(1)
+            }
+        }
+
+        tapTab(localized.projects, in: app)
+        XCTAssertTrue(app.staticTexts[localized.projects].waitForExistence(timeout: 30))
+        pauseForDemo(2)
+
+        let firstProject = app.cells.element(boundBy: 0)
+        if firstProject.waitForExistence(timeout: 20) {
+            firstProject.tap()
+            pauseForDemo(3)
+        }
+
+        tapTab(localized.settings, in: app)
+        XCTAssertTrue(app.staticTexts[localized.settings].waitForExistence(timeout: 30))
+        pauseForDemo(2)
+
+        if app.buttons[localized.agents].waitForExistence(timeout: 10) {
+            app.buttons[localized.agents].tap()
+            pauseForDemo(3)
+        }
+    }
+
     func testCreateIssueSubmitsToBackendWhenMutationTestsEnabled() throws {
         try requireMutationTestsEnabled(reason: "create a real backend issue")
         guard mutationFlagEnabled(
@@ -1025,7 +1100,8 @@ final class Multi-CasualUITests: XCTestCase {
         taskId: String? = nil,
         openCreateSheet: Bool = false,
         useWorkspaceOverride: Bool = true,
-        createDefaults: [String: String] = [:]
+        createDefaults: [String: String] = [:],
+        language: String = "en"
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["MULTICA_DEBUG_SKIP_PUSH_PROMPT"] = "1"
@@ -1041,7 +1117,7 @@ final class Multi-CasualUITests: XCTestCase {
         if useWorkspaceOverride {
             app.launchEnvironment["MULTICA_DEBUG_WORKSPACE_ID"] = workspaceId
         }
-        app.launchEnvironment["MULTICA_DEBUG_APP_LANGUAGE"] = "en"
+        app.launchEnvironment["MULTICA_DEBUG_APP_LANGUAGE"] = language
         app.launchEnvironment["MULTICA_DEBUG_INITIAL_TAB"] = initialTab
         if let issueId {
             app.launchEnvironment["MULTICA_DEBUG_INITIAL_ISSUE_ID"] = issueId
@@ -1316,6 +1392,43 @@ final class Multi-CasualUITests: XCTestCase {
         let tab = app.tabBars.buttons[title]
         XCTAssertTrue(tab.waitForExistence(timeout: 10))
         tab.tap()
+    }
+
+    private func pauseForDemo(_ seconds: TimeInterval) {
+        RunLoop.current.run(until: Date().addingTimeInterval(seconds))
+    }
+
+    private struct DemoLabels {
+        let inbox: String
+        let issues: String
+        let projects: String
+        let settings: String
+        let agents: String
+        let newIssue: String
+        let cancel: String
+        let descending: String
+
+        init(language: String) {
+            if language == "zh-Hans" {
+                inbox = "收件箱"
+                issues = "Issues"
+                projects = "项目"
+                settings = "设置"
+                agents = "Agents"
+                newIssue = "新建 Issue"
+                cancel = "取消"
+                descending = "降序"
+            } else {
+                inbox = "Inbox"
+                issues = "Issues"
+                projects = "Projects"
+                settings = "Settings"
+                agents = "Agents"
+                newIssue = "New Issue"
+                cancel = "Cancel"
+                descending = "Descending"
+            }
+        }
     }
 
     private func waitForWorkspaceResourceState(

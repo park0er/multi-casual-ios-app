@@ -6,3 +6,10 @@ DerivedData/
 .swiftpm/configuration/registries.json
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
+
+# Generated demo/render artifacts. Final videos should be attached to GitHub
+# Releases or another stable media host instead of committed directly.
+artifacts/**/.render/
+artifacts/**/*.sparse.mp4
+artifacts/**/assets/*.mp4
+artifacts/videos/*.mp4

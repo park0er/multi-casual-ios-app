@@ -4,6 +4,7 @@ import SwiftUI
 public struct InboxView: View {
     @Environment(APIClient.self) private var api
     @Environment(AuthSession.self) private var authSession
+    @Environment(\.appLanguage) private var appLanguage
     @State private var viewModel: InboxViewModel?
     @State private var observedWorkspaceId: String?
     @State private var showingArchiveConfirmation = false
@@ -16,7 +17,11 @@ public struct InboxView: View {
             if let vm = viewModel {
                 List {
                     if vm.loader.items.isEmpty && !vm.loader.hasMore && !vm.loader.isLoading && vm.lastError == nil {
-                        ContentUnavailableView("No Inbox Items", systemImage: "tray", description: Text("There are no active notifications in this workspace."))
+                        ContentUnavailableView(
+                            AppStrings.localized("No Inbox Items", language: appLanguage),
+                            systemImage: "tray",
+                            description: Text(AppStrings.localized("There are no active notifications in this workspace.", language: appLanguage))
+                        )
                     }
                     ForEach(vm.loader.items) { item in
                         NavigationLink(destination: IssueDetailView(issueId: item.issueId)) {
@@ -27,7 +32,7 @@ public struct InboxView: View {
                                 vm.requestArchive(id: item.id)
                                 showingArchiveConfirmation = vm.pendingArchiveItem != nil
                             } label: {
-                                Label("Archive", systemImage: "archivebox")
+                                Label(AppStrings.localized("Archive", language: appLanguage), systemImage: "archivebox")
                             }
                         }
                         .swipeActions(edge: .leading, allowsFullSwipe: false) {
@@ -35,7 +40,7 @@ public struct InboxView: View {
                                 Button {
                                     Task { await vm.markRead(id: item.id) }
                                 } label: {
-                                    Label("Read", systemImage: "envelope.open")
+                                    Label(AppStrings.localized("Read", language: appLanguage), systemImage: "envelope.open")
                                 }
                                 .tint(.blue)
                             }
@@ -70,14 +75,14 @@ public struct InboxView: View {
                 }
             } else { ProgressView() }
         }
-        .navigationTitle("Inbox")
+        .navigationTitle(AppStrings.localized("Inbox", language: appLanguage))
         .toolbar {
             if let vm = viewModel {
                 ToolbarItem(placement: .topBarLeading) {
                     NavigationLink {
                         ChatView()
                     } label: {
-                        Label("Chat", systemImage: "message")
+                        Label(AppStrings.localized("Chat", language: appLanguage), systemImage: "message")
                     }
                     .accessibilityIdentifier("InboxChatButton")
                 }
@@ -86,7 +91,7 @@ public struct InboxView: View {
                         Button {
                             Task { await vm.markAllRead() }
                         } label: {
-                            Label("Mark All Read", systemImage: "envelope.open")
+                            Label(AppStrings.localized("Mark All Read", language: appLanguage), systemImage: "envelope.open")
                         }
                         .disabled(vm.unreadCount == 0 || vm.loader.isLoading)
                         .accessibilityIdentifier("InboxMarkAllReadButton")
@@ -95,7 +100,7 @@ public struct InboxView: View {
                             vm.requestBulkArchive(.read)
                             showingBulkArchiveConfirmation = true
                         } label: {
-                            MarkdownIconLabel(InboxBulkArchiveAction.read.menuTitle, systemImage: "archivebox")
+                            MarkdownIconLabel(AppStrings.localized(InboxBulkArchiveAction.read.menuTitle, language: appLanguage), systemImage: "archivebox")
                         }
                         .disabled(!vm.loader.items.contains { $0.read } || vm.loader.isLoading)
 
@@ -103,7 +108,7 @@ public struct InboxView: View {
                             vm.requestBulkArchive(.completed)
                             showingBulkArchiveConfirmation = true
                         } label: {
-                            MarkdownIconLabel(InboxBulkArchiveAction.completed.menuTitle, systemImage: "checkmark.circle")
+                            MarkdownIconLabel(AppStrings.localized(InboxBulkArchiveAction.completed.menuTitle, language: appLanguage), systemImage: "checkmark.circle")
                         }
                         .disabled(!vm.loader.items.contains { $0.issueStatus == .done } || vm.loader.isLoading)
 
@@ -111,11 +116,11 @@ public struct InboxView: View {
                             vm.requestBulkArchive(.all)
                             showingBulkArchiveConfirmation = true
                         } label: {
-                            MarkdownIconLabel(InboxBulkArchiveAction.all.menuTitle, systemImage: "archivebox.fill")
+                            MarkdownIconLabel(AppStrings.localized(InboxBulkArchiveAction.all.menuTitle, language: appLanguage), systemImage: "archivebox.fill")
                         }
                         .disabled(vm.loader.items.isEmpty || vm.loader.isLoading)
                     } label: {
-                        Label("Inbox Actions", systemImage: "ellipsis.circle")
+                        Label(AppStrings.localized("Inbox Actions", language: appLanguage), systemImage: "ellipsis.circle")
                     }
                     .accessibilityIdentifier("InboxActionsMenu")
                 }

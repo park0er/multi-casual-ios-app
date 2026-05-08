@@ -49,6 +49,13 @@ public final class AppLanguageSettings {
 
     public init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
+        #if DEBUG
+        if let rawLanguage = ProcessInfo.processInfo.environment["MULTICA_DEBUG_APP_LANGUAGE"],
+           let language = AppLanguage(rawValue: rawLanguage) {
+            self.language = language
+            return
+        }
+        #endif
         let rawValue = userDefaults.string(forKey: Self.defaultsKey)
         self.language = rawValue.flatMap(AppLanguage.init(rawValue:)) ?? .system
     }
@@ -76,6 +83,7 @@ public enum AppStrings {
         "Add Attachment": "添加附件",
         "Add Reaction": "添加回应",
         "Add Sub-issue": "添加子 Issue",
+        "Agent": "Agent",
         "Agents": "Agents",
         "Agent Activity": "Agent 活动",
         "Agent Transcript": "Agent 记录",
@@ -88,8 +96,10 @@ public enum AppStrings {
         "Assignee": "负责人",
         "Autopilots": "自动任务",
         "Backlog": "积压",
+        "Blocked": "受阻",
         "Cancel": "取消",
         "Cancel Task": "取消任务",
+        "Cancelled": "已取消",
         "Chat": "聊天",
         "Clear Selection": "清除选择",
         "Comments": "评论",
@@ -108,9 +118,12 @@ public enum AppStrings {
         "Error": "错误",
         "Feedback": "反馈",
         "High": "高",
+        "In Progress": "进行中",
+        "In Review": "评审中",
         "Inbox": "收件箱",
         "Inbox Actions": "收件箱操作",
         "Input": "输入",
+        "Issue": "Issue",
         "Issue linked": "已关联 Issue",
         "Issues": "Issues",
         "Labels": "标签",
@@ -127,8 +140,8 @@ public enum AppStrings {
         "Move Down": "下移",
         "Move Up": "上移",
         "Move to Status": "移动到状态",
-        "My Agents": "我的 Agents",
-        "My Issues": "我的 Issues",
+        "My Agents": "My Agents",
+        "My Issues": "My Issues",
         "New Issue": "新建 Issue",
         "No Active Tasks": "没有运行中的任务",
         "No Activity": "没有活动",
@@ -137,7 +150,11 @@ public enum AppStrings {
         "No Messages": "没有消息",
         "No Priority": "无优先级",
         "No Project": "无项目",
-        "No sub-issues": "没有子 Issues",
+        "No Agent Issues": "没有 Agent Issues",
+        "No Assigned Issues": "没有分配给我的 Issues",
+        "No Created Issues": "没有我创建的 Issues",
+        "No Issues": "没有 Issues",
+        "No sub-issues": "没有子 Issue",
         "No subscribers": "没有订阅者",
         "No Usage": "没有用量",
         "No workspace": "没有工作区",
@@ -156,17 +173,21 @@ public enum AppStrings {
         "Runtimes": "运行时",
         "Save": "保存",
         "Search issues": "搜索 Issues",
+        "Search projects": "搜索项目",
         "Settings": "设置",
-        "Skills": "技能",
+        "Skills": "Skills",
         "Newest First": "最新优先",
         "Sort": "排序",
         "Sort by": "排序维度",
         "Status": "状态",
         "Sub-issues": "子 Issues",
+        "There are no issues in this workspace.": "此工作区没有 Issues。",
+        "There are no projects in this workspace.": "此工作区没有项目。",
         "Subscribers": "订阅者",
         "System": "跟随系统",
         "Thinking": "思考",
         "Tool Use": "工具调用",
+        "Todo": "待办",
         "Transcript Unavailable": "记录不可用",
         "Unread": "未读",
         "Updated": "已更新",

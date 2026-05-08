@@ -4,6 +4,7 @@ import SwiftUI
 public struct ProjectsView: View {
     @Environment(AuthSession.self) private var authSession
     @Environment(APIClient.self) private var api
+    @Environment(\.appLanguage) private var appLanguage
     @State private var viewModel: ProjectsViewModel?
     @State private var showCreateProject = false
     @State private var editingProject: Project?
@@ -18,7 +19,11 @@ public struct ProjectsView: View {
             if let vm = viewModel {
                 List {
                     if vm.loader.items.isEmpty && !vm.loader.hasMore && !vm.loader.isLoading && vm.lastError == nil {
-                        ContentUnavailableView("No Projects", systemImage: "folder", description: Text("There are no projects in this workspace."))
+                        ContentUnavailableView(
+                            AppStrings.localized("No Projects", language: appLanguage),
+                            systemImage: "folder",
+                            description: Text(AppStrings.localized("There are no projects in this workspace.", language: appLanguage))
+                        )
                     }
                     ForEach(vm.loader.items) { project in
                         NavigationLink(destination: ProjectDetailView(project: project)) {
@@ -34,9 +39,9 @@ public struct ProjectsView: View {
                                         MarkdownText(desc).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                                     }
                                     HStack(spacing: 8) {
-                                        MarkdownIconLabel(project.status.displayName, systemImage: project.status.icon)
-                                        MarkdownIconLabel(project.priority.displayName, systemImage: "flag")
-                                        MarkdownText("\(project.doneCount)/\(project.issueCount) done")
+                                        MarkdownIconLabel(AppStrings.localized(project.status.displayName, language: appLanguage), systemImage: project.status.icon)
+                                        MarkdownIconLabel(AppStrings.localized(project.priority.displayName, language: appLanguage), systemImage: "flag")
+                                        MarkdownText("\(project.doneCount)/\(project.issueCount) \(AppStrings.localized("Done", language: appLanguage))")
                                     }
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
@@ -49,12 +54,12 @@ public struct ProjectsView: View {
                                 pendingDeleteProject = project
                                 showDeleteProjectConfirmation = true
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label(AppStrings.localized("Delete", language: appLanguage), systemImage: "trash")
                             }
                             Button {
                                 editingProject = project
                             } label: {
-                                Label("Edit", systemImage: "pencil")
+                                Label(AppStrings.localized("Edit", language: appLanguage), systemImage: "pencil")
                             }
                             .tint(.blue)
                         }
@@ -68,7 +73,7 @@ public struct ProjectsView: View {
                 }
                 .listStyle(.plain)
                 .refreshable { await vm.refresh() }
-                .searchable(text: $searchText, prompt: "Search projects")
+                .searchable(text: $searchText, prompt: AppStrings.localized("Search projects", language: appLanguage))
                 .onSubmit(of: .search) {
                     Task { await vm.setSearchQuery(searchText) }
                 }
@@ -81,7 +86,7 @@ public struct ProjectsView: View {
                         Button {
                             showCreateProject = true
                         } label: {
-                            Label("New Project", systemImage: "plus")
+                            Label(AppStrings.localized("New Project", language: appLanguage), systemImage: "plus")
                         }
                         .accessibilityIdentifier("ProjectsNewButton")
                     }
@@ -110,7 +115,7 @@ public struct ProjectsView: View {
                 )
             } else { ProgressView() }
         }
-        .navigationTitle("Projects")
+        .navigationTitle(AppStrings.localized("Projects", language: appLanguage))
         .onAppear {
             if viewModel == nil {
                 viewModel = ProjectsViewModel(api: api, authSession: authSession)
