@@ -1,0 +1,30 @@
+Multica iOS App Source Review License
+
+Copyright (c) 2026 Xisheng Parker Zhao.
+All rights reserved.
+
+This repository is made publicly visible for source review, upstream
+contribution discussion, security review, and maintainer evaluation only.
+
+No license is granted to use, copy, modify, merge, publish, distribute,
+sublicense, sell, host, embed, train models on, or create derivative works
+from this software, documentation, videos, designs, or other repository
+materials, in whole or in part, without prior written permission from the
+copyright holder.
+
+You may view the source code and related materials through GitHub for the
+limited purpose of evaluating the project and discussing a possible
+contribution path with the Multica maintainers. Any permissions required by
+GitHub's Terms of Service for viewing or forking a public repository are not
+expanded by this notice.
+
+Unauthorized reproduction, redistribution, commercial use, incorporation into
+another product, or presentation of this work as your own is prohibited.
+
+This project is not an official Multica application unless and until the
+Multica maintainers state otherwise in writing. The Multica name, brand, APIs,
+and upstream project remain subject to their respective owners' rights and
+licenses.
+
+If a future upstream contribution, relicensing, or separate commercial license
+is desired, contact the copyright holder for written permission.

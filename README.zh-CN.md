@@ -2,7 +2,7 @@
 
 这是一个实验性的 SwiftUI iOS 客户端，用来探索 Multica Web 端核心工作流在 iPhone 上的体验对齐。
 
-> 当前状态：公开源码评审 / 上游贡献提案。仓库目前还没有明确 license，也不是 Multica 官方 App。在与上游 maintainers 确认 license、命名和品牌边界之前，不应分发 build，也不应暗示这是 Multica 官方 App。
+> 当前状态：公开源码评审 / 上游贡献提案。这个仓库不是 Multica 官方 App。代码仅按仓库的 source-review license 公开用于评审；未经书面许可，不得复制、改造、再发布、分发 build，也不得暗示这是 Multica 官方 App。
 
 ## 项目是什么
 
@@ -104,4 +104,6 @@ swift test --scratch-path /tmp/multicaapp-swift-test-20260508
 
 ## License
 
-当前还没有选择 license。在添加 license 前，默认保留所有权利。
+本仓库使用保守的 source-review license。它**不是**开源 license。
+
+你可以为评估和上游贡献讨论而查看代码，但未经书面许可，不得复制、修改、分发、商业化或复用本项目。详见 `LICENSE`。

@@ -2,7 +2,7 @@
 
 An experimental SwiftUI iOS client for Multica, built to explore mobile parity with the Multica web app.
 
-> Status: public source review / upstream contribution proposal. This repository currently has no declared license and is not an official Multica app. Do not redistribute builds or imply official Multica endorsement until license, naming, and branding boundaries are confirmed with the upstream maintainers.
+> Status: public source review / upstream contribution proposal. This repository is not an official Multica app. The code is public for review only under the repository's source-review license; do not copy, redistribute, publish builds, or imply official Multica endorsement unless separate written permission is granted.
 
 ## What It Is
 
@@ -104,4 +104,6 @@ See:
 
 ## License
 
-No license has been selected yet. All rights are reserved until a license is added.
+This repository uses a conservative source-review license. It is **not** an open-source license.
+
+You may view the code for evaluation and upstream contribution discussion, but no permission is granted to copy, modify, distribute, commercialize, or reuse the project without written permission. See `LICENSE`.
