@@ -46,7 +46,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1A0000000000000000000010"
             BuildableName = "Multi-Casual.app"
-            BlueprintName = "MultiCasual"
+            BlueprintName = "Multi-CasualHost"
             ReferencedContainer = "container:Multi-Casual.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -63,7 +63,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1A0000000000000000000010"
             BuildableName = "Multi-Casual.app"
-            BlueprintName = "MultiCasual"
+            BlueprintName = "Multi-CasualHost"
             ReferencedContainer = "container:Multi-Casual.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

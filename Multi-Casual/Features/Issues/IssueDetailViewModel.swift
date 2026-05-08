@@ -4,6 +4,20 @@ import Observation
 @Observable
 @MainActor
 public final class IssueDetailViewModel {
+    public enum CommentSortOrder: String, CaseIterable, Identifiable {
+        case ascending
+        case descending
+
+        public var id: String { rawValue }
+
+        public var displayName: String {
+            switch self {
+            case .ascending: return "Oldest First"
+            case .descending: return "Newest First"
+            }
+        }
+    }
+
     public let issueId: String
     public let workspaceId: String?
     public var issue: Issue?
@@ -18,6 +32,7 @@ public final class IssueDetailViewModel {
     public var subscriberMembers: [WorkspaceMember] = []
     public var subscriberAgents: [Agent] = []
     public let commentLoader = PaginatedLoader<Comment>()
+    public private(set) var commentSortOrder: CommentSortOrder = .descending
     public var commentDraft = ""
     public var commentAttachments: [Attachment] = []
     public var replyAttachments: [String: [Attachment]] = [:]
@@ -89,6 +104,13 @@ public final class IssueDetailViewModel {
         timelineEntries.filter { $0.type == .activity }
     }
 
+    public var displayedComments: [Comment] {
+        commentLoader.items.sorted {
+            $0.createdAt == $1.createdAt ? $0.id < $1.id :
+                (commentSortOrder == .ascending ? $0.createdAt < $1.createdAt : $0.createdAt > $1.createdAt)
+        }
+    }
+
     public var usageSummaryText: String {
         guard let usage else { return "No usage recorded" }
         let taskUnit = usage.taskCount == 1 ? "task" : "tasks"
@@ -96,8 +118,10 @@ public final class IssueDetailViewModel {
     }
 
     public func loadInitialData() async {
-        await loadIssueAndMetadata()
+        await loadIssue()
         guard issue != nil, error == nil else { return }
+        async let metadata: Void = loadMetadata()
+        async let relations: Void = loadIssueRelations()
         async let comments: Void = loadComments()
         async let agentRuns: Void = loadAgentRuns()
         async let activeTasks: Void = loadActiveTasks()
@@ -105,7 +129,7 @@ public final class IssueDetailViewModel {
         async let usage: Void = loadUsage()
         async let subscribers: Void = loadSubscribers()
         async let attachments: Void = loadAttachments()
-        _ = await (comments, agentRuns, activeTasks, timeline, usage, subscribers, attachments)
+        _ = await (metadata, relations, comments, agentRuns, activeTasks, timeline, usage, subscribers, attachments)
     }
 
     public func loadIssue() async {
@@ -253,6 +277,23 @@ public final class IssueDetailViewModel {
                 ?? "Agent \(subscriber.userId.prefix(8))"
         default:
             return "\(subscriber.userType.capitalized) \(subscriber.userId.prefix(8))"
+        }
+    }
+
+    public func setCommentSortOrder(_ order: CommentSortOrder) {
+        commentSortOrder = order
+    }
+
+    public func commentAuthorName(for comment: Comment) -> String {
+        switch comment.authorType {
+        case "member":
+            return subscriberMembers.first { $0.userId == comment.authorId || $0.id == comment.authorId }?.name
+                ?? "Member \(comment.authorId.prefix(8))"
+        case "agent":
+            return subscriberAgents.first { $0.id == comment.authorId }?.name
+                ?? "Agent \(comment.authorId.prefix(8))"
+        default:
+            return "\(comment.authorType.capitalized) \(comment.authorId.prefix(8))"
         }
     }
 

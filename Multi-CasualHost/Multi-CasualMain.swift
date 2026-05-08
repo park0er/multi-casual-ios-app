@@ -8,16 +8,24 @@ struct Multi-CasualMain: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var authSession = AuthSession()
     @State private var apiClient = APIClient()
+    @State private var languageSettings = AppLanguageSettings()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(authSession)
                 .environment(apiClient)
+                .environment(languageSettings)
+                .environment(\.appLanguage, languageSettings.language)
+                .environment(\.locale, Locale(identifier: languageSettings.language.localeIdentifier))
                 .task {
                     apiClient.configure(authSession: authSession)
                     #if DEBUG
                     let env = ProcessInfo.processInfo.environment
+                    if let rawLanguage = env["MULTICA_DEBUG_APP_LANGUAGE"],
+                       let language = AppLanguage(rawValue: rawLanguage) {
+                        languageSettings.language = language
+                    }
                     if env["MULTICA_DEBUG_AUTH_STUB"] == "1" {
                         authSession.currentUser = User(
                             id: "debug-user",

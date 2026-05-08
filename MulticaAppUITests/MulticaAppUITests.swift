@@ -1,22 +1,88 @@
 import XCTest
 
 final class Multi-CasualUITests: XCTestCase {
-    private let workspaceId = "7f97e6b9-2db3-489c-a270-4e4c6d354469"
-    private let workspaceName = "park0er"
-    private let par73IssueId = "9a808431-341f-4ead-8d8c-055e2e00686e"
-    private let projectId = "f96f29f2-abbd-4aae-8962-f44a2c68c3aa"
-    private let memberUserId = "4b05a80a-fa79-45e6-8568-f3bf08e7057b"
-    private let memberDisplayName = "ZhaoXishengGmail"
-    private let agentDisplayName = "RollieCC"
-    private let transcriptTaskId = "9eab0d97-de00-4f90-82a6-d70cbb5161a2"
     private let backendTimeoutMessage = "The server took too long to respond. Please try again."
     private let mutationFlagDirectory = URL(fileURLWithPath: "/tmp/multica-ui-mutation-tests", isDirectory: true)
     private let debugTokenFile = URL(fileURLWithPath: "/tmp/multica-ui-debug-token")
     private let debugNetworkLogFile = URL(fileURLWithPath: "/tmp/multica-ui-network-log")
 
+    private var workspaceId: String {
+        uiConfigValue(
+            environmentKey: "MULTICA_UI_WORKSPACE_ID",
+            fileName: "workspace-id",
+            defaultValue: "7f97e6b9-2db3-489c-a270-4e4c6d354469"
+        )
+    }
+
+    private var workspaceName: String {
+        uiConfigValue(
+            environmentKey: "MULTICA_UI_WORKSPACE_NAME",
+            fileName: "workspace-name",
+            defaultValue: "park0er"
+        )
+    }
+
+    private var par73IssueId: String {
+        uiConfigValue(
+            environmentKey: "MULTICA_UI_PAR73_ISSUE_ID",
+            fileName: "par73-issue-id",
+            defaultValue: "9a808431-341f-4ead-8d8c-055e2e00686e"
+        )
+    }
+
+    private var projectId: String {
+        uiConfigValue(
+            environmentKey: "MULTICA_UI_PROJECT_ID",
+            fileName: "project-id",
+            defaultValue: "f96f29f2-abbd-4aae-8962-f44a2c68c3aa"
+        )
+    }
+
+    private var memberUserId: String {
+        uiConfigValue(
+            environmentKey: "MULTICA_UI_MEMBER_USER_ID",
+            fileName: "member-user-id",
+            defaultValue: "4b05a80a-fa79-45e6-8568-f3bf08e7057b"
+        )
+    }
+
+    private var memberDisplayName: String {
+        uiConfigValue(
+            environmentKey: "MULTICA_UI_MEMBER_DISPLAY_NAME",
+            fileName: "member-display-name",
+            defaultValue: "ZhaoXishengGmail"
+        )
+    }
+
+    private var agentDisplayName: String {
+        uiConfigValue(
+            environmentKey: "MULTICA_UI_AGENT_DISPLAY_NAME",
+            fileName: "agent-display-name",
+            defaultValue: "RollieCC"
+        )
+    }
+
+    private var transcriptTaskId: String {
+        uiConfigValue(
+            environmentKey: "MULTICA_UI_TRANSCRIPT_TASK_ID",
+            fileName: "transcript-task-id",
+            defaultValue: "9eab0d97-de00-4f90-82a6-d70cbb5161a2"
+        )
+    }
+
     override func setUp() {
         super.setUp()
         continueAfterFailure = false
+    }
+
+    func testUITestLaunchConfigurationUsesWorkspaceEnvironmentOverrides() throws {
+        let expectedWorkspaceId = try requiredMutationFileValue("workspace-id")
+        let expectedWorkspaceName = try requiredMutationFileValue("workspace-name")
+        let expectedAgentDisplayName = try requiredMutationFileValue("agent-display-name")
+
+        XCTAssertEqual(workspaceId, expectedWorkspaceId)
+        XCTAssertEqual(workspaceName, expectedWorkspaceName)
+        XCTAssertEqual(agentDisplayName, expectedAgentDisplayName)
     }
 
     func testLoginScreenRendersAndEnablesContinueWithoutSendingCode() {
@@ -50,6 +116,15 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap()
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
+    }
+
+    func testSettingsCanLaunchInChineseLanguage() {
+        let app = launchStubbedAuthenticatedApp(initialTab: "settings", language: "zh-Hans")
+
+        XCTAssertTrue(app.staticTexts["设置"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["工作区"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["SettingsLanguagePicker"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.buttons["收件箱"].waitForExistence(timeout: 10))
     }
 
     func testSettingsWorkspacePickerShowsAvailableWorkspace() {
@@ -436,6 +511,29 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(app.buttons[agentDisplayName].waitForExistence(timeout: 10))
     }
 
+    func testCreateIssuePickersAreTappableFromIssuesTab() {
+        let app = launchApp(initialTab: "issues", openCreateSheet: true)
+
+        XCTAssertTrue(app.navigationBars["New Issue"].waitForExistence(timeout: 20))
+
+        let statusPicker = app.buttons["IssueCreateStatusPicker"]
+        XCTAssertTrue(scrollUntilElementExists(statusPicker, app: app, timeout: 10))
+        statusPicker.tap()
+        XCTAssertTrue(app.buttons["Todo"].waitForExistence(timeout: 10))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        let priorityPicker = app.buttons["IssueCreatePriorityPicker"]
+        XCTAssertTrue(scrollUntilElementExists(priorityPicker, app: app, timeout: 10))
+        priorityPicker.tap()
+        XCTAssertTrue(app.buttons["No Priority"].waitForExistence(timeout: 10))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        let projectPicker = app.buttons["IssueCreateProjectPicker"]
+        XCTAssertTrue(scrollUntilElementExists(projectPicker, app: app, timeout: 10))
+        projectPicker.tap()
+        XCTAssertTrue(app.buttons["No Project"].waitForExistence(timeout: 10))
+    }
+
     func testIssueListFilterSortAndBoardControlsAreReachable() {
         let app = launchApp(initialTab: "issues")
 
@@ -453,9 +551,19 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(sortMenu.waitForExistence(timeout: 10))
         sortMenu.tap()
         XCTAssertTrue(app.buttons["Default"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Number"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Priority"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Updated"].waitForExistence(timeout: 5))
-        app.buttons["Default"].tap()
+        XCTAssertTrue(app.buttons["Ascending"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Descending"].waitForExistence(timeout: 5))
+        app.buttons["Descending"].tap()
+
+        let statusHeader = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "IssueStatusSectionHeader-")).firstMatch
+        XCTAssertTrue(statusHeader.waitForExistence(timeout: 10))
+        statusHeader.tap()
+        XCTAssertTrue(waitForValue(statusHeader, timeout: 5) { $0.contains("Collapsed") })
+        statusHeader.tap()
+        XCTAssertTrue(waitForValue(statusHeader, timeout: 5) { $0.contains("Expanded") })
 
         let boardToggle = app.buttons["IssueViewModeToggle"]
         XCTAssertTrue(boardToggle.waitForExistence(timeout: 10))
@@ -631,10 +739,12 @@ final class Multi-CasualUITests: XCTestCase {
             timeout: 20,
             reason: "Issue detail endpoint timed out before metadata coverage could run."
         )
-        XCTAssertTrue(app.staticTexts["Agent Activity"].waitForExistence(timeout: 20))
-        XCTAssertTrue(app.buttons["IssueDetailAddCommentAttachmentButton"].waitForExistence(timeout: 10))
+        XCTAssertTrue(scrollUntilElementExists(app.staticTexts["Latest Progress"], app: app, timeout: 20))
+        XCTAssertTrue(scrollUntilElementExists(app.staticTexts["Comments"], app: app, timeout: 10))
+        XCTAssertTrue(scrollUntilElementExists(app.buttons["IssueDetailAgentWorkDetails"], app: app, timeout: 20))
+        XCTAssertTrue(scrollUntilElementExists(app.buttons["IssueDetailAddCommentAttachmentButton"], app: app, timeout: 10))
         let commentField = app.descendants(matching: .any)["IssueDetailCommentInput"].firstMatch
-        XCTAssertTrue(commentField.waitForExistence(timeout: 10))
+        XCTAssertTrue(scrollUntilElementExists(commentField, app: app, timeout: 10))
         commentField.tap()
         commentField.typeText("UI draft")
         XCTAssertTrue(commentField.value.debugDescription.contains("UI draft"))
@@ -746,6 +856,12 @@ final class Multi-CasualUITests: XCTestCase {
         ) else {
             throw XCTSkip("Set MULTICA_UI_MUTATION_ISSUE_TITLE or write a disposable issue title to /tmp/multica-ui-mutation-tests/issue-title before updating status.")
         }
+        guard let issueId = mutationValue(
+            environmentKey: "MULTICA_UI_MUTATION_ISSUE_ID",
+            fileName: "issue-id"
+        ) else {
+            throw XCTSkip("Set MULTICA_UI_MUTATION_ISSUE_ID or write a disposable issue id to /tmp/multica-ui-mutation-tests/issue-id before updating status.")
+        }
         let app = launchApp(initialTab: "issues")
 
         XCTAssertTrue(app.staticTexts["Issues"].waitForExistence(timeout: 20))
@@ -757,7 +873,10 @@ final class Multi-CasualUITests: XCTestCase {
         rowButton.swipeLeft()
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
         app.buttons["Done"].tap()
-        XCTAssertTrue(waitForNonExistence(app.buttons["Done"], timeout: 10))
+
+        app.terminate()
+        let detailApp = launchApp(initialTab: "issues", issueId: issueId)
+        XCTAssertTrue(detailApp.staticTexts["Done"].waitForExistence(timeout: 20))
     }
 
     func testIssueDetailSubmitsCommentWhenMutationTestsEnabled() throws {
@@ -788,7 +907,9 @@ final class Multi-CasualUITests: XCTestCase {
         XCTAssertTrue(sendButton.isEnabled)
         sendButton.tap()
 
-        XCTAssertTrue(app.staticTexts[comment].waitForExistence(timeout: 30))
+        XCTAssertTrue(waitForValue(commentField, timeout: 30) { value in
+            !value.contains(comment)
+        })
     }
 
     func testAgentTranscriptRendersTimeline() {
@@ -851,9 +972,13 @@ final class Multi-CasualUITests: XCTestCase {
     }
 
     func testChatCreateSheetOpensWithoutSubmitting() {
-        let app = launchStubbedAuthenticatedApp(initialTab: "chat")
+        let app = launchStubbedAuthenticatedApp(initialTab: "inbox")
 
-        XCTAssertTrue(app.navigationBars["Chat"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.navigationBars["Inbox"].waitForExistence(timeout: 20))
+        let chatButton = app.buttons["InboxChatButton"]
+        XCTAssertTrue(chatButton.waitForExistence(timeout: 10))
+        chatButton.tap()
+        XCTAssertTrue(app.navigationBars["Chat"].waitForExistence(timeout: 10))
         let newChatButton = app.buttons["ChatNewButton"]
         XCTAssertTrue(newChatButton.waitForExistence(timeout: 10))
         newChatButton.tap()
@@ -916,6 +1041,7 @@ final class Multi-CasualUITests: XCTestCase {
         if useWorkspaceOverride {
             app.launchEnvironment["MULTICA_DEBUG_WORKSPACE_ID"] = workspaceId
         }
+        app.launchEnvironment["MULTICA_DEBUG_APP_LANGUAGE"] = "en"
         app.launchEnvironment["MULTICA_DEBUG_INITIAL_TAB"] = initialTab
         if let issueId {
             app.launchEnvironment["MULTICA_DEBUG_INITIAL_ISSUE_ID"] = issueId
@@ -967,7 +1093,7 @@ final class Multi-CasualUITests: XCTestCase {
         return app
     }
 
-    private func launchStubbedAuthenticatedApp(initialTab: String) -> XCUIApplication {
+    private func launchStubbedAuthenticatedApp(initialTab: String, language: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["MULTICA_DEBUG_SKIP_PUSH_PROMPT"] = "1"
         app.launchEnvironment["MULTICA_DEBUG_AUTH_STUB"] = "1"
@@ -976,6 +1102,7 @@ final class Multi-CasualUITests: XCTestCase {
         app.launchEnvironment["MULTICA_DEBUG_WORKSPACE_NAME"] = workspaceName
         app.launchEnvironment["MULTICA_DEBUG_WORKSPACE_SLUG"] = workspaceName
         app.launchEnvironment["MULTICA_DEBUG_WORKSPACE_PREFIX"] = "PAR"
+        app.launchEnvironment["MULTICA_DEBUG_APP_LANGUAGE"] = language ?? "en"
         addTeardownBlock {
             if app.state != .notRunning {
                 app.terminate()
@@ -1044,6 +1171,32 @@ final class Multi-CasualUITests: XCTestCase {
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !value.isEmpty else {
             return nil
+        }
+        return value
+    }
+
+    private func uiConfigValue(environmentKey: String, fileName: String, defaultValue: String) -> String {
+        if let value = ProcessInfo.processInfo.environment[environmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !value.isEmpty {
+            return value
+        }
+
+        let url = mutationFlagDirectory.appendingPathComponent(fileName)
+        if let value = try? String(contentsOf: url, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !value.isEmpty {
+            return value
+        }
+
+        return defaultValue
+    }
+
+    private func requiredMutationFileValue(_ fileName: String) throws -> String {
+        let url = mutationFlagDirectory.appendingPathComponent(fileName)
+        guard let value = try? String(contentsOf: url, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            throw XCTSkip("Write \(url.path) to verify UI mutation tests target a disposable workspace.")
         }
         return value
     }

@@ -8,7 +8,6 @@ public struct IssueDetailView: View {
     @Environment(APIClient.self) private var api
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: IssueDetailViewModel?
-    @State private var showTranscript = false
     @State private var showEditIssue = false
     @State private var showCreateSubIssue = false
     @State private var showSubscribers = false
@@ -18,9 +17,9 @@ public struct IssueDetailView: View {
     @State private var showDeleteAttachmentConfirmation = false
     @State private var pendingCancelTask: AgentTask?
     @State private var pendingDeleteAttachment: Attachment?
-    @State private var selectedTaskId: String?
-    @State private var selectedTaskWorkspaceId: String?
+    @State private var selectedTranscript: AgentTranscriptSelection?
     @State private var pinViewModel: PinToggleViewModel?
+    @State private var isAgentWorkExpanded = false
 
     public init(issueId: String) { self.issueId = issueId }
 
@@ -46,11 +45,9 @@ public struct IssueDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showTranscript) {
-            if let taskId = selectedTaskId {
-                AgentTranscriptView(taskId: taskId, workspaceId: selectedTaskWorkspaceId ?? viewModel?.resolvedWorkspaceId)
-                    .presentationDragIndicator(.visible)
-            }
+        .sheet(item: $selectedTranscript) { selection in
+            AgentTranscriptView(taskId: selection.taskId, workspaceId: selection.workspaceId ?? viewModel?.resolvedWorkspaceId)
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showEditIssue) {
             if let vm = viewModel, let issue = vm.issue {
@@ -166,73 +163,26 @@ public struct IssueDetailView: View {
                         issueHeader(issue: issue, vm: vm, currentUserId: authSession.currentUser?.id)
                     }
                     Divider()
+                    latestProgressSection(vm: vm)
+                    Divider()
                     subIssuesSection(vm: vm)
                     Divider()
                     subscribersSection(vm: vm, currentUserId: authSession.currentUser?.id)
                     Divider()
-                    if vm.didLoadTimeline || vm.timelineError != nil || vm.isLoadingTimeline {
-                        timelineSection(vm: vm)
-                        Divider()
-                    }
+                    commentsSection(vm: vm, currentUserId: authSession.currentUser?.id)
+                    Divider()
                     if vm.didLoadUsage || vm.usageError != nil || vm.isLoadingUsage {
                         usageSection(vm: vm)
                         Divider()
                     }
-                    if vm.didLoadActiveTasks || vm.activeTasksError != nil || vm.isLoadingActiveTasks {
-                        activeTasksSection(vm: vm)
+                    if vm.didLoadActiveTasks || vm.activeTasksError != nil || vm.isLoadingActiveTasks ||
+                        vm.didLoadAgentRuns || vm.agentRunsError != nil || vm.isLoadingAgentRuns {
+                        agentWorkDetailsSection(vm: vm)
                         Divider()
                     }
-                    if vm.didLoadAgentRuns || vm.agentRunsError != nil || vm.isLoadingAgentRuns {
-                        agentRunsSection(vm: vm)
-                        Divider()
+                    if vm.didLoadTimeline || vm.timelineError != nil || vm.isLoadingTimeline {
+                        timelineSection(vm: vm)
                     }
-                    Text("Comments").font(.headline).padding(.horizontal)
-                    if let commentsError = vm.commentsError {
-                        ErrorMessageRow(message: commentsError) {
-                            Task { await vm.loadComments() }
-                        }
-                    }
-                    if vm.didLoadComments && vm.commentLoader.items.isEmpty && vm.commentsError == nil && !vm.isLoadingComments {
-                        ContentUnavailableView("No Comments", systemImage: "text.bubble", description: Text("This issue has no comments yet."))
-                            .padding(.horizontal)
-                    }
-                    ForEach(vm.commentLoader.items) { comment in
-                        CommentRowView(
-                            comment: comment,
-                            currentUserId: authSession.currentUser?.id,
-                            replyAttachments: vm.replyAttachments[comment.id] ?? [],
-                            isUploadingReplyAttachment: vm.uploadingReplyAttachmentIds.contains(comment.id),
-                            onReply: { parentId, content in
-                                await vm.submitReply(parentId: parentId, content: content)
-                            },
-                            onEdit: { commentId, content in
-                                await vm.updateComment(commentId: commentId, content: content)
-                            },
-                            onDelete: { commentId in
-                                await vm.deleteComment(commentId: commentId)
-                            },
-                            onUploadReplyAttachment: { parentId, payload in
-                                await vm.uploadReplyAttachment(
-                                    parentId: parentId,
-                                    filename: payload.filename,
-                                    data: payload.data,
-                                    contentType: payload.contentType
-                                )
-                            },
-                            onToggleReaction: { emoji in
-                                Task {
-                                    await vm.toggleCommentReaction(
-                                        commentId: comment.id,
-                                        emoji: emoji,
-                                        currentUserId: authSession.currentUser?.id
-                                    )
-                                }
-                            }
-                        )
-                    }
-                    if vm.commentLoader.hasMore { ProgressView().onAppear {
-                        Task { await vm.loadMoreComments() }
-                    }}
                 }.padding(.vertical)
             }
             .accessibilityIdentifier("IssueDetailScrollView")
@@ -386,7 +336,7 @@ public struct IssueDetailView: View {
     private func subIssuesSection(vm: IssueDetailViewModel) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Sub-issues").font(.headline)
+            MarkdownText("Sub-issues").font(.headline)
                 if !vm.childIssues.isEmpty {
                     MarkdownText(vm.childProgressText)
                         .font(.caption.monospacedDigit())
@@ -416,7 +366,7 @@ public struct IssueDetailView: View {
                 .padding(.horizontal, -16)
             }
             if vm.didLoadIssueRelations && vm.childIssues.isEmpty && vm.issueRelationsError == nil && !vm.isLoadingIssueRelations {
-                Text("No sub-issues")
+                MarkdownText("No sub-issues")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -478,7 +428,7 @@ public struct IssueDetailView: View {
     private func subscribersSection(vm: IssueDetailViewModel, currentUserId: String?) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Subscribers").font(.headline)
+                MarkdownText("Subscribers").font(.headline)
                 Spacer()
                 if let currentUserId {
                     Button {
@@ -510,7 +460,7 @@ public struct IssueDetailView: View {
                 .padding(.horizontal, -16)
             }
             if vm.didLoadSubscribers && vm.subscribers.isEmpty && vm.subscribersError == nil && !vm.isLoadingSubscribers {
-                Text("No subscribers")
+                MarkdownText("No subscribers")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -527,9 +477,194 @@ public struct IssueDetailView: View {
         .padding(.horizontal)
     }
 
+    private func commentsSection(vm: IssueDetailViewModel, currentUserId: String?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                MarkdownText("Comments").font(.headline)
+                Spacer()
+                Picker("Sort", selection: Binding(
+                    get: { vm.commentSortOrder },
+                    set: { vm.setCommentSortOrder($0) }
+                )) {
+                    ForEach(IssueDetailViewModel.CommentSortOrder.allCases) { order in
+                        MarkdownText(order.displayName).tag(order)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("IssueCommentSortPicker")
+            }
+            .padding(.horizontal)
+
+            if let commentsError = vm.commentsError {
+                ErrorMessageRow(message: commentsError) {
+                    Task { await vm.loadComments() }
+                }
+            }
+            if vm.didLoadComments && vm.commentLoader.items.isEmpty && vm.commentsError == nil && !vm.isLoadingComments {
+                ContentUnavailableView("No Comments", systemImage: "text.bubble", description: Text("This issue has no comments yet."))
+                    .padding(.horizontal)
+            }
+            if vm.isLoadingComments && vm.commentLoader.items.isEmpty {
+                ProgressView().padding()
+            }
+            ForEach(vm.displayedComments) { comment in
+                CommentRowView(
+                    comment: comment,
+                    authorDisplayName: vm.commentAuthorName(for: comment),
+                    currentUserId: currentUserId,
+                    replyAttachments: vm.replyAttachments[comment.id] ?? [],
+                    isUploadingReplyAttachment: vm.uploadingReplyAttachmentIds.contains(comment.id),
+                    onReply: { parentId, content in
+                        await vm.submitReply(parentId: parentId, content: content)
+                    },
+                    onEdit: { commentId, content in
+                        await vm.updateComment(commentId: commentId, content: content)
+                    },
+                    onDelete: { commentId in
+                        await vm.deleteComment(commentId: commentId)
+                    },
+                    onUploadReplyAttachment: { parentId, payload in
+                        await vm.uploadReplyAttachment(
+                            parentId: parentId,
+                            filename: payload.filename,
+                            data: payload.data,
+                            contentType: payload.contentType
+                        )
+                    },
+                    onToggleReaction: { emoji in
+                        Task {
+                            await vm.toggleCommentReaction(
+                                commentId: comment.id,
+                                emoji: emoji,
+                                currentUserId: currentUserId
+                            )
+                        }
+                    }
+                )
+            }
+            if vm.didLoadComments && vm.commentLoader.hasMore {
+                ProgressView().onAppear {
+                    Task { await vm.loadMoreComments() }
+                }
+            }
+        }
+        .accessibilityIdentifier("IssueDetailCommentsSection")
+    }
+
+    private func latestProgressSection(vm: IssueDetailViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MarkdownText("Latest Progress").font(.headline)
+            if vm.isLoadingActiveTasks || vm.isLoadingAgentRuns || vm.isLoadingTimeline {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    MarkdownText("Loading latest progress")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else if let task = vm.activeTasks.first {
+                progressRow(
+                    icon: "bolt.circle.fill",
+                    title: "Active agent task",
+                    subtitle: task.status.capitalized,
+                    taskId: task.id,
+                    workspaceId: vm.resolvedWorkspaceId
+                )
+            } else if let run = vm.agentRuns.first {
+                progressRow(
+                    icon: run.status == "failed" ? "exclamationmark.triangle" : "bolt.circle",
+                    title: "Latest agent run",
+                    subtitle: run.status.capitalized,
+                    taskId: run.id,
+                    workspaceId: vm.resolvedWorkspaceId
+                )
+            } else if let entry = vm.timelineActivities.first {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "clock")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22)
+                    VStack(alignment: .leading, spacing: 3) {
+                        MarkdownText(vm.timelineActorName(for: entry))
+                            .font(.subheadline.weight(.semibold))
+                        MarkdownText(vm.activityText(for: entry))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    MarkdownText(iso8601DateOnlyFormatter.string(from: entry.createdAt))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                MarkdownText("No progress updates yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal)
+        .accessibilityIdentifier("IssueDetailLatestProgressSection")
+    }
+
+    private func progressRow(
+        icon: String,
+        title: String,
+        subtitle: String,
+        taskId: String,
+        workspaceId: String?
+    ) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                MarkdownText(title)
+                    .font(.subheadline.weight(.semibold))
+                MarkdownText(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button {
+                selectedTranscript = AgentTranscriptSelection(taskId: taskId, workspaceId: workspaceId)
+            } label: {
+                Label("Open", systemImage: "arrow.up.right")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("IssueDetailLatestProgressOpenButton")
+        }
+    }
+
+    private func agentWorkDetailsSection(vm: IssueDetailViewModel) -> some View {
+        DisclosureGroup(isExpanded: $isAgentWorkExpanded) {
+            VStack(alignment: .leading, spacing: 12) {
+                if vm.didLoadActiveTasks || vm.activeTasksError != nil || vm.isLoadingActiveTasks {
+                    activeTasksSection(vm: vm)
+                }
+                if vm.didLoadAgentRuns || vm.agentRunsError != nil || vm.isLoadingAgentRuns {
+                    agentRunsSection(vm: vm)
+                }
+            }
+            .padding(.top, 8)
+        } label: {
+            HStack {
+                MarkdownText("Agent Work Details").font(.headline)
+                Spacer()
+                MarkdownText("\(vm.activeTasks.count + vm.agentRuns.count)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(.secondary.opacity(0.1), in: Capsule())
+            }
+        }
+        .padding(.horizontal)
+        .accessibilityIdentifier("IssueDetailAgentWorkDetails")
+    }
+
     private func activeTasksSection(vm: IssueDetailViewModel) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Active Tasks").font(.headline).padding(.horizontal)
+            MarkdownText("Active Tasks").font(.subheadline.weight(.semibold)).padding(.horizontal)
             if vm.isLoadingActiveTasks {
                 ProgressView().padding(.horizontal)
             }
@@ -567,7 +702,7 @@ public struct IssueDetailView: View {
 
     private func agentRunsSection(vm: IssueDetailViewModel) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Agent Activity").font(.headline).padding(.horizontal)
+            MarkdownText("Agent Activity").font(.subheadline.weight(.semibold)).padding(.horizontal)
             if vm.isLoadingAgentRuns {
                 ProgressView().padding(.horizontal)
             }
@@ -585,19 +720,19 @@ public struct IssueDetailView: View {
             }
             ForEach(vm.agentRuns) { run in
                 Button {
-                    selectedTaskId = run.id
-                    selectedTaskWorkspaceId = vm.resolvedWorkspaceId
-                    showTranscript = true
+                    selectedTranscript = AgentTranscriptSelection(taskId: run.id, workspaceId: vm.resolvedWorkspaceId)
                 } label: {
                     AgentRunRowView(run: run)
-                }.buttonStyle(.plain)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("IssueDetailAgentRun-\(run.id)")
             }
         }
     }
 
     private func timelineSection(vm: IssueDetailViewModel) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Activity").font(.headline).padding(.horizontal)
+            MarkdownText("Activity").font(.headline).padding(.horizontal)
             if vm.isLoadingTimeline {
                 ProgressView().padding(.horizontal)
             }
@@ -622,7 +757,7 @@ public struct IssueDetailView: View {
 
     private func usageSection(vm: IssueDetailViewModel) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Usage").font(.headline).padding(.horizontal)
+            MarkdownText("Usage").font(.headline).padding(.horizontal)
             if vm.isLoadingUsage {
                 ProgressView().padding(.horizontal)
             }
@@ -732,6 +867,13 @@ public struct IssueDetailView: View {
     }
 }
 
+private struct AgentTranscriptSelection: Identifiable {
+    let taskId: String
+    let workspaceId: String?
+
+    var id: String { "\(workspaceId ?? "current"):\(taskId)" }
+}
+
 private struct ErrorMessageRow: View {
     let message: String
     var retry: (() -> Void)?
@@ -752,6 +894,7 @@ private struct ErrorMessageRow: View {
 
 public struct CommentRowView: View {
     public let comment: Comment
+    let authorDisplayName: String
     let currentUserId: String?
     let replyAttachments: [Attachment]
     let isUploadingReplyAttachment: Bool
@@ -772,6 +915,7 @@ public struct CommentRowView: View {
 
     public init(
         comment: Comment,
+        authorDisplayName: String? = nil,
         currentUserId: String? = nil,
         replyAttachments: [Attachment] = [],
         isUploadingReplyAttachment: Bool = false,
@@ -782,6 +926,7 @@ public struct CommentRowView: View {
         onToggleReaction: @escaping (String) -> Void = { _ in }
     ) {
         self.comment = comment
+        self.authorDisplayName = authorDisplayName ?? (comment.authorType == "agent" ? "Agent" : "Member")
         self.currentUserId = currentUserId
         self.replyAttachments = replyAttachments
         self.isUploadingReplyAttachment = isUploadingReplyAttachment
@@ -796,7 +941,7 @@ public struct CommentRowView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: comment.authorType == "agent" ? "bolt.circle" : "person.circle")
-                MarkdownText(comment.authorType == "agent" ? "Agent" : "Member").font(.caption.bold())
+                MarkdownText(authorDisplayName).font(.caption.bold())
                 Spacer()
                 MarkdownText(iso8601DateOnlyFormatter.string(from: comment.createdAt)).font(.caption2).foregroundStyle(.secondary)
                 if currentUserId != nil {
@@ -1302,7 +1447,7 @@ public struct AgentRunRowView: View {
         HStack {
             Image(systemName: statusIcon).foregroundStyle(statusColor)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Agent run").font(.subheadline.bold())
+                MarkdownText("Agent run").font(.subheadline.bold())
                 MarkdownText(run.startedAt.map(iso8601DisplayFormatter.string(from:)) ?? "")
                     .font(.caption).foregroundStyle(.secondary)
             }

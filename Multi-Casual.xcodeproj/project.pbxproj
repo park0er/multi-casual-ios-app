@@ -11,6 +11,7 @@
 		1A0000000000000000000041 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000031 /* RootView.swift */; };
 		1A0000000000000000000042 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000033 /* Assets.xcassets */; };
 		1A0000000000000000000043 /* Multi-Casual in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0000000000000000000061 /* Multi-Casual */; };
+		1A0000000000000000000044 /* Multi-Casual/Resources/zh-Hans.lproj/Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000034 /* Multi-Casual/Resources/zh-Hans.lproj/Localizable.strings */; };
 		2A0000000000000000000040 /* Multi-CasualUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A0000000000000000000030 /* Multi-CasualUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -30,6 +31,7 @@
 		1A0000000000000000000031 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000032 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1A0000000000000000000033 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1A0000000000000000000034 /* Multi-Casual/Resources/zh-Hans.lproj/Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = "Multi-Casual/Resources/zh-Hans.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
 		2A0000000000000000000011 /* Multi-CasualUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Multi-CasualUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2A0000000000000000000030 /* Multi-CasualUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Multi-CasualUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -57,6 +59,7 @@
 			isa = PBXGroup;
 			children = (
 				1A0000000000000000000002 /* Multi-CasualHost */,
+				1A0000000000000000000034 /* Multi-Casual/Resources/zh-Hans.lproj/Localizable.strings */,
 				2A0000000000000000000002 /* Multi-CasualUITests */,
 				1A0000000000000000000003 /* Products */,
 			);
@@ -159,6 +162,7 @@
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hans",
 			);
 			mainGroup = 1A0000000000000000000001;
 			packageReferences = (
@@ -180,6 +184,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1A0000000000000000000042 /* Assets.xcassets in Resources */,
+				1A0000000000000000000044 /* Multi-Casual/Resources/zh-Hans.lproj/Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -347,7 +352,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 373JSZMNM5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Multi-CasualHost/Info.plist;
@@ -373,7 +378,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 373JSZMNM5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Multi-CasualHost/Info.plist;

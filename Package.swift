@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "MultiCasual",
+    defaultLocalization: "en",
     platforms: [
         .iOS(.v17),
         .macOS(.v14)   // enables `swift test` without simulator

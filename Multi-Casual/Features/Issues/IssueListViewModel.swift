@@ -49,6 +49,7 @@ public final class IssueListViewModel {
     public enum ViewMode { case list, board }
     public enum SortOption: String, CaseIterable {
         case position
+        case number
         case priority
         case updated
         case created
@@ -57,10 +58,30 @@ public final class IssueListViewModel {
         public var displayName: String {
             switch self {
             case .position: return "Default"
+            case .number: return "Number"
             case .priority: return "Priority"
             case .updated: return "Updated"
             case .created: return "Created"
             case .title: return "Title"
+            }
+        }
+    }
+
+    public enum SortDirection: String, CaseIterable {
+        case ascending
+        case descending
+
+        public var displayName: String {
+            switch self {
+            case .ascending: return "Ascending"
+            case .descending: return "Descending"
+            }
+        }
+
+        public var icon: String {
+            switch self {
+            case .ascending: return "arrow.up"
+            case .descending: return "arrow.down"
             }
         }
     }
@@ -78,6 +99,7 @@ public final class IssueListViewModel {
     public private(set) var batchAssigneeOptions: [IssueAssigneeOption] = []
     public private(set) var selectedIssueIds: Set<String> = []
     public private(set) var sortOption: SortOption = .position
+    public private(set) var sortDirection: SortDirection = .ascending
     public private(set) var issuesByStatus: [IssueStatus: [Issue]] = [:]
     public private(set) var childProgressByParentIssueId: [String: ChildIssueProgressEntry] = [:]
 
@@ -167,6 +189,11 @@ public final class IssueListViewModel {
 
     public func setSortOption(_ option: SortOption) {
         sortOption = option
+        syncFlatIssues()
+    }
+
+    public func setSortDirection(_ direction: SortDirection) {
+        sortDirection = direction
         syncFlatIssues()
     }
 
@@ -305,6 +332,54 @@ public final class IssueListViewModel {
         }
     }
 
+    public func moveIssue(issueId: String, to status: IssueStatus, beforeIssueId: String? = nil) async {
+        guard IssueStatus.boardCases.contains(status) else { return }
+        guard let wsId = authSession.currentWorkspace?.id else {
+            lastError = UserVisibleError("Pick a workspace before updating Issues.")
+            return
+        }
+        guard let currentIssue = IssueStatus.boardCases
+            .compactMap({ issuesByStatus[$0]?.first(where: { $0.id == issueId }) })
+            .first
+        else { return }
+        var targetIssues = issuesByStatus[status, default: []].filter { $0.id != issueId }
+        let insertIndex: Int
+        if let beforeIssueId, let targetIndex = targetIssues.firstIndex(where: { $0.id == beforeIssueId }) {
+            insertIndex = targetIndex
+        } else {
+            insertIndex = targetIssues.count
+        }
+
+        let movedIssue = currentIssue.replacing(
+            status: status,
+            priority: currentIssue.priority,
+            assigneeType: currentIssue.assigneeType,
+            assigneeId: currentIssue.assigneeId,
+            position: insertIndex
+        )
+        targetIssues.insert(movedIssue, at: min(insertIndex, targetIssues.count))
+
+        let previousBuckets = issuesByStatus
+        for bucketStatus in IssueStatus.boardCases {
+            issuesByStatus[bucketStatus]?.removeAll { $0.id == issueId }
+        }
+        issuesByStatus[status] = renumbered(targetIssues)
+        resetPaginationCountsFromBuckets()
+        syncFlatIssues()
+
+        do {
+            let updated = try await api.updateIssue(id: issueId, workspaceId: wsId, status: status, position: insertIndex)
+            replaceIssue(updated, preferredIndex: insertIndex)
+            lastError = nil
+            await DataStore.shared.invalidateIssue(issueId)
+        } catch {
+            issuesByStatus = previousBuckets
+            resetPaginationCountsFromBuckets()
+            syncFlatIssues()
+            lastError = error
+        }
+    }
+
     public func issues(for status: IssueStatus) -> [Issue] {
         sorted(issuesByStatus[status] ?? [])
     }
@@ -393,6 +468,7 @@ public final class IssueListViewModel {
 
     private func append(_ page: PageResponse<Issue>, for status: IssueStatus) {
         issuesByStatus[status, default: []].append(contentsOf: page.items)
+        issuesByStatus[status] = orderedByPosition(issuesByStatus[status, default: []])
         offsetsByStatus[status] = issuesByStatus[status, default: []].count
         if let total = page.total {
             totalsByStatus[status] = total
@@ -407,7 +483,7 @@ public final class IssueListViewModel {
         loader.hasMore = IssueStatus.boardCases.contains { statusHasMore($0) }
     }
 
-    private func replaceIssue(_ issue: Issue) {
+    private func replaceIssue(_ issue: Issue, preferredIndex: Int? = nil) {
         let previousStatus = IssueStatus.boardCases.first { status in
             issuesByStatus[status]?.contains { $0.id == issue.id } == true
         }
@@ -416,7 +492,14 @@ public final class IssueListViewModel {
             issuesByStatus[status]?.removeAll { $0.id == issue.id }
         }
         if IssueStatus.boardCases.contains(issue.status) {
-            issuesByStatus[issue.status, default: []].append(issue)
+            var bucket = issuesByStatus[issue.status, default: []]
+            if let preferredIndex {
+                bucket.insert(issue, at: min(max(0, preferredIndex), bucket.count))
+            } else {
+                bucket.append(issue)
+                bucket = orderedByPosition(bucket)
+            }
+            issuesByStatus[issue.status] = renumbered(bucket)
         }
         reconcilePaginationAfterReplacingIssue(from: previousStatus, to: issue.status)
         syncFlatIssues()
@@ -492,22 +575,37 @@ public final class IssueListViewModel {
     }
 
     private func sorted(_ issues: [Issue]) -> [Issue] {
+        let sortedIssues: [Issue]
         switch sortOption {
         case .position:
-            return issues
+            sortedIssues = issues
+        case .number:
+            sortedIssues = issues.sorted { lhs, rhs in
+                if lhs.number == rhs.number {
+                    return lhs.updatedAt > rhs.updatedAt
+                }
+                return lhs.number < rhs.number
+            }
         case .priority:
-            return issues.sorted { lhs, rhs in
+            sortedIssues = issues.sorted { lhs, rhs in
                 if lhs.priority.sortRank == rhs.priority.sortRank {
                     return lhs.updatedAt > rhs.updatedAt
                 }
                 return lhs.priority.sortRank < rhs.priority.sortRank
             }
         case .updated:
-            return issues.sorted { $0.updatedAt > $1.updatedAt }
+            sortedIssues = issues.sorted { $0.updatedAt < $1.updatedAt }
         case .created:
-            return issues.sorted { $0.createdAt > $1.createdAt }
+            sortedIssues = issues.sorted { $0.createdAt < $1.createdAt }
         case .title:
-            return issues.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+            sortedIssues = issues.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        }
+
+        switch sortDirection {
+        case .ascending:
+            return sortedIssues
+        case .descending:
+            return sortedIssues.reversed()
         }
     }
 
@@ -517,6 +615,29 @@ public final class IssueListViewModel {
             return loaded < total
         }
         return pageHasMoreByStatus[status] ?? false
+    }
+
+    private func renumbered(_ issues: [Issue]) -> [Issue] {
+        issues.enumerated().map { index, issue in
+            issue.replacing(
+                status: issue.status,
+                priority: issue.priority,
+                assigneeType: issue.assigneeType,
+                assigneeId: issue.assigneeId,
+                position: index
+            )
+        }
+    }
+
+    private func orderedByPosition(_ issues: [Issue]) -> [Issue] {
+        issues.enumerated().sorted { lhs, rhs in
+            let leftPosition = lhs.element.position ?? lhs.offset
+            let rightPosition = rhs.element.position ?? rhs.offset
+            if leftPosition == rightPosition {
+                return lhs.element.updatedAt > rhs.element.updatedAt
+            }
+            return leftPosition < rightPosition
+        }.map(\.element)
     }
 
     private func nextStatusWithMore() -> IssueStatus? {
@@ -566,7 +687,8 @@ private extension Issue {
         status: IssueStatus,
         priority: IssuePriority,
         assigneeType: String?,
-        assigneeId: String?
+        assigneeId: String?,
+        position: Int? = nil
     ) -> Issue {
         Issue(
             id: id,
@@ -583,6 +705,7 @@ private extension Issue {
             workspaceId: workspaceId,
             dueDate: dueDate,
             attachments: attachments,
+            position: position ?? self.position,
             labels: labels,
             reactions: reactions,
             createdAt: createdAt,

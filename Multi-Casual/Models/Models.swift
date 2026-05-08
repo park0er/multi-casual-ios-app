@@ -1557,6 +1557,7 @@ public struct Issue: Codable, Identifiable, Sendable {
     public let dueDate: String?
     public let workspaceId: String
     public let attachments: [Attachment]
+    public let position: Int?
     public let labels: [IssueLabel]
     public let reactions: [IssueReaction]
     public let createdAt: Date
@@ -1570,7 +1571,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         case projectId = "project_id"
         case dueDate = "due_date"
         case workspaceId = "workspace_id"
-        case attachments, labels, reactions
+        case attachments, position, labels, reactions
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -1578,8 +1579,8 @@ public struct Issue: Codable, Identifiable, Sendable {
     public init(id: String, identifier: String, number: Int, title: String, description: String?,
                 status: IssueStatus, priority: IssuePriority, assigneeId: String?,
                 assigneeType: String?, parentIssueId: String? = nil, projectId: String?, workspaceId: String,
-                dueDate: String? = nil, attachments: [Attachment] = [], labels: [IssueLabel] = [],
-                reactions: [IssueReaction] = [],
+                dueDate: String? = nil, attachments: [Attachment] = [], position: Int? = nil,
+                labels: [IssueLabel] = [], reactions: [IssueReaction] = [],
                 createdAt: Date, updatedAt: Date) {
         self.id = id
         self.identifier = identifier
@@ -1595,6 +1596,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         self.dueDate = dueDate
         self.workspaceId = workspaceId
         self.attachments = attachments
+        self.position = position
         self.labels = labels
         self.reactions = reactions
         self.createdAt = createdAt
@@ -1617,6 +1619,7 @@ public struct Issue: Codable, Identifiable, Sendable {
         dueDate = try c.decodeIfPresent(String.self, forKey: .dueDate)
         workspaceId = try c.decode(String.self, forKey: .workspaceId)
         attachments = try c.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
+        position = try c.decodeIfPresent(Int.self, forKey: .position)
         labels = try c.decodeIfPresent([IssueLabel].self, forKey: .labels) ?? []
         reactions = try c.decodeIfPresent([IssueReaction].self, forKey: .reactions) ?? []
         createdAt = try c.decode(Date.self, forKey: .createdAt)
@@ -1639,6 +1642,7 @@ public struct Issue: Codable, Identifiable, Sendable {
             workspaceId: workspaceId,
             dueDate: dueDate,
             attachments: attachments,
+            position: position,
             labels: labels,
             reactions: reactions,
             createdAt: createdAt,
@@ -1662,6 +1666,7 @@ public struct Issue: Codable, Identifiable, Sendable {
             workspaceId: workspaceId,
             dueDate: dueDate,
             attachments: attachments,
+            position: position,
             labels: labels,
             reactions: reactions,
             createdAt: createdAt,
@@ -1685,6 +1690,7 @@ public struct Issue: Codable, Identifiable, Sendable {
             workspaceId: workspaceId,
             dueDate: dueDate,
             attachments: attachments,
+            position: position,
             labels: labels,
             reactions: reactions,
             createdAt: createdAt,

@@ -255,6 +255,39 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertEqual(vm.loader.items.map(\.id), ["todo-1", "backlog-1"])
     }
 
+    func test_setSortDirectionReversesIssuesListSortDimension() async throws {
+        let client = makeClient { req in
+            if req.url?.path == "/api/issues/child-progress" {
+                return Self.childProgressResponse(for: req, progress: [])
+            }
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+            if status == "todo" {
+                return Self.response(
+                    for: req,
+                    body: Data("""
+                    {"issues":[
+                      {"id":"todo-1","identifier":"PAR-1","number":1,"title":"Alpha","description":null,"status":"todo","priority":"none","assignee_id":null,"assignee_type":null,"project_id":null,"workspace_id":"w1","position":0,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"},
+                      {"id":"todo-2","identifier":"PAR-2","number":2,"title":"Beta","description":null,"status":"todo","priority":"none","assignee_id":null,"assignee_type":null,"project_id":null,"workspace_id":"w1","position":1,"created_at":"2026-01-02T00:00:00Z","updated_at":"2026-01-02T00:00:00Z"}
+                    ],"has_more":false,"total":2}
+                    """.utf8)
+                )
+            }
+            return Self.emptyIssuesResponse(for: req)
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        vm.setSortOption(.number)
+
+        XCTAssertEqual(vm.loader.items.map(\.id), ["todo-1", "todo-2"])
+
+        vm.setSortDirection(.descending)
+
+        XCTAssertEqual(vm.loader.items.map(\.id), ["todo-2", "todo-1"])
+        XCTAssertEqual(vm.issues(for: .todo).map(\.id), ["todo-2", "todo-1"])
+    }
+
     func test_updateStatus_updatesServerAndMovesIssueBetweenStatusBuckets() async throws {
         var updateRequestBody: [String: Any] = [:]
         let client = makeClient { req in
@@ -442,6 +475,155 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertNil(vm.lastError)
     }
 
+    func test_moveIssueToStatusUpdatesServerAndBoardBuckets() async throws {
+        var updateRequestBody: [String: Any] = [:]
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/child-progress"):
+                return Self.childProgressResponse(for: req, progress: [])
+            case ("GET", "/api/issues"):
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+                if status == "todo" {
+                    return Self.issuesResponse(for: req, status: status, total: 1)
+                }
+                return Self.emptyIssuesResponse(for: req)
+            case ("PUT", "/api/issues/todo-1"):
+                updateRequestBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return Self.response(for: req, body: Self.issueJSON(id: "todo-1", status: "in_progress", priority: "none"))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        await vm.moveIssue(issueId: "todo-1", to: .inProgress)
+
+        XCTAssertEqual(updateRequestBody["status"] as? String, "in_progress")
+        XCTAssertEqual(vm.issuesByStatus[.todo]?.map(\.id) ?? [], [])
+        XCTAssertEqual(vm.issuesByStatus[.inProgress]?.map(\.id), ["todo-1"])
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_moveIssueWithinStatusPersistsCustomBoardPosition() async throws {
+        var updateRequestBody: [String: Any] = [:]
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/child-progress"):
+                return Self.childProgressResponse(for: req, progress: [])
+            case ("GET", "/api/issues"):
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+                if status == "todo" {
+                    return Self.response(
+                        for: req,
+                        body: Data("""
+                        {"issues":[
+                          {"id":"todo-1","identifier":"PAR-1","number":1,"title":"First","description":null,"status":"todo","priority":"none","assignee_id":null,"assignee_type":null,"project_id":null,"workspace_id":"w1","position":0,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"},
+                          {"id":"todo-2","identifier":"PAR-2","number":2,"title":"Second","description":null,"status":"todo","priority":"none","assignee_id":null,"assignee_type":null,"project_id":null,"workspace_id":"w1","position":1,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
+                        ],"has_more":false,"total":2}
+                        """.utf8)
+                    )
+                }
+                return Self.emptyIssuesResponse(for: req)
+            case ("PUT", "/api/issues/todo-2"):
+                updateRequestBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return Self.response(for: req, body: Self.issueJSON(id: "todo-2", status: "todo", priority: "none", position: 0))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        await vm.moveIssue(issueId: "todo-2", to: .todo, beforeIssueId: "todo-1")
+
+        XCTAssertEqual(updateRequestBody["status"] as? String, "todo")
+        XCTAssertEqual(updateRequestBody["position"] as? Int, 0)
+        XCTAssertEqual(vm.issuesByStatus[.todo]?.map(\.id), ["todo-2", "todo-1"])
+        XCTAssertEqual(vm.loader.items.map(\.id), ["todo-2", "todo-1"])
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_moveIssueWithinStatusCanAppendToEnd() async throws {
+        var updateRequestBody: [String: Any] = [:]
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/child-progress"):
+                return Self.childProgressResponse(for: req, progress: [])
+            case ("GET", "/api/issues"):
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+                if status == "todo" {
+                    return Self.response(
+                        for: req,
+                        body: Data("""
+                        {"issues":[
+                          {"id":"todo-1","identifier":"PAR-1","number":1,"title":"First","description":null,"status":"todo","priority":"none","assignee_id":null,"assignee_type":null,"project_id":null,"workspace_id":"w1","position":0,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"},
+                          {"id":"todo-2","identifier":"PAR-2","number":2,"title":"Second","description":null,"status":"todo","priority":"none","assignee_id":null,"assignee_type":null,"project_id":null,"workspace_id":"w1","position":1,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
+                        ],"has_more":false,"total":2}
+                        """.utf8)
+                    )
+                }
+                return Self.emptyIssuesResponse(for: req)
+            case ("PUT", "/api/issues/todo-1"):
+                updateRequestBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return Self.response(for: req, body: Self.issueJSON(id: "todo-1", status: "todo", priority: "none", position: 1))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        await vm.moveIssue(issueId: "todo-1", to: .todo)
+
+        XCTAssertEqual(updateRequestBody["status"] as? String, "todo")
+        XCTAssertEqual(updateRequestBody["position"] as? Int, 1)
+        XCTAssertEqual(vm.issuesByStatus[.todo]?.map(\.id), ["todo-2", "todo-1"])
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_moveIssueToStatusCanInsertBeforeTargetIssue() async throws {
+        var updateRequestBody: [String: Any] = [:]
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/child-progress"):
+                return Self.childProgressResponse(for: req, progress: [])
+            case ("GET", "/api/issues"):
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let status = components?.queryItems?.first(where: { $0.name == "status" })?.value ?? "todo"
+                if status == "todo" {
+                    return Self.issuesResponse(for: req, status: status, total: 1)
+                }
+                if status == "in_progress" {
+                    return Self.issuesResponse(for: req, status: status, total: 1)
+                }
+                return Self.emptyIssuesResponse(for: req)
+            case ("PUT", "/api/issues/todo-1"):
+                updateRequestBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return Self.response(for: req, body: Self.issueJSON(id: "todo-1", status: "in_progress", priority: "none", position: 0))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        await vm.moveIssue(issueId: "todo-1", to: .inProgress, beforeIssueId: "in_progress-1")
+
+        XCTAssertEqual(updateRequestBody["status"] as? String, "in_progress")
+        XCTAssertEqual(updateRequestBody["position"] as? Int, 0)
+        XCTAssertEqual(vm.issuesByStatus[.todo]?.map(\.id) ?? [], [])
+        XCTAssertEqual(vm.issuesByStatus[.inProgress]?.map(\.id), ["todo-1", "in_progress-1"])
+        XCTAssertNil(vm.lastError)
+    }
+
     private func makeClient(handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? = nil) -> APIClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -508,11 +690,12 @@ final class IssueListViewModelTests: XCTestCase {
         )
     }
 
-    private static func issueJSON(id: String, status: String, priority: String) -> Data {
-        """
+    private static func issueJSON(id: String, status: String, priority: String, position: Int? = nil) -> Data {
+        let positionField = position.map { #","position":\#($0)"# } ?? ""
+        return """
         {"id":"\(id)","identifier":"PAR-1","number":1,
          "title":"\(status) issue","description":null,"status":"\(status)","priority":"\(priority)",
-         "assignee_id":null,"assignee_type":null,"project_id":null,"workspace_id":"w1",
+         "assignee_id":null,"assignee_type":null,"project_id":null,"workspace_id":"w1"\(positionField),
          "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-02T00:00:00Z"}
         """.data(using: .utf8)!
     }

@@ -3,13 +3,15 @@ import SwiftUI
 
 public struct SettingsView: View {
     @Environment(AuthSession.self) private var authSession
+    @Environment(AppLanguageSettings.self) private var languageSettings
+    @Environment(\.appLanguage) private var appLanguage
     @State private var showingLogoutConfirmation = false
 
     public init() {}
 
     public var body: some View {
         List {
-            Section("Account") {
+            Section(AppStrings.localized("Account", language: appLanguage)) {
                 if let user = authSession.currentUser {
                     HStack {
                         Image(systemName: "person.circle.fill").font(.title2).foregroundStyle(.secondary)
@@ -20,9 +22,12 @@ public struct SettingsView: View {
                     }.padding(.vertical, 4)
                 }
                 if authSession.workspaces.isEmpty {
-                    LabeledContent("Workspace", value: "No workspace")
+                    LabeledContent(
+                        AppStrings.localized("Workspace", language: appLanguage),
+                        value: AppStrings.localized("No workspace", language: appLanguage)
+                    )
                 } else {
-                    Picker("Workspace", selection: workspaceSelection) {
+                    Picker(AppStrings.localized("Workspace", language: appLanguage), selection: workspaceSelection) {
                         ForEach(authSession.workspaces) { workspace in
                             MarkdownText(workspace.name).tag(workspace.id)
                         }
@@ -33,27 +38,37 @@ public struct SettingsView: View {
                 }
             }
 
-            Section("Configure") {
-                NavigationLink("Workspaces") { WorkspaceAccessView() }
-                NavigationLink("Workspace Details") { WorkspaceSettingsView() }
-                NavigationLink("Members") { WorkspaceMembersView() }
-                NavigationLink("Notifications") { NotificationPreferencesView() }
-                NavigationLink("API Tokens") { PersonalAccessTokensView() }
-                NavigationLink("Labels") { LabelsView() }
-                NavigationLink("Agents") { AgentsView() }
-                NavigationLink("Autopilots") { AutopilotsView() }
-                NavigationLink("Runtimes") { RuntimesView() }
-                NavigationLink("Skills") { SkillsView() }
-                NavigationLink("Feedback") { FeedbackView() }
+            Section(AppStrings.localized("Preferences", language: appLanguage)) {
+                Picker(AppStrings.localized("Language", language: appLanguage), selection: languageSelection) {
+                    ForEach(AppLanguage.allCases) { language in
+                        MarkdownText(language.displayName).tag(language)
+                    }
+                }
+                .pickerStyle(.navigationLink)
+                .accessibilityIdentifier("SettingsLanguagePicker")
+            }
+
+            Section(AppStrings.localized("Configure", language: appLanguage)) {
+                NavigationLink(AppStrings.localized("Workspaces", language: appLanguage)) { WorkspaceAccessView() }
+                NavigationLink(AppStrings.localized("Workspace Details", language: appLanguage)) { WorkspaceSettingsView() }
+                NavigationLink(AppStrings.localized("Members", language: appLanguage)) { WorkspaceMembersView() }
+                NavigationLink(AppStrings.localized("Notifications", language: appLanguage)) { NotificationPreferencesView() }
+                NavigationLink(AppStrings.localized("API Tokens", language: appLanguage)) { PersonalAccessTokensView() }
+                NavigationLink(AppStrings.localized("Labels", language: appLanguage)) { LabelsView() }
+                NavigationLink(AppStrings.localized("Agents", language: appLanguage)) { AgentsView() }
+                NavigationLink(AppStrings.localized("Autopilots", language: appLanguage)) { AutopilotsView() }
+                NavigationLink(AppStrings.localized("Runtimes", language: appLanguage)) { RuntimesView() }
+                NavigationLink(AppStrings.localized("Skills", language: appLanguage)) { SkillsView() }
+                NavigationLink(AppStrings.localized("Feedback", language: appLanguage)) { FeedbackView() }
             }
 
             Section {
-                Button("Log Out", role: .destructive) {
+                Button(AppStrings.localized("Log Out", language: appLanguage), role: .destructive) {
                     showingLogoutConfirmation = true
                 }
             }
         }
-        .navigationTitle("Settings")
+        .navigationTitle(AppStrings.localized("Settings", language: appLanguage))
         .destructiveConfirmation(
             logoutConfirmation,
             isPresented: $showingLogoutConfirmation
@@ -76,6 +91,13 @@ public struct SettingsView: View {
                 guard let workspace = authSession.workspaces.first(where: { $0.id == workspaceId }) else { return }
                 authSession.setWorkspace(workspace)
             }
+        )
+    }
+
+    private var languageSelection: Binding<AppLanguage> {
+        Binding(
+            get: { languageSettings.language },
+            set: { languageSettings.language = $0 }
         )
     }
 }

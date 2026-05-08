@@ -6,10 +6,11 @@ import MultiCasual
 struct RootView: View {
     @Environment(AuthSession.self) private var authSession
     @Environment(APIClient.self) private var api
+    @Environment(\.appLanguage) private var appLanguage
     @State private var selectedTab: AppTab = AppTab.debugInitialTab
 
     enum AppTab: Hashable {
-        case inbox, issues, myIssues, projects, chat, settings
+        case inbox, issues, myIssues, projects, settings
 
         static var debugInitialTab: AppTab {
             #if DEBUG
@@ -17,7 +18,6 @@ struct RootView: View {
             case "issues": return .issues
             case "my-issues": return .myIssues
             case "projects": return .projects
-            case "chat": return .chat
             case "settings": return .settings
             default: return .inbox
             }
@@ -65,28 +65,24 @@ struct RootView: View {
     private var mainTabView: some View {
         TabView(selection: $selectedTab) {
             NavigationStack { InboxView() }
-                .tabItem { Label("Inbox", systemImage: "tray") }
+                .tabItem { Label(AppStrings.localized("Inbox", language: appLanguage), systemImage: "tray") }
                 .tag(AppTab.inbox)
 
             NavigationStack { debugInitialIssueView }
-                .tabItem { Label("Issues", systemImage: "checklist") }
+                .tabItem { Label(AppStrings.localized("Issues", language: appLanguage), systemImage: "checklist") }
                 .tag(AppTab.issues)
 
+            NavigationStack { IssueListView(scope: .assignedToMe) }
+                .tabItem { Label(AppStrings.localized("My Issues", language: appLanguage), systemImage: "person.crop.circle.badge.checkmark") }
+                .tag(AppTab.myIssues)
+
             NavigationStack { debugInitialProjectView }
-                .tabItem { Label("Projects", systemImage: "folder") }
+                .tabItem { Label(AppStrings.localized("Projects", language: appLanguage), systemImage: "folder") }
                 .tag(AppTab.projects)
 
             NavigationStack { SettingsView() }
-                .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tabItem { Label(AppStrings.localized("Settings", language: appLanguage), systemImage: "gearshape") }
                 .tag(AppTab.settings)
-
-            NavigationStack { IssueListView(scope: .assignedToMe) }
-                .tabItem { Label("My Issues", systemImage: "person.crop.circle.badge.checkmark") }
-                .tag(AppTab.myIssues)
-
-            NavigationStack { ChatView() }
-                .tabItem { Label("Chat", systemImage: "message") }
-                .tag(AppTab.chat)
         }
         .onAppear { requestPushPermission() }
     }

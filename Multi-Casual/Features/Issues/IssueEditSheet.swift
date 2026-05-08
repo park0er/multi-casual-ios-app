@@ -42,17 +42,19 @@ public struct IssueEditSheet: View {
                             )) {
                                 ForEach(vm.statusOptions, id: \.self) { status in
                                     MarkdownText(status.displayName).tag(status)
-                                }
                             }
+                        }
+                        .pickerStyle(.navigationLink)
 
-                            Picker("Priority", selection: Binding(
-                                get: { vm.priority },
-                                set: { vm.priority = $0 }
-                            )) {
+                        Picker("Priority", selection: Binding(
+                            get: { vm.priority },
+                            set: { vm.priority = $0 }
+                        )) {
                                 ForEach(vm.priorityOptions, id: \.self) { priority in
-                                    MarkdownText(priority.displayName).tag(priority)
-                                }
+                                MarkdownText(priority.displayName).tag(priority)
                             }
+                        }
+                        .pickerStyle(.navigationLink)
 
                             Picker("Assignee", selection: Binding(
                                 get: { vm.selectedAssigneeOptionId },
@@ -80,8 +82,9 @@ public struct IssueEditSheet: View {
                                 ForEach(vm.projects) { project in
                                     MarkdownText(project.name).tag(project.id)
                                 }
-                            }
-                            .disabled(vm.isLoadingOptions)
+                        }
+                        .disabled(vm.isLoadingOptions)
+                        .pickerStyle(.navigationLink)
 
                             Toggle("Due Date", isOn: Binding(
                                 get: { vm.includesDueDate },

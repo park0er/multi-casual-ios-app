@@ -3,6 +3,23 @@ import XCTest
 
 @MainActor
 final class IssueDetailViewModelTests: XCTestCase {
+    func test_displayedCommentsCanSwitchBetweenAscendingAndDescendingOrder() {
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: makeClient { req in
+            XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+            return Self.response(for: req, body: Data("{}".utf8), status: 500)
+        })
+        vm.commentLoader.items = [
+            Comment(id: "new", content: "New", authorId: "u1", authorType: "member", parentId: nil, issueId: "i1", createdAt: Date(timeIntervalSince1970: 20)),
+            Comment(id: "old", content: "Old", authorId: "u1", authorType: "member", parentId: nil, issueId: "i1", createdAt: Date(timeIntervalSince1970: 10)),
+        ]
+
+        vm.setCommentSortOrder(.ascending)
+        XCTAssertEqual(vm.displayedComments.map(\.id), ["old", "new"])
+
+        vm.setCommentSortOrder(.descending)
+        XCTAssertEqual(vm.displayedComments.map(\.id), ["new", "old"])
+    }
+
     func test_loadMetadata_resolvesAssigneeAndProjectNames() async throws {
         let client = makeClient { req in
             switch req.url?.path {
@@ -233,7 +250,7 @@ final class IssueDetailViewModelTests: XCTestCase {
         let lock = NSLock()
         var workspaceByPath: [String: String?] = [:]
         var requests: [String] = []
-        let client = makeClient { req in
+        let client = makeClient(workspaceId: "w1") { req in
             let path = req.url?.path ?? ""
             let workspace = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)?
                 .queryItems?
@@ -304,6 +321,30 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.usageError)
         XCTAssertNil(vm.issueRelationsError)
         XCTAssertNil(vm.attachmentsError)
+    }
+
+    func test_loadInitialDataStartsCoreSectionsBeforeAwaitingMetadata() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceURL = root.appendingPathComponent("Multi-Casual/Features/Issues/IssueDetailViewModel.swift")
+        let source = try String(contentsOf: sourceURL)
+        let functionStart = try XCTUnwrap(source.range(of: "public func loadInitialData() async {"))
+        let functionEnd = try XCTUnwrap(source[functionStart.upperBound...].range(of: "\n    public func loadIssue() async"))
+        let body = String(source[functionStart.lowerBound..<functionEnd.lowerBound])
+        let awaitRange = try XCTUnwrap(body.range(of: "_ = await"))
+        let awaitedOffset = body.distance(from: body.startIndex, to: awaitRange.lowerBound)
+
+        for call in [
+            "async let metadata: Void = loadMetadata()",
+            "async let comments: Void = loadComments()",
+            "async let agentRuns: Void = loadAgentRuns()",
+            "async let activeTasks: Void = loadActiveTasks()",
+            "async let timeline: Void = loadTimeline()",
+            "async let usage: Void = loadUsage()",
+        ] {
+            let callRange = try XCTUnwrap(body.range(of: call), "\(call) should be launched before the await tuple.")
+            let callOffset = body.distance(from: body.startIndex, to: callRange.lowerBound)
+            XCTAssertLessThan(callOffset, awaitedOffset)
+        }
     }
 
     func test_loadAgentRuns_surfacesEndpointError() async throws {
@@ -1085,11 +1126,75 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertEqual(requests.map(\.query), ["workspace_id=w1", "workspace_id=w1", "workspace_id=w1"])
     }
 
-    private func makeClient(handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)) -> APIClient {
+    func test_commentAuthorNameResolvesMemberAndAgentNamesFromMetadata() async throws {
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/issues/i1":
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-01T00:00:00Z"))
+            case "/api/workspaces/w1/members":
+                let json = """
+                [{"id":"wm1","workspace_id":"w1","user_id":"u1","name":"Parker","email":"parker@example.com","role":"admin","created_at":"2026-01-01T00:00:00Z"}]
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/agents":
+                let json = """
+                [{"id":"a1","workspace_id":"w1","runtime_id":"r1","name":"Codex",
+                  "description":"","instructions":"","avatar_url":null,"runtime_mode":"cloud",
+                  "runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,
+                  "visibility":"workspace","status":"active","max_concurrent_tasks":1,
+                  "model":"gpt","owner_id":null,"skills":[],"created_at":"2026-01-01T00:00:00Z",
+                  "updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}]
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/projects":
+                return Self.response(for: req, body: #"{"projects":[],"total":0}"#.data(using: .utf8)!)
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadIssue()
+        await vm.loadMetadata()
+
+        let memberComment = Comment(
+            id: "c1",
+            content: "hello",
+            authorId: "u1",
+            authorType: "member",
+            parentId: nil,
+            issueId: "i1",
+            createdAt: Date(timeIntervalSince1970: 0)
+        )
+        let agentComment = Comment(
+            id: "c2",
+            content: "done",
+            authorId: "a1",
+            authorType: "agent",
+            parentId: nil,
+            issueId: "i1",
+            createdAt: Date(timeIntervalSince1970: 0)
+        )
+
+        XCTAssertEqual(vm.commentAuthorName(for: memberComment), "Parker")
+        XCTAssertEqual(vm.commentAuthorName(for: agentComment), "Codex")
+    }
+
+    private func makeClient(
+        workspaceId: String? = nil,
+        workspaceSlug: String? = nil,
+        handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
+    ) -> APIClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         MockURLProtocol.handler = handler
-        return APIClient(session: URLSession(configuration: config), token: "test-token")
+        return APIClient(
+            session: URLSession(configuration: config),
+            token: "test-token",
+            workspaceSlugProvider: { workspaceSlug },
+            workspaceIdProvider: { workspaceId }
+        )
     }
 
     private static func response(

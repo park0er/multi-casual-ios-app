@@ -1,0 +1,203 @@
+import Foundation
+
+#if canImport(Observation)
+import Observation
+#endif
+
+#if canImport(SwiftUI)
+import SwiftUI
+#endif
+
+public enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
+    case system
+    case english = "en"
+    case zhHans = "zh-Hans"
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .system: return "System"
+        case .english: return "English"
+        case .zhHans: return "中文"
+        }
+    }
+
+    public var localeIdentifier: String {
+        switch self {
+        case .system: return Locale.current.identifier
+        case .english: return "en"
+        case .zhHans: return "zh-Hans"
+        }
+    }
+}
+
+#if canImport(Observation)
+@Observable
+#endif
+@MainActor
+public final class AppLanguageSettings {
+    public static let defaultsKey = "app_language"
+
+    public var language: AppLanguage {
+        didSet {
+            userDefaults.set(language.rawValue, forKey: Self.defaultsKey)
+        }
+    }
+
+    private let userDefaults: UserDefaults
+
+    public init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+        let rawValue = userDefaults.string(forKey: Self.defaultsKey)
+        self.language = rawValue.flatMap(AppLanguage.init(rawValue:)) ?? .system
+    }
+}
+
+public enum AppStrings {
+    public static func localized(_ key: String, language: AppLanguage) -> String {
+        guard language == .zhHans else { return key }
+        if let value = zhHans[key] {
+            return value
+        }
+        if let bundle = Bundle.localizedBundle(for: language) {
+            let value = bundle.localizedString(forKey: key, value: key, table: nil)
+            if value != key {
+                return value
+            }
+        }
+        return key
+    }
+
+    private static let zhHans: [String: String] = [
+        "Account": "账号",
+        "Active Tasks": "运行中的任务",
+        "Activity": "活动",
+        "Add Attachment": "添加附件",
+        "Add Reaction": "添加回应",
+        "Add Sub-issue": "添加子 Issue",
+        "Agents": "Agents",
+        "Agent Activity": "Agent 活动",
+        "Agent Transcript": "Agent 记录",
+        "Agent Work Details": "Agent 工作详情",
+        "Agent run": "Agent 运行",
+        "All Priorities": "全部优先级",
+        "Ascending": "升序",
+        "API Tokens": "API 令牌",
+        "Archive": "归档",
+        "Assignee": "负责人",
+        "Autopilots": "自动任务",
+        "Backlog": "积压",
+        "Cancel": "取消",
+        "Cancel Task": "取消任务",
+        "Chat": "聊天",
+        "Clear Selection": "清除选择",
+        "Comments": "评论",
+        "Configure": "配置",
+        "Created": "已创建",
+        "Default": "默认",
+        "Delete": "删除",
+        "Descending": "降序",
+        "Delete Comment": "删除评论",
+        "Delete Issue": "删除 Issue",
+        "Done": "完成",
+        "Direction": "方向",
+        "Due Date": "截止日期",
+        "Edit": "编辑",
+        "Edit Issue": "编辑 Issue",
+        "Error": "错误",
+        "Feedback": "反馈",
+        "High": "高",
+        "Inbox": "收件箱",
+        "Inbox Actions": "收件箱操作",
+        "Input": "输入",
+        "Issue linked": "已关联 Issue",
+        "Issues": "Issues",
+        "Labels": "标签",
+        "Language": "语言",
+        "Latest Progress": "最新进度",
+        "Loading": "加载中",
+        "Loading latest progress": "正在加载最新进度",
+        "Log Out": "退出登录",
+        "Low": "低",
+        "Manage Subscribers": "管理订阅者",
+        "Mark All Read": "全部标为已读",
+        "Members": "成员",
+        "Medium": "中",
+        "Move Down": "下移",
+        "Move Up": "上移",
+        "Move to Status": "移动到状态",
+        "My Agents": "我的 Agents",
+        "My Issues": "我的 Issues",
+        "New Issue": "新建 Issue",
+        "No Active Tasks": "没有运行中的任务",
+        "No Activity": "没有活动",
+        "No Agent Activity": "没有 Agent 活动",
+        "No Comments": "没有评论",
+        "No Messages": "没有消息",
+        "No Priority": "无优先级",
+        "No Project": "无项目",
+        "No sub-issues": "没有子 Issues",
+        "No subscribers": "没有订阅者",
+        "No Usage": "没有用量",
+        "No workspace": "没有工作区",
+        "Notifications": "通知",
+        "Number": "编号",
+        "Open": "打开",
+        "Output": "输出",
+        "Oldest First": "最旧优先",
+        "Priority": "优先级",
+        "Preferences": "偏好设置",
+        "Project": "项目",
+        "Projects": "项目",
+        "Read": "已读",
+        "Reply": "回复",
+        "Retry": "重试",
+        "Runtimes": "运行时",
+        "Save": "保存",
+        "Search issues": "搜索 Issues",
+        "Settings": "设置",
+        "Skills": "技能",
+        "Newest First": "最新优先",
+        "Sort": "排序",
+        "Sort by": "排序维度",
+        "Status": "状态",
+        "Sub-issues": "子 Issues",
+        "Subscribers": "订阅者",
+        "System": "跟随系统",
+        "Thinking": "思考",
+        "Tool Use": "工具调用",
+        "Transcript Unavailable": "记录不可用",
+        "Unread": "未读",
+        "Updated": "已更新",
+        "Urgent": "紧急",
+        "Usage": "用量",
+        "Workspace": "工作区",
+        "Workspace Details": "工作区详情",
+        "Workspaces": "工作区",
+    ]
+}
+
+private extension Bundle {
+    static func localizedBundle(for language: AppLanguage) -> Bundle? {
+        guard language == .zhHans,
+              let path = Bundle.main.path(forResource: language.rawValue, ofType: "lproj")
+        else {
+            return nil
+        }
+        return Bundle(path: path)
+    }
+}
+
+#if canImport(SwiftUI)
+private struct AppLanguageEnvironmentKey: EnvironmentKey {
+    static let defaultValue: AppLanguage = .system
+}
+
+public extension EnvironmentValues {
+    var appLanguage: AppLanguage {
+        get { self[AppLanguageEnvironmentKey.self] }
+        set { self[AppLanguageEnvironmentKey.self] = newValue }
+    }
+}
+#endif

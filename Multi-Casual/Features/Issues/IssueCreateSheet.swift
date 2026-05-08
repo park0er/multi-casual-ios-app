@@ -122,12 +122,16 @@ private struct IssueCreateForm: View {
                                 .tag(status)
                         }
                     }
+                    .pickerStyle(.navigationLink)
+                    .accessibilityIdentifier("IssueCreateStatusPicker")
 
                     Picker("Priority", selection: $viewModel.priority) {
                         ForEach(viewModel.priorityOptions, id: \.self) { priority in
                             MarkdownText(priority.displayName).tag(priority)
                         }
                     }
+                    .pickerStyle(.navigationLink)
+                    .accessibilityIdentifier("IssueCreatePriorityPicker")
                 }
 
                 Section("Assignment") {
@@ -160,6 +164,8 @@ private struct IssueCreateForm: View {
                             MarkdownText(project.name).tag(project.id)
                         }
                     }
+                    .pickerStyle(.navigationLink)
+                    .accessibilityIdentifier("IssueCreateProjectPicker")
                 }
 
                 Section("Due Date") {

@@ -73,6 +73,14 @@ public struct InboxView: View {
         .navigationTitle("Inbox")
         .toolbar {
             if let vm = viewModel {
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink {
+                        ChatView()
+                    } label: {
+                        Label("Chat", systemImage: "message")
+                    }
+                    .accessibilityIdentifier("InboxChatButton")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {

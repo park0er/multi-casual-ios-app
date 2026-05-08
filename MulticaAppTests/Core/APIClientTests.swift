@@ -75,6 +75,66 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(user.email, "test@example.com")
     }
 
+    func test_updateMe_usesDesktopEndpointAndBody() async throws {
+        var body: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.httpMethod, "PATCH")
+            XCTAssertEqual(req.url?.path, "/api/me")
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            let response = """
+            {"id":"u1","email":"p@example.com","name":"Parker Updated","avatar_url":"https://cdn.example/avatar.png"}
+            """.data(using: .utf8)!
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, response)
+        }
+
+        let user = try await client.updateMe(name: "Parker Updated", avatarUrl: "https://cdn.example/avatar.png")
+
+        XCTAssertEqual(body["name"] as? String, "Parker Updated")
+        XCTAssertEqual(body["avatar_url"] as? String, "https://cdn.example/avatar.png")
+        XCTAssertEqual(user.name, "Parker Updated")
+        XCTAssertEqual(user.avatarUrl, "https://cdn.example/avatar.png")
+    }
+
+    func test_userScopedUtilityEndpointsMatchDesktopPaths() async throws {
+        var requests: [(method: String?, path: String, query: String?)] = []
+        MockURLProtocol.handler = { req in
+            requests.append((req.httpMethod, req.url?.path ?? "", req.url?.query))
+            let body: Data
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/auth/logout"):
+                body = Data()
+            case ("POST", "/api/cli-token"):
+                body = #"{"token":"cli-token"}"#.data(using: .utf8)!
+            case ("GET", "/api/config"):
+                body = """
+                {"cdn_domain":"cdn.multica.ai","allow_signup":true,"google_client_id":"google","posthog_key":"ph","posthog_host":"https://ph.example"}
+                """.data(using: .utf8)!
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                body = Data("{}".utf8)
+            }
+            let status = req.url?.path == "/auth/logout" ? 204 : 200
+            return (HTTPURLResponse(url: req.url!, statusCode: status, httpVersion: nil, headerFields: nil)!, body)
+        }
+
+        try await client.logout()
+        let token = try await client.issueCliToken()
+        let config = try await client.getConfig()
+
+        XCTAssertEqual(requests.map { "\($0.method ?? "") \($0.path)" }, [
+            "POST /auth/logout",
+            "POST /api/cli-token",
+            "GET /api/config",
+        ])
+        XCTAssertTrue(requests.allSatisfy { $0.query == nil })
+        XCTAssertEqual(token.token, "cli-token")
+        XCTAssertEqual(config.cdnDomain, "cdn.multica.ai")
+        XCTAssertTrue(config.allowSignup)
+        XCTAssertEqual(config.googleClientId, "google")
+        XCTAssertEqual(config.posthogKey, "ph")
+        XCTAssertEqual(config.posthogHost, "https://ph.example")
+    }
+
     func test_getMe_sendsDesktopStyleClientHeaders() async throws {
         let json = """
         {"id":"u1","email":"test@example.com","name":"Test User","avatar_url":null}
@@ -271,7 +331,7 @@ final class APIClientTests: XCTestCase {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
          "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
-         "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+        "project_id":null,"workspace_id":"w1","position":4,"created_at":"2026-01-01T00:00:00Z",
          "updated_at":"2026-01-01T00:00:00Z"}
         """.data(using: .utf8)!
         var capturedURL: URL?
@@ -289,7 +349,7 @@ final class APIClientTests: XCTestCase {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
          "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
-         "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+         "project_id":null,"workspace_id":"w1","position":4,"created_at":"2026-01-01T00:00:00Z",
          "updated_at":"2026-01-01T00:00:00Z"}
         """.data(using: .utf8)!
         let session = AuthSession(keychain: KeychainStore(service: "ai.multica.app.api-client.test"))
@@ -348,6 +408,55 @@ final class APIClientTests: XCTestCase {
         }
 
         _ = try await scopedClient.getIssue(id: "i1")
+    }
+
+    func test_workspaceScopedRequestWithoutWorkspaceFailsBeforeNetwork() async throws {
+        MockURLProtocol.handler = { req in
+            XCTFail("Workspace-scoped request should not hit backend without workspace: \(req.url?.absoluteString ?? "")")
+            return (
+                HTTPURLResponse(url: req.url!, statusCode: 400, httpVersion: nil, headerFields: nil)!,
+                #"{"error":"workspace_id or workspace_slug is required"}"#.data(using: .utf8)!
+            )
+        }
+
+        do {
+            _ = try await client.getIssue(id: "i1")
+            XCTFail("Expected missing workspace error")
+        } catch APIClient.APIError.missingWorkspace {
+            XCTAssertEqual(
+                APIClient.APIError.missingWorkspace.localizedDescription,
+                "Pick a workspace before loading this data."
+            )
+        } catch {
+            XCTFail("Wrong error: \(error)")
+        }
+    }
+
+    func test_configuredClientInjectsWorkspaceSlugQueryWhenIdIsUnavailable() async throws {
+        let json = """
+        {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
+         "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+         "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+         "updated_at":"2026-01-01T00:00:00Z"}
+        """.data(using: .utf8)!
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: config)
+        let slugScopedClient = APIClient(
+            session: session,
+            token: "test-token",
+            workspaceSlugProvider: { "park0er" },
+            workspaceIdProvider: { nil }
+        )
+
+        MockURLProtocol.handler = { req in
+            let components = try XCTUnwrap(URLComponents(url: req.url!, resolvingAgainstBaseURL: false))
+            XCTAssertEqual(components.queryItems?.first(where: { $0.name == "workspace_slug" })?.value, "park0er")
+            XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        _ = try await slugScopedClient.getIssue(id: "i1")
     }
 
     func test_configuredClientDoesNotInjectWorkspaceIdForUserScopedRequests() async throws {
@@ -771,6 +880,22 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
     }
 
+    func test_getUnreadInboxCount_usesDesktopEndpoint() async throws {
+        var capturedRequest: URLRequest?
+        MockURLProtocol.handler = { req in
+            capturedRequest = req
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(#"{"count":4}"#.utf8))
+        }
+
+        let response = try await client.getUnreadInboxCount(workspaceId: "w1", workspaceSlug: "park0er")
+
+        XCTAssertEqual(capturedRequest?.httpMethod, "GET")
+        XCTAssertEqual(capturedRequest?.url?.path, "/api/inbox/unread-count")
+        XCTAssertEqual(capturedRequest?.url?.query, "workspace_id=w1")
+        XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
+        XCTAssertEqual(response.count, 4)
+    }
+
     func test_notificationPreferenceEndpointsUseDesktopShape() async throws {
         var requests: [(method: String, path: String, body: [String: Any]?)] = []
         MockURLProtocol.handler = { req in
@@ -1104,7 +1229,7 @@ final class APIClientTests: XCTestCase {
         let json = """
         {"id":"i1","identifier":"PAR-1","number":1,"title":"T","description":null,
          "status":"in_review","priority":"urgent","assignee_id":null,"assignee_type":null,
-         "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
+         "project_id":null,"workspace_id":"w1","position":4,"created_at":"2026-01-01T00:00:00Z",
          "updated_at":"2026-01-02T00:00:00Z"}
         """.data(using: .utf8)!
         var capturedURL: URL?
@@ -1117,13 +1242,15 @@ final class APIClientTests: XCTestCase {
             return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
         }
 
-        let issue = try await client.updateIssue(id: "i1", workspaceId: "w1", status: .inReview, priority: .urgent)
+        let issue = try await client.updateIssue(id: "i1", workspaceId: "w1", status: .inReview, priority: .urgent, position: 4)
 
         XCTAssertEqual(issue.status, .inReview)
         XCTAssertEqual(issue.priority, .urgent)
+        XCTAssertEqual(issue.position, 4)
         XCTAssertTrue(capturedURL?.absoluteString.contains("workspace_id=w1") ?? false)
         XCTAssertEqual(body["status"] as? String, "in_review")
         XCTAssertEqual(body["priority"] as? String, "urgent")
+        XCTAssertEqual(body["position"] as? Int, 4)
     }
 
     func test_deleteIssue_usesDesktopEndpoint() async throws {
@@ -1573,6 +1700,38 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(requests[1].body?["item_id"] as? String, "i1")
     }
 
+    func test_reorderPinsUsesDesktopEndpointAndBody() async throws {
+        var capturedRequest: URLRequest?
+        var body: [String: Any] = [:]
+        MockURLProtocol.handler = { req in
+            capturedRequest = req
+            body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+            return (HTTPURLResponse(url: req.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+        }
+
+        try await client.reorderPins(
+            items: [
+                .init(itemType: .project, itemId: "p1"),
+                .init(itemType: .issue, itemId: "i1"),
+            ],
+            workspaceId: "w1",
+            workspaceSlug: "park0er"
+        )
+
+        XCTAssertEqual(capturedRequest?.httpMethod, "PUT")
+        XCTAssertEqual(capturedRequest?.url?.path, "/api/pins/reorder")
+        XCTAssertEqual(capturedRequest?.url?.query, "workspace_id=w1")
+        XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "X-Workspace-Slug"), "park0er")
+        let items = try XCTUnwrap(body["items"] as? [[String: Any]])
+        XCTAssertEqual(items.count, 2)
+        XCTAssertEqual(items[0]["item_type"] as? String, "project")
+        XCTAssertEqual(items[0]["item_id"] as? String, "p1")
+        XCTAssertEqual(items[0]["position"] as? Int, 0)
+        XCTAssertEqual(items[1]["item_type"] as? String, "issue")
+        XCTAssertEqual(items[1]["item_id"] as? String, "i1")
+        XCTAssertEqual(items[1]["position"] as? Int, 1)
+    }
+
     func test_listMembers_decodesWorkspaceMembers() async throws {
         let json = """
         [{"id":"m1","workspace_id":"w1","user_id":"u1","role":"owner",
@@ -1699,6 +1858,31 @@ final class APIClientTests: XCTestCase {
         let agents = try await client.listAgents(workspaceId: "w1", includeArchived: true)
 
         XCTAssertTrue(agents.isEmpty)
+    }
+
+    func test_getAgentUsesDesktopEndpointAndWorkspaceScope() async throws {
+        var capturedRequest: URLRequest?
+        MockURLProtocol.handler = { req in
+            capturedRequest = req
+            let json = """
+            {"id":"a1","workspace_id":"w1","runtime_id":"r1","name":"Codex",
+              "description":"Agent","instructions":"Do work","avatar_url":null,
+              "runtime_mode":"cloud","runtime_config":{},"custom_env":{},"custom_args":[],
+              "custom_env_redacted":false,"visibility":"workspace","status":"active",
+              "max_concurrent_tasks":1,"model":"gpt","owner_id":null,"skills":[],
+              "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z",
+              "archived_at":null,"archived_by":null}
+            """.data(using: .utf8)!
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let agent = try await client.getAgent(id: "a1", workspaceId: "w1")
+
+        XCTAssertEqual(capturedRequest?.httpMethod, "GET")
+        XCTAssertEqual(capturedRequest?.url?.path, "/api/agents/a1")
+        XCTAssertEqual(capturedRequest?.url?.query, "workspace_id=w1")
+        XCTAssertEqual(agent.name, "Codex")
+        XCTAssertEqual(agent.instructions, "Do work")
     }
 
     func test_listAgentTasks_usesDesktopEndpoint() async throws {

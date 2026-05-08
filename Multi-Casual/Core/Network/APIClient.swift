@@ -27,6 +27,41 @@ public final class APIClient: @unchecked Sendable {
         }
     }
 
+    public struct IssuedCLIToken: Codable, Equatable, Sendable {
+        public let token: String
+    }
+
+    public struct AppConfig: Codable, Equatable, Sendable {
+        public let cdnDomain: String
+        public let allowSignup: Bool
+        public let googleClientId: String?
+        public let posthogKey: String?
+        public let posthogHost: String?
+
+        enum CodingKeys: String, CodingKey {
+            case cdnDomain = "cdn_domain"
+            case allowSignup = "allow_signup"
+            case googleClientId = "google_client_id"
+            case posthogKey = "posthog_key"
+            case posthogHost = "posthog_host"
+        }
+    }
+
+    public struct ReorderPinItem: Codable, Equatable, Sendable {
+        public let itemType: PinnedItemType
+        public let itemId: String
+
+        public init(itemType: PinnedItemType, itemId: String) {
+            self.itemType = itemType
+            self.itemId = itemId
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case itemType = "item_type"
+            case itemId = "item_id"
+        }
+    }
+
     public struct BatchUpdateIssuesResponse: Codable, Sendable {
         public let updated: Int
     }
@@ -38,6 +73,7 @@ public final class APIClient: @unchecked Sendable {
     public enum APIError: Error, @unchecked Sendable {
         case unauthorized
         case notFound
+        case missingWorkspace
         case serverError(Int, body: String)
         case decodingError(underlying: Error, body: String)
         case networkError(Error)
@@ -128,7 +164,11 @@ public final class APIClient: @unchecked Sendable {
         ) else {
             throw APIError.serverError(-1, body: "Invalid base URL: \(baseURL) + \(path)")
         }
-        let finalQueryItems = await queryItemsWithWorkspaceIfNeeded(path: path, queryItems: queryItems)
+        let finalQueryItems = try await queryItemsWithWorkspaceIfNeeded(
+            path: path,
+            queryItems: queryItems,
+            headers: headers
+        )
         if !finalQueryItems.isEmpty { components.queryItems = finalQueryItems }
         guard let url = components.url else {
             throw APIError.serverError(-1, body: "Invalid URL components for path \(path)")
@@ -226,18 +266,33 @@ public final class APIClient: @unchecked Sendable {
         }
     }
 
-    private func queryItemsWithWorkspaceIfNeeded(path: String, queryItems: [URLQueryItem]) async -> [URLQueryItem] {
-        guard isWorkspaceScopedPath(path),
-              !queryItems.contains(where: { $0.name == "workspace_id" || $0.name == "workspace_slug" }),
-              let workspaceId = await workspaceIdProvider(),
-              !workspaceId.isEmpty
-        else {
+    private func queryItemsWithWorkspaceIfNeeded(
+        path: String,
+        queryItems: [URLQueryItem],
+        headers: [String: String] = [:]
+    ) async throws -> [URLQueryItem] {
+        guard isWorkspaceScopedPath(path) else {
             return queryItems
         }
-        return queryItems + [.init(name: "workspace_id", value: workspaceId)]
+        if queryItems.contains(where: { $0.name == "workspace_id" || $0.name == "workspace_slug" }) {
+            return queryItems
+        }
+        if let headerSlug = headers["X-Workspace-Slug"], !headerSlug.isEmpty {
+            return queryItems
+        }
+        if let workspaceId = await workspaceIdProvider(), !workspaceId.isEmpty {
+            return queryItems + [.init(name: "workspace_id", value: workspaceId)]
+        }
+        if let workspaceSlug = await workspaceSlugProvider(), !workspaceSlug.isEmpty {
+            return queryItems + [.init(name: "workspace_slug", value: workspaceSlug)]
+        }
+        throw APIError.missingWorkspace
     }
 
     private func isWorkspaceScopedPath(_ path: String) -> Bool {
+        if path.hasPrefix("api/workspaces/") {
+            return true
+        }
         let scopedPrefixes = [
             "api/assignee-frequency",
             "api/issues",
@@ -271,6 +326,15 @@ public final class APIClient: @unchecked Sendable {
     private struct VerifyCodeRequest: Encodable { let email: String; let code: String }
     private struct TokenResponse: Decodable { let token: String }
     private struct EmptyResponse: Decodable {}
+    private struct UpdateMeRequest: Encodable {
+        let name: String?
+        let avatarUrl: String?
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case avatarUrl = "avatar_url"
+        }
+    }
     private struct RegisterPushTokenRequest: Encodable {
         let token: String
         let platform: String = "apns"
@@ -495,6 +559,21 @@ public final class APIClient: @unchecked Sendable {
             case itemId = "item_id"
         }
     }
+    private struct ReorderPinsRequest: Encodable {
+        struct Item: Encodable {
+            let itemType: PinnedItemType
+            let itemId: String
+            let position: Int
+
+            enum CodingKeys: String, CodingKey {
+                case itemType = "item_type"
+                case itemId = "item_id"
+                case position
+            }
+        }
+
+        let items: [Item]
+    }
     private struct CreateAutopilotTriggerRequest: Encodable {
         let kind: String
         let cronExpression: String?
@@ -558,8 +637,28 @@ public final class APIClient: @unchecked Sendable {
         return resp.token
     }
 
+    public func logout() async throws {
+        let _: EmptyResponse = try await request("POST", path: "auth/logout")
+    }
+
+    public func issueCliToken() async throws -> IssuedCLIToken {
+        try await request("POST", path: "api/cli-token")
+    }
+
+    public func getConfig() async throws -> AppConfig {
+        try await request("GET", path: "api/config")
+    }
+
     public func getMe() async throws -> User {
         try await request("GET", path: "api/me")
+    }
+
+    public func updateMe(name: String? = nil, avatarUrl: String? = nil) async throws -> User {
+        try await request(
+            "PATCH",
+            path: "api/me",
+            body: UpdateMeRequest(name: name, avatarUrl: avatarUrl)
+        )
     }
 
     // GET /api/workspaces returns a bare JSON array, not an object wrapper.
@@ -659,7 +758,7 @@ public final class APIClient: @unchecked Sendable {
         ) else {
             throw APIError.serverError(-1, body: "Invalid base URL: \(baseURL) + \(path)")
         }
-        let queryItems = await queryItemsWithWorkspaceIfNeeded(
+        let queryItems = try await queryItemsWithWorkspaceIfNeeded(
             path: path,
             queryItems: workspaceQuery(workspaceId)
         )
@@ -806,6 +905,7 @@ public final class APIClient: @unchecked Sendable {
     private struct UpdateIssueRequest: Encodable {
         let status: IssueStatus?
         let priority: IssuePriority?
+        let position: Int?
     }
 
     private struct BatchIssueUpdates: Encodable {
@@ -1072,13 +1172,14 @@ public final class APIClient: @unchecked Sendable {
         id: String,
         workspaceId: String? = nil,
         status: IssueStatus? = nil,
-        priority: IssuePriority? = nil
+        priority: IssuePriority? = nil,
+        position: Int? = nil
     ) async throws -> Issue {
         try await request(
             "PUT",
             path: "api/issues/\(id)",
             queryItems: workspaceQuery(workspaceId),
-            body: UpdateIssueRequest(status: status, priority: priority)
+            body: UpdateIssueRequest(status: status, priority: priority, position: position)
         )
     }
 
@@ -1230,6 +1331,23 @@ public final class APIClient: @unchecked Sendable {
             path: "api/pins/\(itemType.rawValue)/\(itemId)",
             queryItems: workspaceQuery(workspaceId),
             headers: workspaceHeaders(workspaceSlug)
+        )
+    }
+
+    public func reorderPins(
+        items: [ReorderPinItem],
+        workspaceId: String? = nil,
+        workspaceSlug: String? = nil
+    ) async throws {
+        let requestItems = items.enumerated().map { index, item in
+            ReorderPinsRequest.Item(itemType: item.itemType, itemId: item.itemId, position: index)
+        }
+        let _: EmptyResponse = try await request(
+            "PUT",
+            path: "api/pins/reorder",
+            queryItems: workspaceQuery(workspaceId),
+            headers: workspaceHeaders(workspaceSlug),
+            body: ReorderPinsRequest(items: requestItems)
         )
     }
 
@@ -1427,6 +1545,10 @@ public final class APIClient: @unchecked Sendable {
             queryItems.append(.init(name: "include_archived", value: "true"))
         }
         return try await request("GET", path: "api/agents", queryItems: queryItems)
+    }
+
+    public func getAgent(id: String, workspaceId: String? = nil) async throws -> Agent {
+        try await request("GET", path: "api/agents/\(id)", queryItems: workspaceQuery(workspaceId))
     }
 
     public func createAgent(
@@ -1997,6 +2119,15 @@ public final class APIClient: @unchecked Sendable {
         )
     }
 
+    public func getUnreadInboxCount(workspaceId: String? = nil, workspaceSlug: String? = nil) async throws -> CountResponse {
+        try await request(
+            "GET",
+            path: "api/inbox/unread-count",
+            queryItems: workspaceQuery(workspaceId),
+            headers: workspaceHeaders(workspaceSlug)
+        )
+    }
+
     public func markAllInboxRead(workspaceId: String? = nil, workspaceSlug: String? = nil) async throws -> CountResponse {
         try await request(
             "POST",
@@ -2205,6 +2336,8 @@ extension APIClient.APIError: LocalizedError {
             return "You're signed out. Please sign in again."
         case .notFound:
             return "The requested resource was not found."
+        case .missingWorkspace:
+            return "Pick a workspace before loading this data."
         case .serverError(let status, let body):
             if let decoded = Self.decodeBackendMessage(body) {
                 return decoded

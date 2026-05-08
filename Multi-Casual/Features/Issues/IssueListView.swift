@@ -1,5 +1,6 @@
 #if canImport(SwiftUI) && canImport(UIKit)
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct IssueListView: View {
     @Environment(AuthSession.self) private var authSession
@@ -7,6 +8,7 @@ public struct IssueListView: View {
     @State private var viewModel: IssueListViewModel?
     @State private var showingBatchDeleteConfirmation = false
     @State private var searchText = ""
+    @State private var collapsedStatusSections: Set<IssueStatus> = []
     private let initialScope: IssueListViewModel.Scope
 
     public init(scope: IssueListViewModel.Scope = .all) {
@@ -74,15 +76,27 @@ public struct IssueListView: View {
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
-                            ForEach(IssueListViewModel.SortOption.allCases, id: \.self) { option in
-                                Button {
-                                    vm.setSortOption(option)
-                                } label: {
-                                    MarkdownIconLabel(option.displayName, systemImage: vm.sortOption == option ? "checkmark" : "arrow.up.arrow.down")
+                            Section("Sort by") {
+                                ForEach(IssueListViewModel.SortOption.allCases, id: \.self) { option in
+                                    Button {
+                                        vm.setSortOption(option)
+                                    } label: {
+                                        MarkdownIconLabel(option.displayName, systemImage: vm.sortOption == option ? "checkmark" : "arrow.up.arrow.down")
+                                    }
+                                }
+                            }
+                            Section("Direction") {
+                                ForEach(IssueListViewModel.SortDirection.allCases, id: \.self) { direction in
+                                    Button {
+                                        vm.setSortDirection(direction)
+                                    } label: {
+                                        MarkdownIconLabel(direction.displayName, systemImage: vm.sortDirection == direction ? "checkmark" : direction.icon)
+                                    }
+                                    .accessibilityIdentifier("IssueSortDirection-\(direction.rawValue)")
                                 }
                             }
                         } label: {
-                            Image(systemName: "arrow.up.arrow.down")
+                            Image(systemName: vm.sortDirection == .ascending ? "arrow.up.arrow.down" : "arrow.up.arrow.down.circle.fill")
                         }
                         .accessibilityIdentifier("IssueSortMenu")
                     }
@@ -165,32 +179,35 @@ public struct IssueListView: View {
                     description: Text(MarkdownRenderer.attributedString(from: vm.scope.emptyDescription))
                 )
             }
-            ForEach(vm.loader.items) { issue in
-                if vm.isSelectionMode {
-                    Button {
-                        vm.toggleSelection(issueId: issue.id)
-                    } label: {
-                        IssueSelectableRowView(
-                            issue: issue,
-                            childProgressText: vm.childProgressText(for: issue),
-                            isSelected: vm.selectedIssueIds.contains(issue.id)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("IssueSelectionRow-\(issue.identifier)")
-                } else {
-                    NavigationLink(destination: IssueDetailView(issueId: issue.id)) {
-                        IssueRowView(issue: issue, childProgressText: vm.childProgressText(for: issue))
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        if issue.status != .done {
-                            Button {
-                                Task { await vm.updateStatus(issueId: issue.id, to: .done) }
-                            } label: {
-                                Label("Done", systemImage: "checkmark.circle")
+            ForEach(IssueStatus.boardCases, id: \.self) { status in
+                let issues = vm.issues(for: status)
+                if !issues.isEmpty {
+                    Section {
+                        if !collapsedStatusSections.contains(status) {
+                            ForEach(issues) { issue in
+                                issueListRow(issue: issue, vm: vm)
                             }
-                            .tint(.green)
                         }
+                    } header: {
+                        Button {
+                            toggleStatusSection(status)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: collapsedStatusSections.contains(status) ? "chevron.right" : "chevron.down")
+                                    .frame(width: 12)
+                                Image(systemName: status.icon)
+                                MarkdownText(status.displayName)
+                                MarkdownText("(\(issues.count))")
+                                    .foregroundStyle(.secondary)
+                                Spacer(minLength: 0)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .font(.caption.weight(.semibold))
+                        .accessibilityIdentifier("IssueStatusSectionHeader-\(status.rawValue)")
+                        .accessibilityLabel("\(status.displayName) status section")
+                        .accessibilityValue(collapsedStatusSections.contains(status) ? "Collapsed" : "Expanded")
                     }
                 }
             }
@@ -202,6 +219,37 @@ public struct IssueListView: View {
             }
         }
         .listStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func issueListRow(issue: Issue, vm: IssueListViewModel) -> some View {
+        if vm.isSelectionMode {
+            Button {
+                vm.toggleSelection(issueId: issue.id)
+            } label: {
+                IssueSelectableRowView(
+                    issue: issue,
+                    childProgressText: vm.childProgressText(for: issue),
+                    isSelected: vm.selectedIssueIds.contains(issue.id)
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("IssueSelectionRow-\(issue.identifier)")
+        } else {
+            NavigationLink(destination: IssueDetailView(issueId: issue.id)) {
+                IssueRowView(issue: issue, childProgressText: vm.childProgressText(for: issue))
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                if issue.status != .done {
+                    Button {
+                        Task { await vm.updateStatus(issueId: issue.id, to: .done) }
+                    } label: {
+                        Label("Done", systemImage: "checkmark.circle")
+                    }
+                    .tint(.green)
+                }
+            }
+        }
     }
 
     private func boardView(vm: IssueListViewModel) -> some View {
@@ -216,14 +264,65 @@ public struct IssueListView: View {
                             MarkdownText("(\(issues.count))").font(.caption).foregroundStyle(.secondary)
                         }
                         .padding(.horizontal, 8)
-                        ForEach(issues) { issue in
+                        ForEach(Array(issues.enumerated()), id: \.element.id) { index, issue in
                             NavigationLink(destination: IssueDetailView(issueId: issue.id)) {
                                 BoardCardView(issue: issue, childProgressText: vm.childProgressText(for: issue))
-                            }.buttonStyle(.plain)
+                            }
+                            .buttonStyle(.plain)
+                            .contentShape(Rectangle())
+                            .onDrag { NSItemProvider(object: issue.id as NSString) }
+                            .onDrop(
+                                of: [UTType.text],
+                                delegate: IssueBoardDropDelegate(
+                                    targetStatus: status,
+                                    beforeIssueId: issue.id,
+                                    viewModel: vm
+                                )
+                            )
+                            .contextMenu {
+                                if index > 0 {
+                                    Button {
+                                        Task { await vm.moveIssue(issueId: issue.id, to: status, beforeIssueId: issues[index - 1].id) }
+                                    } label: {
+                                        MarkdownIconLabel("Move Up", systemImage: "arrow.up")
+                                    }
+                                    .accessibilityIdentifier("IssueBoardMoveUp-\(issue.identifier)")
+                                }
+                                if index < issues.count - 1 {
+                                    Button {
+                                        let beforeIssueId = index + 2 < issues.count ? issues[index + 2].id : nil
+                                        Task { await vm.moveIssue(issueId: issue.id, to: status, beforeIssueId: beforeIssueId) }
+                                    } label: {
+                                        MarkdownIconLabel("Move Down", systemImage: "arrow.down")
+                                    }
+                                    .accessibilityIdentifier("IssueBoardMoveDown-\(issue.identifier)")
+                                }
+                                Menu {
+                                    ForEach(IssueStatus.boardCases.filter { $0 != status }, id: \.self) { targetStatus in
+                                        Button {
+                                            Task { await vm.moveIssue(issueId: issue.id, to: targetStatus) }
+                                        } label: {
+                                            MarkdownIconLabel(targetStatus.displayName, systemImage: targetStatus.icon)
+                                        }
+                                    }
+                                } label: {
+                                    MarkdownIconLabel("Move to Status", systemImage: "arrow.left.arrow.right")
+                                }
+                            }
                         }
                     }
                     .frame(width: 260).padding(8)
                     .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                    .contentShape(Rectangle())
+                    .onDrop(
+                        of: [UTType.text],
+                        delegate: IssueBoardDropDelegate(
+                            targetStatus: status,
+                            beforeIssueId: nil,
+                            viewModel: vm
+                        )
+                    )
+                    .accessibilityIdentifier("IssueBoardColumn-\(status.rawValue)")
                 }
             }.padding()
         }
@@ -235,6 +334,37 @@ public struct IssueListView: View {
                     .padding()
             }
         }
+    }
+
+    private func toggleStatusSection(_ status: IssueStatus) {
+        if collapsedStatusSections.contains(status) {
+            collapsedStatusSections.remove(status)
+        } else {
+            collapsedStatusSections.insert(status)
+        }
+    }
+}
+
+private struct IssueBoardDropDelegate: DropDelegate {
+    let targetStatus: IssueStatus
+    let beforeIssueId: String?
+    let viewModel: IssueListViewModel
+
+    func validateDrop(info: DropInfo) -> Bool {
+        info.hasItemsConforming(to: [UTType.text])
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let provider = info.itemProviders(for: [UTType.text]).first else { return false }
+        provider.loadObject(ofClass: NSString.self) { object, _ in
+            guard let issueId = object as? String ?? (object as? NSString)?.description,
+                  issueId != beforeIssueId
+            else { return }
+            Task { @MainActor in
+                await viewModel.moveIssue(issueId: issueId, to: targetStatus, beforeIssueId: beforeIssueId)
+            }
+        }
+        return true
     }
 }
 
@@ -407,6 +537,7 @@ struct BoardCardView: View {
         .padding(10).frame(maxWidth: .infinity, alignment: .leading)
         .background(.background, in: RoundedRectangle(cornerRadius: 8))
         .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
+        .accessibilityIdentifier("IssueBoardCard-\(issue.identifier)")
     }
 }
 #endif
