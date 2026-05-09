@@ -1,5 +1,7 @@
 # Multica iOS App
 
+[中文版](README.zh-CN.md)
+
 A production-used SwiftUI iOS client for Multica, built to bring the Multica web app's core workspace and agent-management workflows to iPhone.
 
 > Status: public source review / upstream contribution proposal. This repository is not an official Multica app. The code is public for review only under the repository's source-review license; do not copy, redistribute, publish builds, or imply official Multica endorsement unless separate written permission is granted.
