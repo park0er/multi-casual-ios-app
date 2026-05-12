@@ -117,6 +117,31 @@ public final class IssueDetailViewModel {
         return "\(formatTokenCount(usage.totalTokens)) tokens across \(usage.taskCount) \(taskUnit)"
     }
 
+    public var mentionableAgents: [Agent] {
+        subscriberAgents
+            .filter { $0.archivedAt == nil }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    public func appendAgentMention(_ agent: Agent) {
+        let mention = Self.agentMentionMarkdown(agent)
+        let trimmedDraft = commentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedDraft.isEmpty {
+            commentDraft = "\(mention) "
+        } else if commentDraft.last?.isWhitespace == true {
+            commentDraft += "\(mention) "
+        } else {
+            commentDraft += " \(mention) "
+        }
+    }
+
+    public static func agentMentionMarkdown(_ agent: Agent) -> String {
+        let label = agent.name
+            .replacingOccurrences(of: "[", with: "\\[")
+            .replacingOccurrences(of: "]", with: "\\]")
+        return "[@\(label)](mention://agent/\(agent.id))"
+    }
+
     public func loadInitialData() async {
         await loadIssue()
         guard issue != nil, error == nil else { return }
@@ -464,6 +489,13 @@ public final class IssueDetailViewModel {
         }
     }
 
+    public func refreshLatestProgress() async {
+        async let activeTasks: Void = loadActiveTasks()
+        async let agentRuns: Void = loadAgentRuns()
+        async let timeline: Void = loadTimeline()
+        _ = await (activeTasks, agentRuns, timeline)
+    }
+
     public func deleteIssue() async {
         isDeletingIssue = true
         deleteIssueError = nil
@@ -640,7 +672,9 @@ public final class IssueDetailViewModel {
                 workspaceId: resolvedWorkspaceId
             )
             commentLoader.items.append(comment)
-            await loadIssue()
+            async let issueRefresh: Void = loadIssue()
+            async let progressRefresh: Void = refreshLatestProgress()
+            _ = await (issueRefresh, progressRefresh)
             await DataStore.shared.invalidateIssue(issueId)
             return true
         } catch {

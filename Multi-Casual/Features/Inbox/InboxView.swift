@@ -5,10 +5,14 @@ public struct InboxView: View {
     @Environment(APIClient.self) private var api
     @Environment(AuthSession.self) private var authSession
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: InboxViewModel?
     @State private var observedWorkspaceId: String?
     @State private var showingArchiveConfirmation = false
     @State private var showingBulkArchiveConfirmation = false
+    @State private var autoRefreshTask: Task<Void, Never>?
+
+    private let autoRefreshIntervalNanoseconds: UInt64 = 30_000_000_000
 
     public init() {}
 
@@ -24,7 +28,10 @@ public struct InboxView: View {
                         )
                     }
                     ForEach(vm.loader.items) { item in
-                        NavigationLink(destination: IssueDetailView(issueId: item.issueId)) {
+                        NavigationLink {
+                            IssueDetailView(issueId: item.issueId)
+                                .task { await vm.markReadIfNeeded(id: item.id) }
+                        } label: {
                             InboxRow(item: item)
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -132,12 +139,46 @@ public struct InboxView: View {
                 viewModel = InboxViewModel(api: api, authSession: authSession)
                 Task { await viewModel?.loadNext() }
             }
+            startAutoRefresh()
+        }
+        .onDisappear {
+            stopAutoRefresh()
         }
         .onChange(of: authSession.currentWorkspace?.id) { _, newValue in
             guard observedWorkspaceId != newValue else { return }
             observedWorkspaceId = newValue
             Task { await viewModel?.refresh() }
+            startAutoRefresh()
         }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:
+                Task { await viewModel?.refreshIfIdle() }
+                startAutoRefresh()
+            default:
+                stopAutoRefresh()
+            }
+        }
+    }
+
+    private func startAutoRefresh() {
+        stopAutoRefresh()
+        autoRefreshTask = Task {
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: autoRefreshIntervalNanoseconds)
+                } catch {
+                    break
+                }
+                if Task.isCancelled { break }
+                await viewModel?.refreshIfIdle()
+            }
+        }
+    }
+
+    private func stopAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
     }
 }
 

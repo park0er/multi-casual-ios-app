@@ -513,6 +513,7 @@ public struct IssueDetailView: View {
                     comment: comment,
                     authorDisplayName: vm.commentAuthorName(for: comment),
                     currentUserId: currentUserId,
+                    mentionableAgents: vm.mentionableAgents,
                     replyAttachments: vm.replyAttachments[comment.id] ?? [],
                     isUploadingReplyAttachment: vm.uploadingReplyAttachmentIds.contains(comment.id),
                     onReply: { parentId, content in
@@ -820,6 +821,12 @@ public struct IssueDetailView: View {
                 .disabled(vm.isUploadingCommentAttachment || vm.isSubmittingComment)
                 .accessibilityIdentifier("IssueDetailAddCommentAttachmentButton")
 
+                AgentMentionMenu(agents: vm.mentionableAgents) { agent in
+                    vm.appendAgentMention(agent)
+                }
+                .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
+                .accessibilityIdentifier("IssueDetailAgentMentionButton")
+
                 TextField("Add a comment…", text: Binding(
                     get: { vm.commentDraft }, set: { vm.commentDraft = $0 }
                 ), axis: .vertical)
@@ -896,6 +903,7 @@ public struct CommentRowView: View {
     public let comment: Comment
     let authorDisplayName: String
     let currentUserId: String?
+    let mentionableAgents: [Agent]
     let replyAttachments: [Attachment]
     let isUploadingReplyAttachment: Bool
     let onReply: (String, String) async -> Bool
@@ -917,6 +925,7 @@ public struct CommentRowView: View {
         comment: Comment,
         authorDisplayName: String? = nil,
         currentUserId: String? = nil,
+        mentionableAgents: [Agent] = [],
         replyAttachments: [Attachment] = [],
         isUploadingReplyAttachment: Bool = false,
         onReply: @escaping (String, String) async -> Bool = { _, _ in false },
@@ -928,6 +937,7 @@ public struct CommentRowView: View {
         self.comment = comment
         self.authorDisplayName = authorDisplayName ?? (comment.authorType == "agent" ? "Agent" : "Member")
         self.currentUserId = currentUserId
+        self.mentionableAgents = mentionableAgents
         self.replyAttachments = replyAttachments
         self.isUploadingReplyAttachment = isUploadingReplyAttachment
         self.onReply = onReply
@@ -1027,6 +1037,12 @@ public struct CommentRowView: View {
                         .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                         .accessibilityIdentifier("CommentReplyEditor")
                     HStack(spacing: 8) {
+                        AgentMentionMenu(agents: mentionableAgents) { agent in
+                            appendAgentMention(agent, to: &replyDraft)
+                        }
+                        .disabled(mentionableAgents.isEmpty || isSaving)
+                        .accessibilityIdentifier("CommentReplyAgentMentionButton")
+
                         Button {
                             showReplyAttachmentImporter = true
                         } label: {
@@ -1112,6 +1128,18 @@ public struct CommentRowView: View {
         }
     }
 
+    private func appendAgentMention(_ agent: Agent, to draft: inout String) {
+        let mention = IssueDetailViewModel.agentMentionMarkdown(agent)
+        let trimmedDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedDraft.isEmpty {
+            draft = "\(mention) "
+        } else if draft.last?.isWhitespace == true {
+            draft += "\(mention) "
+        } else {
+            draft += " \(mention) "
+        }
+    }
+
     private func handleReplyAttachmentImport(_ result: Result<[URL], Error>) {
         do {
             guard let url = try result.get().first else { return }
@@ -1138,6 +1166,32 @@ public struct CommentRowView: View {
                 isSelected: matching.contains { $0.actorType == "member" && $0.actorId == currentUserId }
             )
         }
+    }
+}
+
+private struct AgentMentionMenu: View {
+    let agents: [Agent]
+    let onSelect: (Agent) -> Void
+
+    var body: some View {
+        Menu {
+            if agents.isEmpty {
+                MarkdownText("No agents available")
+            } else {
+                ForEach(agents) { agent in
+                    Button {
+                        onSelect(agent)
+                    } label: {
+                        Label(agent.name, systemImage: "bolt.circle")
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "at")
+                .font(.title3)
+                .foregroundStyle(agents.isEmpty ? Color.secondary : Color.accentColor)
+        }
+        .accessibilityLabel("Mention Agent")
     }
 }
 

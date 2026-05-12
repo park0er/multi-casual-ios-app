@@ -39,6 +39,7 @@ public final class InboxViewModel {
     public var unreadCount: Int = 0
     public var pendingArchiveItem: InboxItem?
     public var pendingBulkArchiveAction: InboxBulkArchiveAction?
+    public var markingReadIds: Set<String> = []
     private let pageSize = 50
     private let api: APIClient
     private let authSession: AuthSession
@@ -73,6 +74,11 @@ public final class InboxViewModel {
 
     public func refresh() async { loader.reset(); await loadNext() }
 
+    public func refreshIfIdle() async {
+        guard !loader.isLoading else { return }
+        await refresh()
+    }
+
     public func markRead(id: String) async {
         guard let workspace = authSession.currentWorkspace else {
             lastError = UserVisibleError("Pick a workspace before updating Inbox.")
@@ -82,6 +88,34 @@ public final class InboxViewModel {
             let updated = try await api.markInboxRead(id: id, workspaceId: workspace.id, workspaceSlug: workspace.slug)
             if let index = loader.items.firstIndex(where: { $0.id == id }) {
                 loader.items[index] = updated
+            }
+            updateUnreadCount()
+            lastError = nil
+        } catch {
+            lastError = error
+        }
+    }
+
+    public func markReadIfNeeded(id: String) async {
+        guard let index = loader.items.firstIndex(where: { $0.id == id }),
+              !loader.items[index].read,
+              !markingReadIds.contains(id)
+        else { return }
+        guard let workspace = authSession.currentWorkspace else {
+            lastError = UserVisibleError("Pick a workspace before updating Inbox.")
+            return
+        }
+
+        let previousItem = loader.items[index]
+        loader.items[index] = Self.markedRead(previousItem)
+        updateUnreadCount()
+        markingReadIds.insert(id)
+        defer { markingReadIds.remove(id) }
+
+        do {
+            let updated = try await api.markInboxRead(id: id, workspaceId: workspace.id, workspaceSlug: workspace.slug)
+            if let updatedIndex = loader.items.firstIndex(where: { $0.id == id }) {
+                loader.items[updatedIndex] = updated
             }
             updateUnreadCount()
             lastError = nil

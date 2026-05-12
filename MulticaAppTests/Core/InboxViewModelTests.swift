@@ -3,6 +3,21 @@ import XCTest
 
 @MainActor
 final class InboxViewModelTests: XCTestCase {
+    func test_inboxRowsNavigateBeforeMarkingRead() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceURL = root.appendingPathComponent("Multi-Casual/Features/Inbox/InboxView.swift")
+        let source = try String(contentsOf: sourceURL)
+
+        XCTAssertFalse(
+            source.contains(".simultaneousGesture(TapGesture().onEnded"),
+            "Inbox row taps should not attach a simultaneous gesture to NavigationLink because updating row state can cancel navigation."
+        )
+        XCTAssertTrue(
+            source.contains(".task { await vm.markReadIfNeeded(id: item.id) }"),
+            "Inbox items should be marked read after the IssueDetailView destination appears, preserving tap-to-open behavior."
+        )
+    }
+
     func test_markRead_updatesItemAndUnreadCount() async throws {
         let client = makeClient { req in
             switch req.url?.path {
@@ -26,6 +41,35 @@ final class InboxViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.loader.items.first?.read, true)
         XCTAssertEqual(vm.unreadCount, 0)
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_markReadIfNeededOptimisticallyMarksUnreadItemOnOpen() async throws {
+        var readRequestCount = 0
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/inbox":
+                return Self.response(for: req, body: Self.inboxItemJSON(read: false, archived: false))
+            case "/api/inbox/n1/read":
+                readRequestCount += 1
+                XCTAssertEqual(req.url?.query, "workspace_id=w1")
+                XCTAssertEqual(req.value(forHTTPHeaderField: "X-Workspace-Slug"), "test")
+                return Self.response(for: req, body: Self.singleInboxItemJSON(read: true, archived: false))
+            default:
+                XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = InboxViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.loadNext()
+        await vm.markReadIfNeeded(id: "n1")
+        await vm.markReadIfNeeded(id: "n1")
+
+        XCTAssertEqual(readRequestCount, 1)
+        XCTAssertEqual(vm.loader.items.first?.read, true)
+        XCTAssertEqual(vm.unreadCount, 0)
+        XCTAssertTrue(vm.markingReadIds.isEmpty)
         XCTAssertNil(vm.lastError)
     }
 

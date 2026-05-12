@@ -684,6 +684,9 @@ final class IssueDetailViewModelTests: XCTestCase {
             case ("GET", "/api/issues/i1"):
                 return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-02T00:00:00Z"))
             default:
+                if let response = Self.emptyLatestProgressResponse(for: req) {
+                    return response
+                }
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
             }
@@ -727,6 +730,9 @@ final class IssueDetailViewModelTests: XCTestCase {
             case ("GET", "/api/issues/i1"):
                 return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-02T00:00:00Z"))
             default:
+                if let response = Self.emptyLatestProgressResponse(for: req) {
+                    return response
+                }
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
             }
@@ -746,11 +752,14 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertEqual(commentBody["parent_id"] as? String, "c1")
         XCTAssertEqual(commentBody["attachment_ids"] as? [String], ["att-reply"])
         XCTAssertEqual(vm.replyAttachments["c1"]?.map(\.id) ?? [], [])
-        XCTAssertEqual(requests, [
+        XCTAssertEqual(Set(requests), Set([
             "POST /api/upload-file",
             "POST /api/issues/i1/comments",
             "GET /api/issues/i1",
-        ])
+            "GET /api/issues/i1/active-task",
+            "GET /api/issues/i1/task-runs",
+            "GET /api/issues/i1/timeline",
+        ]))
         XCTAssertNil(vm.error)
     }
 
@@ -930,6 +939,9 @@ final class IssueDetailViewModelTests: XCTestCase {
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
             default:
+                if let response = Self.emptyLatestProgressResponse(for: req) {
+                    return response
+                }
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
             }
@@ -947,6 +959,56 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.error)
     }
 
+    func test_submitComment_refreshesLatestProgressSources() async throws {
+        var requestedPaths: [String] = []
+        let client = makeClient { req in
+            requestedPaths.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("GET", "/api/issues/i1"):
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-02T00:00:00Z"))
+            case ("POST", "/api/issues/i1/comments"):
+                let json = """
+                {"id":"c1","content":"@Codex please handle","author_id":"u1","author_type":"member",
+                 "parent_id":null,"issue_id":"i1","created_at":"2026-01-02T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("GET", "/api/issues/i1/active-task"):
+                let json = """
+                {"tasks":[{
+                    "id":"t1","agent_id":"a1","runtime_id":"r1","issue_id":"i1",
+                    "status":"running","priority":0,"dispatched_at":null,
+                    "started_at":"2026-01-02T00:00:00Z","completed_at":null,
+                    "result":null,"error":null,"created_at":"2026-01-02T00:00:00Z"
+                }]}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("GET", "/api/issues/i1/task-runs"):
+                return Self.response(for: req, body: Data("[]".utf8))
+            case ("GET", "/api/issues/i1/timeline"):
+                return Self.response(for: req, body: Data("[]".utf8))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        await vm.loadIssue()
+        vm.commentDraft = "@Codex please handle"
+        await vm.submitComment()
+
+        XCTAssertEqual(vm.activeTasks.map(\.id), ["t1"])
+        XCTAssertTrue(vm.didLoadActiveTasks)
+        XCTAssertTrue(vm.didLoadAgentRuns)
+        XCTAssertTrue(vm.didLoadTimeline)
+        XCTAssertTrue(requestedPaths.contains("GET /api/issues/i1/active-task"))
+        XCTAssertTrue(requestedPaths.contains("GET /api/issues/i1/task-runs"))
+        XCTAssertTrue(requestedPaths.contains("GET /api/issues/i1/timeline"))
+        XCTAssertNil(vm.activeTasksError)
+        XCTAssertNil(vm.agentRunsError)
+        XCTAssertNil(vm.timelineError)
+    }
+
     func test_submitComment_trimsContentBeforeSending() async throws {
         var submittedContent: String?
         let client = makeClient { req in
@@ -962,6 +1024,9 @@ final class IssueDetailViewModelTests: XCTestCase {
             case ("GET", "/api/issues/i1"):
                 return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-02T00:00:00Z"))
             default:
+                if let response = Self.emptyLatestProgressResponse(for: req) {
+                    return response
+                }
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
             }
@@ -973,6 +1038,53 @@ final class IssueDetailViewModelTests: XCTestCase {
         await vm.submitComment()
 
         XCTAssertEqual(submittedContent, "Ship it")
+        XCTAssertEqual(vm.commentDraft, "")
+        XCTAssertNil(vm.error)
+    }
+
+    func test_appendAgentMentionUsesDesktopMentionMarkdown() throws {
+        let agent = try Self.decodeAgent(id: "a1", name: "David[TF]")
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: makeClient { req in
+            XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+            return Self.response(for: req, body: Data("{}".utf8), status: 500)
+        })
+
+        vm.commentDraft = "Please check"
+        vm.appendAgentMention(agent)
+
+        XCTAssertEqual(vm.commentDraft, #"Please check [@David\[TF\]](mention://agent/a1) "#)
+    }
+
+    func test_submitCommentSendsAgentMentionMarkdownForBackendTrigger() async throws {
+        var submittedContent: String?
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/issues/i1/comments"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                submittedContent = body["content"] as? String
+                let json = """
+                {"id":"c1","content":"Mentioned","author_id":"u1","author_type":"member",
+                 "parent_id":null,"issue_id":"i1","created_at":"2026-01-02T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("GET", "/api/issues/i1"):
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-02T00:00:00Z"))
+            default:
+                if let response = Self.emptyLatestProgressResponse(for: req) {
+                    return response
+                }
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+        let agent = try Self.decodeAgent(id: "a1", name: "Codex")
+
+        vm.commentDraft = "Take a look"
+        vm.appendAgentMention(agent)
+        await vm.submitComment()
+
+        XCTAssertEqual(submittedContent, "Take a look [@Codex](mention://agent/a1)")
         XCTAssertEqual(vm.commentDraft, "")
         XCTAssertNil(vm.error)
     }
@@ -1005,6 +1117,9 @@ final class IssueDetailViewModelTests: XCTestCase {
             case ("GET", "/api/issues/i1"):
                 return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-02T00:00:00Z"))
             default:
+                if let response = Self.emptyLatestProgressResponse(for: req) {
+                    return response
+                }
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
             }
@@ -1022,11 +1137,14 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertTrue(uploaded)
         XCTAssertEqual(commentBody["attachment_ids"] as? [String], ["att1"])
         XCTAssertTrue(vm.commentAttachments.isEmpty)
-        XCTAssertEqual(requests, [
+        XCTAssertEqual(Set(requests), Set([
             "POST /api/upload-file",
             "POST /api/issues/i1/comments",
             "GET /api/issues/i1",
-        ])
+            "GET /api/issues/i1/active-task",
+            "GET /api/issues/i1/task-runs",
+            "GET /api/issues/i1/timeline",
+        ]))
         XCTAssertNil(vm.error)
     }
 
@@ -1208,6 +1326,18 @@ final class IssueDetailViewModelTests: XCTestCase {
         )
     }
 
+    private static func emptyLatestProgressResponse(for request: URLRequest) -> (HTTPURLResponse, Data)? {
+        switch (request.httpMethod, request.url?.path) {
+        case ("GET", "/api/issues/i1/active-task"):
+            return response(for: request, body: #"{"tasks":[]}"#.data(using: .utf8)!)
+        case ("GET", "/api/issues/i1/task-runs"),
+             ("GET", "/api/issues/i1/timeline"):
+            return response(for: request, body: Data("[]".utf8))
+        default:
+            return nil
+        }
+    }
+
     private static func issueJSON(
         id: String = "i1",
         identifier: String = "PAR-1",
@@ -1221,6 +1351,23 @@ final class IssueDetailViewModelTests: XCTestCase {
          "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
          "parent_issue_id":\(parent),"project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z",
          "updated_at":"\(updatedAt)"}
+        """.data(using: .utf8)!
+    }
+
+    private static func decodeAgent(id: String, name: String) throws -> Agent {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(Agent.self, from: agentJSON(id: id, name: name))
+    }
+
+    private static func agentJSON(id: String, name: String) -> Data {
+        """
+        {"id":"\(id)","workspace_id":"w1","runtime_id":"r1","name":"\(name)",
+          "description":"","instructions":"","avatar_url":null,"runtime_mode":"cloud",
+          "runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,
+          "visibility":"workspace","status":"active","max_concurrent_tasks":1,
+          "model":"gpt","owner_id":null,"skills":[],"created_at":"2026-01-01T00:00:00Z",
+          "updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}
         """.data(using: .utf8)!
     }
 
