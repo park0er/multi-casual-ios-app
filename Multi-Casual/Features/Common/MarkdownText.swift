@@ -32,6 +32,15 @@ public enum MarkdownRenderer {
         let blocks = parser.parse()
         return blocks.isEmpty ? [.paragraph("")] : blocks
     }
+
+    public static func tableCellDetailTitle(columnHeader: String, columnIndex: Int, rowIndex: Int?) -> String {
+        let trimmedHeader = columnHeader.trimmingCharacters(in: .whitespacesAndNewlines)
+        let columnTitle = trimmedHeader.isEmpty ? "Column \(columnIndex + 1)" : trimmedHeader
+        if let rowIndex {
+            return "\(columnTitle) - Row \(rowIndex + 1)"
+        }
+        return columnTitle
+    }
 }
 
 public struct MarkdownText: View {
@@ -59,6 +68,7 @@ public struct MarkdownText: View {
 
 private struct MarkdownBlockView: View {
     let block: MarkdownRenderer.Block
+    @State private var selectedTableCell: MarkdownTableCellDetail?
 
     var body: some View {
         switch block {
@@ -103,9 +113,23 @@ private struct MarkdownBlockView: View {
         case .table(let headers, let rows):
             ScrollView(.horizontal, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 0) {
-                    MarkdownTableRow(cells: headers, isHeader: true)
-                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                        MarkdownTableRow(cells: row, isHeader: false)
+                    MarkdownTableRow(
+                        cells: headers,
+                        headers: headers,
+                        rowIndex: nil,
+                        isHeader: true
+                    ) { detail in
+                        selectedTableCell = detail
+                    }
+                    ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
+                        MarkdownTableRow(
+                            cells: row,
+                            headers: headers,
+                            rowIndex: rowIndex,
+                            isHeader: false
+                        ) { detail in
+                            selectedTableCell = detail
+                        }
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -113,6 +137,10 @@ private struct MarkdownBlockView: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.secondary.opacity(0.20), lineWidth: 1)
                 }
+            }
+            .sheet(item: $selectedTableCell) { detail in
+                MarkdownTableCellDetailSheet(detail: detail)
+                    .presentationDragIndicator(.visible)
             }
         case .horizontalRule:
             Divider()
@@ -134,17 +162,43 @@ private struct MarkdownBlockView: View {
 
 private struct MarkdownTableRow: View {
     let cells: [String]
+    let headers: [String]
+    let rowIndex: Int?
     let isHeader: Bool
+    let onSelect: (MarkdownTableCellDetail) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
-                Text(MarkdownRenderer.attributedString(from: cell))
-                    .font(isHeader ? .caption.weight(.semibold) : .caption)
-                    .frame(minWidth: 120, maxWidth: 220, alignment: .leading)
+            ForEach(Array(cells.enumerated()), id: \.offset) { columnIndex, cell in
+                Button {
+                    onSelect(
+                        MarkdownTableCellDetail(
+                            title: MarkdownRenderer.tableCellDetailTitle(
+                                columnHeader: headers.indices.contains(columnIndex) ? headers[columnIndex] : "",
+                                columnIndex: columnIndex,
+                                rowIndex: rowIndex
+                            ),
+                            content: cell
+                        )
+                    )
+                } label: {
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(MarkdownRenderer.attributedString(from: cell))
+                            .font(isHeader ? .caption.weight(.semibold) : .caption)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(minWidth: 120, maxWidth: 220, minHeight: 34, alignment: .topLeading)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 7)
-                    .background(isHeader ? Color.secondary.opacity(0.12) : Color.clear)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .background(isHeader ? Color.secondary.opacity(0.12) : Color.clear)
                     .overlay(alignment: .trailing) {
                         Rectangle()
                             .fill(Color.secondary.opacity(0.16))
@@ -157,6 +211,45 @@ private struct MarkdownTableRow: View {
                     }
             }
         }
+    }
+}
+
+private struct MarkdownTableCellDetail: Identifiable {
+    let id = UUID()
+    let title: String
+    let content: String
+}
+
+private struct MarkdownTableCellDetailSheet: View {
+    let detail: MarkdownTableCellDetail
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                MarkdownText(detail.content)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+            }
+            .navigationTitle(detail.title)
+            .markdownTableCellNavigationTitleMode()
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func markdownTableCellNavigationTitleMode() -> some View {
+        #if os(iOS)
+        navigationBarTitleDisplayMode(.inline)
+        #else
+        self
+        #endif
     }
 }
 

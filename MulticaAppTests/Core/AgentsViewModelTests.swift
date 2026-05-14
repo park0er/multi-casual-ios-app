@@ -40,6 +40,24 @@ final class AgentsViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_agentsSplitActiveAndArchivedForListPresentation() throws {
+        let active = Self.makeAgent(id: "a1", name: "Active", avatarUrl: nil)
+        let archived = Self.makeAgent(
+            id: "a2",
+            name: "Archived",
+            avatarUrl: nil,
+            archivedAt: "2026-05-14T00:00:00Z"
+        )
+        let vm = AgentsViewModel(api: makeClient { req in
+            XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+            return Self.response(for: req, body: Data("{}".utf8), status: 404)
+        }, authSession: makeSession())
+        vm.agents = [archived, active]
+
+        XCTAssertEqual(vm.activeAgents.map(\.id), ["a1"])
+        XCTAssertEqual(vm.archivedAgents.map(\.id), ["a2"])
+    }
+
     func test_createAndUpdateReplaceAgentInList() async throws {
         var requests: [(String, String)] = []
         var requestURLs: [URL] = []
@@ -447,10 +465,18 @@ final class AgentsViewModelTests: XCTestCase {
         """.data(using: .utf8)!
     }
 
-    private static func makeAgent(id: String, name: String, avatarUrl: String?) -> Agent {
+    private static func makeAgent(
+        id: String,
+        name: String,
+        avatarUrl: String?,
+        archivedAt: String? = nil
+    ) -> Agent {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try! decoder.decode(Agent.self, from: agentJSON(id: id, name: name, avatarUrl: avatarUrl))
+        return try! decoder.decode(
+            Agent.self,
+            from: agentJSON(id: id, name: name, avatarUrl: avatarUrl, archivedAt: archivedAt)
+        )
     }
 
     private static func agentJSON(
@@ -458,17 +484,19 @@ final class AgentsViewModelTests: XCTestCase {
         name: String,
         ownerId: String? = nil,
         runtimeId: String = "r1",
-        avatarUrl: String? = nil
+        avatarUrl: String? = nil,
+        archivedAt: String? = nil
     ) -> Data {
         let ownerJSON = ownerId.map { "\"\($0)\"" } ?? "null"
         let avatarJSON = avatarUrl.map { "\"\($0)\"" } ?? "null"
+        let archivedAtJSON = archivedAt.map { "\"\($0)\"" } ?? "null"
         return """
         {"id":"\(id)","workspace_id":"w1","runtime_id":"\(runtimeId)","name":"\(name)",
           "description":"**Markdown** description","instructions":"Be useful","avatar_url":\(avatarJSON),"runtime_mode":"cloud",
           "runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,
           "visibility":"workspace","status":"idle","max_concurrent_tasks":1,
           "model":"gpt","owner_id":\(ownerJSON),"skills":[],"created_at":"2026-01-01T00:00:00Z",
-          "updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}
+          "updated_at":"2026-01-01T00:00:00Z","archived_at":\(archivedAtJSON),"archived_by":null}
         """.data(using: .utf8)!
     }
 

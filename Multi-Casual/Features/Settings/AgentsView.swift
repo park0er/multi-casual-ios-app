@@ -11,6 +11,7 @@ public struct AgentsView: View {
     @State private var editingAgent: Agent?
     @State private var pendingArchiveAgent: Agent?
     @State private var pendingCancelTasksAgent: Agent?
+    @State private var isArchivedAgentsExpanded = false
 
     public init() {}
 
@@ -27,43 +28,29 @@ public struct AgentsView: View {
                             description: Text(AppStrings.localized("This workspace has no agents yet.", language: appLanguage))
                         )
                     } else {
-                        ForEach(vm.agents) { agent in
-                            NavigationLink {
-                                AgentDetailView(agent: agent, listViewModel: vm)
-                            } label: {
-                                AgentRow(
-                                    agent: agent,
-                                    presence: vm.presenceByAgentId[agent.id],
-                                    runCount: vm.runCountsByAgentId[agent.id]
-                                )
-                            }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                if vm.canManageAgent(agent) {
-                                    if agent.archivedAt == nil {
-                                        Button(role: .destructive) {
-                                            pendingArchiveAgent = agent
-                                        } label: {
-                                            Label(AppStrings.localized("Archive", language: appLanguage), systemImage: "archivebox")
-                                        }
-                                    } else {
-                                        Button {
-                                            Task { await vm.restoreAgent(id: agent.id) }
-                                        } label: {
-                                            Label(AppStrings.localized("Restore", language: appLanguage), systemImage: "arrow.uturn.backward")
-                                        }
-                                        .tint(.blue)
+                        ForEach(vm.activeAgents) { agent in
+                            agentNavigationRow(agent: agent, vm: vm)
+                        }
+
+                        if !vm.archivedAgents.isEmpty {
+                            Section {
+                                DisclosureGroup(isExpanded: $isArchivedAgentsExpanded) {
+                                    ForEach(vm.archivedAgents) { agent in
+                                        agentNavigationRow(agent: agent, vm: vm)
+                                    }
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "archivebox")
+                                            .foregroundStyle(.secondary)
+                                        MarkdownText("Archived Agents")
+                                            .font(.body.weight(.semibold))
+                                        Spacer()
+                                        MarkdownText(vm.archivedAgents.count.formatted())
+                                            .font(.caption.monospacedDigit())
+                                            .foregroundStyle(.secondary)
                                     }
                                 }
-                            }
-                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                if vm.canManageAgent(agent) {
-                                    Button {
-                                        pendingCancelTasksAgent = agent
-                                    } label: {
-                                        Label(AppStrings.localized("Cancel Tasks", language: appLanguage), systemImage: "xmark.circle")
-                                    }
-                                    .tint(.orange)
-                                }
+                                .accessibilityIdentifier("ArchivedAgentsDisclosure")
                             }
                         }
                     }
@@ -156,6 +143,46 @@ public struct AgentsView: View {
             get: { pendingCancelTasksAgent != nil },
             set: { if !$0 { pendingCancelTasksAgent = nil } }
         )
+    }
+
+    private func agentNavigationRow(agent: Agent, vm: AgentsViewModel) -> some View {
+        NavigationLink {
+            AgentDetailView(agent: agent, listViewModel: vm)
+        } label: {
+            AgentRow(
+                agent: agent,
+                presence: vm.presenceByAgentId[agent.id],
+                runCount: vm.runCountsByAgentId[agent.id]
+            )
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if vm.canManageAgent(agent) {
+                if agent.archivedAt == nil {
+                    Button(role: .destructive) {
+                        pendingArchiveAgent = agent
+                    } label: {
+                        Label(AppStrings.localized("Archive", language: appLanguage), systemImage: "archivebox")
+                    }
+                } else {
+                    Button {
+                        Task { await vm.restoreAgent(id: agent.id) }
+                    } label: {
+                        Label(AppStrings.localized("Restore", language: appLanguage), systemImage: "arrow.uturn.backward")
+                    }
+                    .tint(.blue)
+                }
+            }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            if vm.canManageAgent(agent) {
+                Button {
+                    pendingCancelTasksAgent = agent
+                } label: {
+                    Label(AppStrings.localized("Cancel Tasks", language: appLanguage), systemImage: "xmark.circle")
+                }
+                .tint(.orange)
+            }
+        }
     }
 }
 

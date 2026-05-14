@@ -20,6 +20,7 @@ public struct IssueDetailView: View {
     @State private var selectedTranscript: AgentTranscriptSelection?
     @State private var pinViewModel: PinToggleViewModel?
     @State private var isAgentWorkExpanded = false
+    @FocusState private var isCommentInputFocused: Bool
 
     public init(issueId: String) { self.issueId = issueId }
 
@@ -185,6 +186,7 @@ public struct IssueDetailView: View {
                     }
                 }.padding(.vertical)
             }
+            .scrollDismissesKeyboard(.interactively)
             .accessibilityIdentifier("IssueDetailScrollView")
             commentInputBar(vm: vm)
         }
@@ -823,6 +825,7 @@ public struct IssueDetailView: View {
 
                 AgentMentionMenu(agents: vm.mentionableAgents) { agent in
                     vm.appendAgentMention(agent)
+                    isCommentInputFocused = true
                 }
                 .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
                 .accessibilityIdentifier("IssueDetailAgentMentionButton")
@@ -832,9 +835,15 @@ public struct IssueDetailView: View {
                 ), axis: .vertical)
                 .lineLimit(1...4).padding(.horizontal, 12).padding(.vertical, 8)
                 .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 20))
+                .focused($isCommentInputFocused)
                 .accessibilityIdentifier("IssueDetailCommentInput")
 
-                Button { Task { await vm.submitComment() } } label: {
+                Button {
+                    Task {
+                        await vm.submitComment()
+                        isCommentInputFocused = false
+                    }
+                } label: {
                     if vm.isSubmittingComment { ProgressView() }
                     else {
                         Image(systemName: "arrow.up.circle.fill")
@@ -848,6 +857,15 @@ public struct IssueDetailView: View {
         }
         .padding(.horizontal).padding(.vertical, 8).background(.background)
         .overlay(alignment: .top) { Divider() }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    isCommentInputFocused = false
+                    dismissIssueDetailKeyboard()
+                }
+            }
+        }
         .fileImporter(
             isPresented: $showCommentAttachmentImporter,
             allowedContentTypes: [.item],
@@ -879,6 +897,10 @@ private struct AgentTranscriptSelection: Identifiable {
     let workspaceId: String?
 
     var id: String { "\(workspaceId ?? "current"):\(taskId)" }
+}
+
+private func dismissIssueDetailKeyboard() {
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
 }
 
 private struct ErrorMessageRow: View {
@@ -920,6 +942,7 @@ public struct CommentRowView: View {
     @State private var showDeleteConfirmation = false
     @State private var showReplyAttachmentImporter = false
     @State private var replyAttachmentError: String?
+    @FocusState private var focusedEditor: CommentEditorFocus?
 
     public init(
         comment: Comment,
@@ -957,8 +980,7 @@ public struct CommentRowView: View {
                 if currentUserId != nil {
                     Menu {
                         Button {
-                            replyDraft = ""
-                            isReplying.toggle()
+                            openReplyEditor()
                         } label: {
                             Label("Reply", systemImage: "arrowshape.turn.up.left")
                         }
@@ -967,6 +989,7 @@ public struct CommentRowView: View {
                             Button {
                                 editDraft = comment.content
                                 isEditing = true
+                                focusEditor(.edit)
                             } label: {
                                 Label("Edit", systemImage: "pencil")
                             }
@@ -993,11 +1016,13 @@ public struct CommentRowView: View {
                         .frame(minHeight: 88)
                         .padding(8)
                         .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                        .focused($focusedEditor, equals: .edit)
                         .accessibilityIdentifier("CommentEditEditor")
                     HStack(spacing: 8) {
                         Button("Cancel") {
                             editDraft = ""
                             isEditing = false
+                            focusedEditor = nil
                         }
                         .buttonStyle(.borderless)
 
@@ -1035,10 +1060,12 @@ public struct CommentRowView: View {
                         .frame(minHeight: 72)
                         .padding(8)
                         .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                        .focused($focusedEditor, equals: .reply)
                         .accessibilityIdentifier("CommentReplyEditor")
                     HStack(spacing: 8) {
                         AgentMentionMenu(agents: mentionableAgents) { agent in
                             appendAgentMention(agent, to: &replyDraft)
+                            focusedEditor = .reply
                         }
                         .disabled(mentionableAgents.isEmpty || isSaving)
                         .accessibilityIdentifier("CommentReplyAgentMentionButton")
@@ -1061,6 +1088,7 @@ public struct CommentRowView: View {
                         Button("Cancel") {
                             replyDraft = ""
                             isReplying = false
+                            focusedEditor = nil
                         }
                         .buttonStyle(.borderless)
 
@@ -1079,6 +1107,15 @@ public struct CommentRowView: View {
                 }
             }
         }.padding(.horizontal).padding(.vertical, 6)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        focusedEditor = nil
+                        dismissIssueDetailKeyboard()
+                    }
+                }
+            }
             .fileImporter(
                 isPresented: $showReplyAttachmentImporter,
                 allowedContentTypes: [.item],
@@ -1108,6 +1145,19 @@ public struct CommentRowView: View {
         comment.authorId == currentUserId
     }
 
+    private func openReplyEditor() {
+        replyDraft = ""
+        isReplying = true
+        focusEditor(.reply)
+    }
+
+    private func focusEditor(_ editor: CommentEditorFocus) {
+        Task { @MainActor in
+            await Task.yield()
+            focusedEditor = editor
+        }
+    }
+
     private func saveEdit() async {
         isSaving = true
         defer { isSaving = false }
@@ -1115,6 +1165,7 @@ public struct CommentRowView: View {
         if saved {
             editDraft = ""
             isEditing = false
+            focusedEditor = nil
         }
     }
 
@@ -1125,6 +1176,7 @@ public struct CommentRowView: View {
         if submitted {
             replyDraft = ""
             isReplying = false
+            focusedEditor = nil
         }
     }
 
@@ -1167,6 +1219,11 @@ public struct CommentRowView: View {
             )
         }
     }
+}
+
+private enum CommentEditorFocus: Hashable {
+    case edit
+    case reply
 }
 
 private struct AgentMentionMenu: View {

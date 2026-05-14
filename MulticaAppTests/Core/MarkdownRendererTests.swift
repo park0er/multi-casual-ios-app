@@ -104,6 +104,21 @@ final class MarkdownRendererTests: XCTestCase {
         ])
     }
 
+    func test_tableCellDetailTitleUsesColumnAndRowWhenAvailable() throws {
+        XCTAssertEqual(
+            MarkdownRenderer.tableCellDetailTitle(columnHeader: "Status", columnIndex: 1, rowIndex: 0),
+            "Status - Row 1"
+        )
+        XCTAssertEqual(
+            MarkdownRenderer.tableCellDetailTitle(columnHeader: "", columnIndex: 0, rowIndex: 2),
+            "Column 1 - Row 3"
+        )
+        XCTAssertEqual(
+            MarkdownRenderer.tableCellDetailTitle(columnHeader: "Notes", columnIndex: 2, rowIndex: nil),
+            "Notes"
+        )
+    }
+
     func test_blocksParseHorizontalRules() throws {
         let blocks = MarkdownRenderer.blocks(
             from: """

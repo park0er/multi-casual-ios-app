@@ -19,6 +19,14 @@ public final class AgentsViewModel {
     private let api: APIClient
     private let authSession: AuthSession
 
+    public var activeAgents: [Agent] {
+        agents.filter { $0.archivedAt == nil }
+    }
+
+    public var archivedAgents: [Agent] {
+        agents.filter { $0.archivedAt != nil }
+    }
+
     public init(api: APIClient, authSession: AuthSession) {
         self.api = api
         self.authSession = authSession
