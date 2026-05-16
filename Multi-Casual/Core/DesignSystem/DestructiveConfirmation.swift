@@ -126,9 +126,28 @@ public extension View {
         onConfirm: @escaping () -> Void,
         onCancel: @escaping () -> Void = {}
     ) -> some View {
-        alert(
-            Text(MarkdownRenderer.attributedString(from: confirmation.title)),
-            isPresented: isPresented
+        modifier(
+            DestructiveConfirmationModifier(
+                confirmation: confirmation,
+                isPresented: isPresented,
+                onConfirm: onConfirm,
+                onCancel: onCancel
+            )
+        )
+    }
+}
+
+private struct DestructiveConfirmationModifier: ViewModifier {
+    let confirmation: DestructiveConfirmation
+    @Binding var isPresented: Bool
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+    @Environment(\.appLanguage) private var appLanguage
+
+    func body(content: Content) -> some View {
+        content.alert(
+            markdownAlertText(confirmation.title),
+            isPresented: $isPresented
         ) {
             Button(role: .cancel, action: onCancel) {
                 markdownAlertText(confirmation.cancelTitle)
@@ -142,7 +161,7 @@ public extension View {
     }
 
     private func markdownAlertText(_ markdown: String) -> Text {
-        Text(MarkdownRenderer.attributedString(from: markdown))
+        Text(MarkdownRenderer.attributedString(from: AppStrings.localized(markdown, language: appLanguage)))
     }
 }
 #endif

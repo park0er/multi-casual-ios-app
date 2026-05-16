@@ -190,6 +190,7 @@ private struct AgentRow: View {
     let agent: Agent
     let presence: AgentPresenceSummary?
     let runCount: Int?
+    @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -198,7 +199,7 @@ private struct AgentRow: View {
                 HStack(spacing: 6) {
                     MarkdownText(agent.name).font(.body.weight(.semibold))
                     if agent.archivedAt != nil {
-                        Text("Archived")
+                        MarkdownText("Archived")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
@@ -213,7 +214,7 @@ private struct AgentRow: View {
                     MarkdownText(agent.status.capitalized)
                     MarkdownText(agent.visibility.capitalized)
                     if let presence {
-                        MarkdownText(presence.displayText)
+                        MarkdownText(presence.displayText(language: appLanguage))
                     }
                     if let runCount {
                         MarkdownText("Runs \(runCount.formatted())")
@@ -236,6 +237,7 @@ private struct AgentDetailView: View {
 
     @Environment(APIClient.self) private var api
     @Environment(AuthSession.self) private var authSession
+    @Environment(\.appLanguage) private var appLanguage
     @State private var currentAgent: Agent
     @State private var detailViewModel: AgentDetailViewModel?
     @State private var editingAgent: Agent?
@@ -262,7 +264,7 @@ private struct AgentDetailView: View {
                         }
                         MarkdownLabeledContent("Status", value: currentAgent.status.capitalized)
                         if let presence = listViewModel.presenceByAgentId[currentAgent.id] {
-                            MarkdownLabeledContent("Presence", value: presence.displayText)
+                            MarkdownLabeledContent("Presence", value: presence.displayText(language: appLanguage))
                         }
                         if let runtimeName = vm.runtimeName {
                             MarkdownLabeledContent("Runtime", value: runtimeName)
@@ -436,36 +438,7 @@ private struct AgentAvatarView: View {
     let size: CGFloat
 
     var body: some View {
-        Group {
-            if let avatarUrl = agent.avatarUrl,
-               let url = URL(string: avatarUrl),
-               !avatarUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    default:
-                        fallback
-                    }
-                }
-            } else {
-                fallback
-            }
-        }
-        .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
-    private var fallback: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(agent.archivedAt == nil ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.12))
-            Image(systemName: agent.archivedAt == nil ? "bolt.fill" : "archivebox.fill")
-                .font(.system(size: size * 0.46, weight: .semibold))
-                .foregroundStyle(agent.archivedAt == nil ? Color.accentColor : Color.secondary)
-        }
+        AvatarView(name: agent.name, avatarUrl: agent.avatarUrl, kind: .agent, size: size)
     }
 }
 

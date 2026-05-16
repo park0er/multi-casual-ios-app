@@ -7,6 +7,7 @@ public struct IssueDetailView: View {
     @Environment(AuthSession.self) private var authSession
     @Environment(APIClient.self) private var api
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var appLanguage
     @State private var viewModel: IssueDetailViewModel?
     @State private var showEditIssue = false
     @State private var showCreateSubIssue = false
@@ -93,13 +94,13 @@ public struct IssueDetailView: View {
                     Button {
                         showEditIssue = true
                     } label: {
-                        Label("Edit Issue", systemImage: "pencil")
+                        Label(AppStrings.localized("Edit Issue", language: appLanguage), systemImage: "pencil")
                     }
                     .accessibilityIdentifier("IssueDetailEditButton")
                     Button(role: .destructive) {
                         showDeleteIssueConfirmation = true
                     } label: {
-                        Label("Delete Issue", systemImage: "trash")
+                        Label(AppStrings.localized("Delete Issue", language: appLanguage), systemImage: "trash")
                     }
                     .disabled(viewModel?.isDeletingIssue == true)
                     .accessibilityIdentifier("IssueDetailDeleteButton")
@@ -470,7 +471,11 @@ public struct IssueDetailView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(vm.subscribers) { subscriber in
-                            SubscriberChip(subscriber: subscriber, name: vm.displayName(for: subscriber))
+                            SubscriberChip(
+                                subscriber: subscriber,
+                                name: vm.displayName(for: subscriber),
+                                avatarUrl: vm.avatarURL(for: subscriber)
+                            )
                         }
                     }
                 }
@@ -514,6 +519,7 @@ public struct IssueDetailView: View {
                 CommentRowView(
                     comment: comment,
                     authorDisplayName: vm.commentAuthorName(for: comment),
+                    authorAvatarUrl: vm.commentAuthorAvatarURL(for: comment),
                     currentUserId: currentUserId,
                     mentionableAgents: vm.mentionableAgents,
                     replyAttachments: vm.replyAttachments[comment.id] ?? [],
@@ -630,7 +636,7 @@ public struct IssueDetailView: View {
             Button {
                 selectedTranscript = AgentTranscriptSelection(taskId: taskId, workspaceId: workspaceId)
             } label: {
-                Label("Open", systemImage: "arrow.up.right")
+                Label(AppStrings.localized("Open", language: appLanguage), systemImage: "arrow.up.right")
                     .font(.caption)
             }
             .buttonStyle(.bordered)
@@ -725,7 +731,11 @@ public struct IssueDetailView: View {
                 Button {
                     selectedTranscript = AgentTranscriptSelection(taskId: run.id, workspaceId: vm.resolvedWorkspaceId)
                 } label: {
-                    AgentRunRowView(run: run)
+                    AgentRunRowView(
+                        run: run,
+                        agentName: vm.agentName(for: run.agentId),
+                        agentAvatarUrl: vm.agentAvatarURL(for: run.agentId)
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("IssueDetailAgentRun-\(run.id)")
@@ -752,7 +762,7 @@ public struct IssueDetailView: View {
                 TimelineActivityRow(
                     entry: entry,
                     actorName: vm.timelineActorName(for: entry),
-                    activityText: vm.activityText(for: entry)
+                    activityText: vm.activityText(for: entry, language: appLanguage)
                 )
             }
         }
@@ -771,7 +781,7 @@ public struct IssueDetailView: View {
             }
             if let usage = vm.usage {
                 VStack(alignment: .leading, spacing: 8) {
-                    MarkdownText(vm.usageSummaryText)
+                    MarkdownText(vm.usageSummaryText(language: appLanguage))
                         .font(.subheadline.weight(.semibold))
                     HStack(spacing: 10) {
                         UsageMetricView(title: "Input", value: usage.totalInputTokens)
@@ -830,7 +840,7 @@ public struct IssueDetailView: View {
                 .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
                 .accessibilityIdentifier("IssueDetailAgentMentionButton")
 
-                TextField("Add a comment…", text: Binding(
+                TextField(AppStrings.localized("Add a comment…", language: appLanguage), text: Binding(
                     get: { vm.commentDraft }, set: { vm.commentDraft = $0 }
                 ), axis: .vertical)
                 .lineLimit(1...4).padding(.horizontal, 12).padding(.vertical, 8)
@@ -860,7 +870,7 @@ public struct IssueDetailView: View {
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button("Done") {
+                Button(AppStrings.localized("Done", language: appLanguage)) {
                     isCommentInputFocused = false
                     dismissIssueDetailKeyboard()
                 }
@@ -924,6 +934,7 @@ private struct ErrorMessageRow: View {
 public struct CommentRowView: View {
     public let comment: Comment
     let authorDisplayName: String
+    let authorAvatarUrl: String?
     let currentUserId: String?
     let mentionableAgents: [Agent]
     let replyAttachments: [Attachment]
@@ -942,11 +953,13 @@ public struct CommentRowView: View {
     @State private var showDeleteConfirmation = false
     @State private var showReplyAttachmentImporter = false
     @State private var replyAttachmentError: String?
+    @Environment(\.appLanguage) private var appLanguage
     @FocusState private var focusedEditor: CommentEditorFocus?
 
     public init(
         comment: Comment,
         authorDisplayName: String? = nil,
+        authorAvatarUrl: String? = nil,
         currentUserId: String? = nil,
         mentionableAgents: [Agent] = [],
         replyAttachments: [Attachment] = [],
@@ -959,6 +972,7 @@ public struct CommentRowView: View {
     ) {
         self.comment = comment
         self.authorDisplayName = authorDisplayName ?? (comment.authorType == "agent" ? "Agent" : "Member")
+        self.authorAvatarUrl = authorAvatarUrl
         self.currentUserId = currentUserId
         self.mentionableAgents = mentionableAgents
         self.replyAttachments = replyAttachments
@@ -973,7 +987,12 @@ public struct CommentRowView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Image(systemName: comment.authorType == "agent" ? "bolt.circle" : "person.circle")
+                AvatarView(
+                    name: authorDisplayName,
+                    avatarUrl: authorAvatarUrl,
+                    kind: comment.authorType == "agent" ? .agent : .user,
+                    size: 24
+                )
                 MarkdownText(authorDisplayName).font(.caption.bold())
                 Spacer()
                 MarkdownText(iso8601DateOnlyFormatter.string(from: comment.createdAt)).font(.caption2).foregroundStyle(.secondary)
@@ -982,7 +1001,7 @@ public struct CommentRowView: View {
                         Button {
                             openReplyEditor()
                         } label: {
-                            Label("Reply", systemImage: "arrowshape.turn.up.left")
+                            Label(AppStrings.localized("Reply", language: appLanguage), systemImage: "arrowshape.turn.up.left")
                         }
 
                         if canEdit {
@@ -991,7 +1010,7 @@ public struct CommentRowView: View {
                                 isEditing = true
                                 focusEditor(.edit)
                             } label: {
-                                Label("Edit", systemImage: "pencil")
+                                Label(AppStrings.localized("Edit", language: appLanguage), systemImage: "pencil")
                             }
                         }
 
@@ -999,7 +1018,7 @@ public struct CommentRowView: View {
                             Button(role: .destructive) {
                                 showDeleteConfirmation = true
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label(AppStrings.localized("Delete", language: appLanguage), systemImage: "trash")
                             }
                         }
                     } label: {
@@ -1007,7 +1026,7 @@ public struct CommentRowView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    .accessibilityLabel("Comment Actions")
+                    .accessibilityLabel(AppStrings.localized("Comment Actions", language: appLanguage))
                 }
             }
             if isEditing {
@@ -1019,7 +1038,7 @@ public struct CommentRowView: View {
                         .focused($focusedEditor, equals: .edit)
                         .accessibilityIdentifier("CommentEditEditor")
                     HStack(spacing: 8) {
-                        Button("Cancel") {
+                        Button(AppStrings.localized("Cancel", language: appLanguage)) {
                             editDraft = ""
                             isEditing = false
                             focusedEditor = nil
@@ -1032,7 +1051,7 @@ public struct CommentRowView: View {
                             if isSaving {
                                 ProgressView()
                             } else {
-                                Text("Save")
+                                Text(AppStrings.localized("Save", language: appLanguage))
                             }
                         }
                         .buttonStyle(.borderedProminent)
@@ -1076,7 +1095,7 @@ public struct CommentRowView: View {
                             if isUploadingReplyAttachment {
                                 ProgressView()
                             } else {
-                                Label("Add Attachment", systemImage: "paperclip")
+                                Label(AppStrings.localized("Add Attachment", language: appLanguage), systemImage: "paperclip")
                             }
                         }
                         .buttonStyle(.borderless)
@@ -1085,7 +1104,7 @@ public struct CommentRowView: View {
 
                         Spacer()
 
-                        Button("Cancel") {
+                        Button(AppStrings.localized("Cancel", language: appLanguage)) {
                             replyDraft = ""
                             isReplying = false
                             focusedEditor = nil
@@ -1098,7 +1117,7 @@ public struct CommentRowView: View {
                             if isSaving {
                                 ProgressView()
                             } else {
-                                Text("Reply")
+                                Text(AppStrings.localized("Reply", language: appLanguage))
                             }
                         }
                         .buttonStyle(.borderedProminent)
@@ -1110,7 +1129,7 @@ public struct CommentRowView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") {
+                    Button(AppStrings.localized("Done", language: appLanguage)) {
                         focusedEditor = nil
                         dismissIssueDetailKeyboard()
                     }
@@ -1123,17 +1142,17 @@ public struct CommentRowView: View {
             ) { result in
                 handleReplyAttachmentImport(result)
             }
-            .alert("Delete Comment", isPresented: $showDeleteConfirmation) {
-                Button("Delete", role: .destructive) {
+            .alert(AppStrings.localized("Delete Comment", language: appLanguage), isPresented: $showDeleteConfirmation) {
+                Button(AppStrings.localized("Delete", language: appLanguage), role: .destructive) {
                     Task {
                         isSaving = true
                         _ = await onDelete(comment.id)
                         isSaving = false
                     }
                 }
-                Button("Cancel", role: .cancel) {}
+                Button(AppStrings.localized("Cancel", language: appLanguage), role: .cancel) {}
             } message: {
-                Text("This comment and its replies will be deleted.")
+                Text(AppStrings.localized("This comment and its replies will be deleted.", language: appLanguage))
             }
     }
 
@@ -1200,7 +1219,7 @@ public struct CommentRowView: View {
             Task {
                 let uploaded = await onUploadReplyAttachment(comment.id, payload)
                 if !uploaded {
-                    replyAttachmentError = "Upload failed."
+                    replyAttachmentError = AppStrings.localized("Upload failed.", language: appLanguage)
                 }
             }
         } catch {
@@ -1229,6 +1248,7 @@ private enum CommentEditorFocus: Hashable {
 private struct AgentMentionMenu: View {
     let agents: [Agent]
     let onSelect: (Agent) -> Void
+    @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         Menu {
@@ -1239,7 +1259,10 @@ private struct AgentMentionMenu: View {
                     Button {
                         onSelect(agent)
                     } label: {
-                        Label(agent.name, systemImage: "bolt.circle")
+                        HStack {
+                            AvatarView(name: agent.name, avatarUrl: agent.avatarUrl, kind: .agent, size: 20)
+                            MarkdownText(agent.name)
+                        }
                     }
                 }
             }
@@ -1248,7 +1271,7 @@ private struct AgentMentionMenu: View {
                 .font(.title3)
                 .foregroundStyle(agents.isEmpty ? Color.secondary : Color.accentColor)
         }
-        .accessibilityLabel("Mention Agent")
+        .accessibilityLabel(AppStrings.localized("Mention Agent", language: appLanguage))
     }
 }
 
@@ -1307,11 +1330,16 @@ private struct ReactionBarView: View {
 private struct SubscriberChip: View {
     let subscriber: IssueSubscriber
     let name: String
+    let avatarUrl: String?
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: subscriber.userType == "agent" ? "bolt.circle" : "person.circle")
-                .foregroundStyle(.secondary)
+            AvatarView(
+                name: name,
+                avatarUrl: avatarUrl,
+                kind: subscriber.userType == "agent" ? .agent : .user,
+                size: 18
+            )
             MarkdownText(name)
                 .font(.caption)
                 .lineLimit(1)
@@ -1325,6 +1353,7 @@ private struct SubscriberChip: View {
 private struct SubscriberManagementView: View {
     @Bindable var vm: IssueDetailViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         NavigationStack {
@@ -1334,7 +1363,7 @@ private struct SubscriberManagementView: View {
                         if vm.isLoadingSubscribers {
                             ProgressView()
                         } else {
-                            Text("No people or agents available")
+                            Text(AppStrings.localized("No people or agents available", language: appLanguage))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -1345,7 +1374,8 @@ private struct SubscriberManagementView: View {
                             SubscriberToggleRow(
                                 title: member.name,
                                 subtitle: member.email,
-                                icon: "person.circle",
+                                avatarUrl: member.avatarUrl,
+                                kind: .user,
                                 isSelected: vm.isSubscribed(userId: member.userId, userType: "member"),
                                 isLoading: vm.isLoadingSubscribers
                             ) {
@@ -1360,7 +1390,8 @@ private struct SubscriberManagementView: View {
                             SubscriberToggleRow(
                                 title: agent.name,
                                 subtitle: agent.status.capitalized,
-                                icon: "bolt.circle",
+                                avatarUrl: agent.avatarUrl,
+                                kind: .agent,
                                 isSelected: vm.isSubscribed(userId: agent.id, userType: "agent"),
                                 isLoading: vm.isLoadingSubscribers
                             ) {
@@ -1378,11 +1409,11 @@ private struct SubscriberManagementView: View {
                     }
                 }
             }
-            .navigationTitle("Subscribers")
+            .navigationTitle(AppStrings.localized("Subscribers", language: appLanguage))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button(AppStrings.localized("Done", language: appLanguage)) { dismiss() }
                 }
             }
             .task {
@@ -1406,7 +1437,8 @@ private struct SubscriberManagementView: View {
 private struct SubscriberToggleRow: View {
     let title: String
     let subtitle: String
-    let icon: String
+    let avatarUrl: String?
+    let kind: AvatarView.Kind
     let isSelected: Bool
     let isLoading: Bool
     let action: () -> Void
@@ -1414,9 +1446,7 @@ private struct SubscriberToggleRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22)
+                AvatarView(name: title, avatarUrl: avatarUrl, kind: kind, size: 28)
                 VStack(alignment: .leading, spacing: 2) {
                     MarkdownText(title)
                         .font(.body)
@@ -1553,12 +1583,24 @@ private struct AttachmentRowView: View {
 
 public struct AgentRunRowView: View {
     public let run: AgentTask
-    public init(run: AgentTask) { self.run = run }
+    public let agentName: String?
+    public let agentAvatarUrl: String?
+
+    public init(run: AgentTask, agentName: String? = nil, agentAvatarUrl: String? = nil) {
+        self.run = run
+        self.agentName = agentName
+        self.agentAvatarUrl = agentAvatarUrl
+    }
+
     public var body: some View {
         HStack {
-            Image(systemName: statusIcon).foregroundStyle(statusColor)
+            if let agentName {
+                AvatarView(name: agentName, avatarUrl: agentAvatarUrl, kind: .agent, size: 28)
+            } else {
+                Image(systemName: statusIcon).foregroundStyle(statusColor)
+            }
             VStack(alignment: .leading, spacing: 2) {
-                MarkdownText("Agent run").font(.subheadline.bold())
+                MarkdownText(agentName ?? "Agent run").font(.subheadline.bold())
                 MarkdownText(run.startedAt.map(iso8601DisplayFormatter.string(from:)) ?? "")
                     .font(.caption).foregroundStyle(.secondary)
             }

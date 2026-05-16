@@ -820,6 +820,13 @@ public struct AgentPresenceSummary: Sendable, Hashable {
         return "\(availability.displayName) • \(workload.displayName) \(activeCount)/\(capacity)"
     }
 
+    public func displayText(language: AppLanguage) -> String {
+        let activeCount = runningCount > 0 ? runningCount : queuedCount
+        let availabilityText = AppStrings.localized(availability.displayName, language: language)
+        let workloadText = AppStrings.localized(workload.displayName, language: language)
+        return "\(availabilityText) • \(workloadText) \(activeCount)/\(capacity)"
+    }
+
     public static func buildMap(
         agents: [Agent],
         runtimes: [AgentRuntime],

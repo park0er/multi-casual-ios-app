@@ -33,11 +33,15 @@ public enum MarkdownRenderer {
         return blocks.isEmpty ? [.paragraph("")] : blocks
     }
 
-    public static func tableCellDetailTitle(columnHeader: String, columnIndex: Int, rowIndex: Int?) -> String {
+    public static func tableCellDetailTitle(columnHeader: String, columnIndex: Int, rowIndex: Int?, language: AppLanguage = .english) -> String {
         let trimmedHeader = columnHeader.trimmingCharacters(in: .whitespacesAndNewlines)
-        let columnTitle = trimmedHeader.isEmpty ? "Column \(columnIndex + 1)" : trimmedHeader
+        let columnTitle = if trimmedHeader.isEmpty {
+            language == .zhHans ? "第 \(columnIndex + 1) 列" : "Column \(columnIndex + 1)"
+        } else {
+            trimmedHeader
+        }
         if let rowIndex {
-            return "\(columnTitle) - Row \(rowIndex + 1)"
+            return language == .zhHans ? "\(columnTitle) - 第 \(rowIndex + 1) 行" : "\(columnTitle) - Row \(rowIndex + 1)"
         }
         return columnTitle
     }
@@ -169,6 +173,7 @@ private struct MarkdownTableRow: View {
     let rowIndex: Int?
     let isHeader: Bool
     let onSelect: (MarkdownTableCellDetail) -> Void
+    @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -179,7 +184,8 @@ private struct MarkdownTableRow: View {
                             title: MarkdownRenderer.tableCellDetailTitle(
                                 columnHeader: headers.indices.contains(columnIndex) ? headers[columnIndex] : "",
                                 columnIndex: columnIndex,
-                                rowIndex: rowIndex
+                                rowIndex: rowIndex,
+                                language: appLanguage
                             ),
                             content: cell
                         )
@@ -226,6 +232,7 @@ private struct MarkdownTableCellDetail: Identifiable {
 private struct MarkdownTableCellDetailSheet: View {
     let detail: MarkdownTableCellDetail
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         NavigationStack {
@@ -238,7 +245,7 @@ private struct MarkdownTableCellDetailSheet: View {
             .markdownTableCellNavigationTitleMode()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button(AppStrings.localized("Done", language: appLanguage)) { dismiss() }
                 }
             }
         }

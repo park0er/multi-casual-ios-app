@@ -14,7 +14,7 @@ public struct SettingsView: View {
             Section(AppStrings.localized("Account", language: appLanguage)) {
                 if let user = authSession.currentUser {
                     HStack {
-                        Image(systemName: "person.circle.fill").font(.title2).foregroundStyle(.secondary)
+                        AvatarView(name: user.name, avatarUrl: user.avatarUrl, kind: .user, size: 36)
                         VStack(alignment: .leading, spacing: 2) {
                             MarkdownText(user.name).font(.body.bold())
                             MarkdownText(user.email).font(.caption).foregroundStyle(.secondary)

@@ -17,7 +17,9 @@ final class AppLanguageSettingsTests: XCTestCase {
         XCTAssertEqual(AppStrings.localized("Comments", language: .zhHans), "评论")
         XCTAssertEqual(AppStrings.localized("Latest Progress", language: .zhHans), "最新进度")
         XCTAssertEqual(AppStrings.localized("Agent Work Details", language: .zhHans), "Agent 工作详情")
-        XCTAssertEqual(AppStrings.localized("My Issues", language: .zhHans), "My Issues")
+        XCTAssertEqual(AppStrings.localized("My Issues", language: .zhHans), "我的 Issues")
+        XCTAssertEqual(AppStrings.localized("Add a comment…", language: .zhHans), "添加评论…")
+        XCTAssertEqual(AppStrings.localized("Agents Dispatched", language: .zhHans), "已派出 Agents")
     }
 
     func test_zhHansLocalizableStringsCoverSwiftUILiterals() throws {

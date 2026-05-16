@@ -112,8 +112,15 @@ public final class IssueDetailViewModel {
     }
 
     public var usageSummaryText: String {
-        guard let usage else { return "No usage recorded" }
+        usageSummaryText(language: .english)
+    }
+
+    public func usageSummaryText(language: AppLanguage) -> String {
+        guard let usage else { return AppStrings.localized("No usage recorded", language: language) }
         let taskUnit = usage.taskCount == 1 ? "task" : "tasks"
+        if language == .zhHans {
+            return "\(formatTokenCount(usage.totalTokens)) tokens，跨 \(usage.taskCount) 个任务"
+        }
         return "\(formatTokenCount(usage.totalTokens)) tokens across \(usage.taskCount) \(taskUnit)"
     }
 
@@ -296,12 +303,23 @@ public final class IssueDetailViewModel {
         switch subscriber.userType {
         case "member":
             return subscriberMembers.first { $0.userId == subscriber.userId || $0.id == subscriber.userId }?.name
-                ?? "Member \(subscriber.userId.prefix(8))"
+                ?? "成员 \(subscriber.userId.prefix(8))"
         case "agent":
             return subscriberAgents.first { $0.id == subscriber.userId }?.name
                 ?? "Agent \(subscriber.userId.prefix(8))"
         default:
             return "\(subscriber.userType.capitalized) \(subscriber.userId.prefix(8))"
+        }
+    }
+
+    public func avatarURL(for subscriber: IssueSubscriber) -> String? {
+        switch subscriber.userType {
+        case "member":
+            return subscriberMembers.first { $0.userId == subscriber.userId || $0.id == subscriber.userId }?.avatarUrl
+        case "agent":
+            return subscriberAgents.first { $0.id == subscriber.userId }?.avatarUrl
+        default:
+            return nil
         }
     }
 
@@ -313,13 +331,34 @@ public final class IssueDetailViewModel {
         switch comment.authorType {
         case "member":
             return subscriberMembers.first { $0.userId == comment.authorId || $0.id == comment.authorId }?.name
-                ?? "Member \(comment.authorId.prefix(8))"
+                ?? "成员 \(comment.authorId.prefix(8))"
         case "agent":
             return subscriberAgents.first { $0.id == comment.authorId }?.name
                 ?? "Agent \(comment.authorId.prefix(8))"
         default:
             return "\(comment.authorType.capitalized) \(comment.authorId.prefix(8))"
         }
+    }
+
+    public func commentAuthorAvatarURL(for comment: Comment) -> String? {
+        switch comment.authorType {
+        case "member":
+            return subscriberMembers.first { $0.userId == comment.authorId || $0.id == comment.authorId }?.avatarUrl
+        case "agent":
+            return subscriberAgents.first { $0.id == comment.authorId }?.avatarUrl
+        default:
+            return nil
+        }
+    }
+
+    public func agentName(for agentId: String?) -> String? {
+        guard let agentId, !agentId.isEmpty else { return nil }
+        return subscriberAgents.first { $0.id == agentId }?.name ?? "Agent \(agentId.prefix(8))"
+    }
+
+    public func agentAvatarURL(for agentId: String?) -> String? {
+        guard let agentId, !agentId.isEmpty else { return nil }
+        return subscriberAgents.first { $0.id == agentId }?.avatarUrl
     }
 
     public func toggleSubscriber(userId: String, userType: String) async {
@@ -510,6 +549,13 @@ public final class IssueDetailViewModel {
     }
 
     public func activityText(for entry: TimelineEntry) -> String {
+        activityText(for: entry, language: .english)
+    }
+
+    public func activityText(for entry: TimelineEntry, language: AppLanguage) -> String {
+        if language == .zhHans {
+            return zhHansActivityText(for: entry)
+        }
         switch entry.action {
         case "created":
             return "created this issue"
@@ -545,11 +591,48 @@ public final class IssueDetailViewModel {
         }
     }
 
+    private func zhHansActivityText(for entry: TimelineEntry) -> String {
+        switch entry.action {
+        case "created":
+            return "创建了此 Issue"
+        case "status_changed":
+            return "将状态从 \(statusLabel(entry.detailString("from"), language: .zhHans)) 改为 \(statusLabel(entry.detailString("to"), language: .zhHans))"
+        case "priority_changed":
+            return "将优先级从 \(priorityLabel(entry.detailString("from"), language: .zhHans)) 改为 \(priorityLabel(entry.detailString("to"), language: .zhHans))"
+        case "assignee_changed":
+            if entry.detailString("to_id") == nil, entry.detailString("from_id") != nil {
+                return "移除了负责人"
+            }
+            if let toType = entry.detailString("to_type"), let toId = entry.detailString("to_id") {
+                let typeName = toType == "member" ? "成员" : AppStrings.localized(toType.capitalized, language: .zhHans)
+                return "分配给 \(typeName) \(toId.prefix(8))"
+            }
+            return "修改了负责人"
+        case "due_date_changed":
+            guard let dueDate = entry.detailString("to"), !dueDate.isEmpty else {
+                return "移除了截止日期"
+            }
+            return "将截止日期设为 \(shortDate(dueDate))"
+        case "title_changed":
+            return "将标题从「\(entry.detailString("from") ?? "?")」改为「\(entry.detailString("to") ?? "?")」"
+        case "description_updated":
+            return "更新了描述"
+        case "task_completed":
+            return "完成了任务"
+        case "task_failed":
+            return "任务失败"
+        case .some(let action):
+            return AppStrings.localized(action.replacingOccurrences(of: "_", with: " ").capitalized, language: .zhHans)
+        case .none:
+            return "更新了此 Issue"
+        }
+    }
+
     public func timelineActorName(for entry: TimelineEntry) -> String {
         switch entry.actorType {
         case "member":
             return subscriberMembers.first { $0.userId == entry.actorId || $0.id == entry.actorId }?.name
-                ?? "Member \(entry.actorId.prefix(8))"
+                ?? "成员 \(entry.actorId.prefix(8))"
         case "agent":
             return subscriberAgents.first { $0.id == entry.actorId }?.name
                 ?? "Agent \(entry.actorId.prefix(8))"
@@ -744,13 +827,23 @@ public final class IssueDetailViewModel {
     }
 
     private func statusLabel(_ raw: String?) -> String {
+        statusLabel(raw, language: .english)
+    }
+
+    private func statusLabel(_ raw: String?, language: AppLanguage) -> String {
         guard let raw else { return "?" }
-        return IssueStatus(rawValue: raw)?.displayName ?? raw.replacingOccurrences(of: "_", with: " ").capitalized
+        let label = IssueStatus(rawValue: raw)?.displayName ?? raw.replacingOccurrences(of: "_", with: " ").capitalized
+        return AppStrings.localized(label, language: language)
     }
 
     private func priorityLabel(_ raw: String?) -> String {
+        priorityLabel(raw, language: .english)
+    }
+
+    private func priorityLabel(_ raw: String?, language: AppLanguage) -> String {
         guard let raw else { return "?" }
-        return IssuePriority(rawValue: raw)?.displayName ?? raw.replacingOccurrences(of: "_", with: " ").capitalized
+        let label = IssuePriority(rawValue: raw)?.displayName ?? raw.replacingOccurrences(of: "_", with: " ").capitalized
+        return AppStrings.localized(label, language: language)
     }
 
     private func shortDate(_ raw: String) -> String {

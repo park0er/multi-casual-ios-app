@@ -5,6 +5,7 @@ public struct AgentTranscriptView: View {
     public let taskId: String
     public let workspaceId: String?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var appLanguage
     @Environment(APIClient.self) private var api
     @Environment(AuthSession.self) private var authSession
     @State private var viewModel: AgentTimelineViewModel?
@@ -23,19 +24,23 @@ public struct AgentTranscriptView: View {
                     } else if let error = viewModel.errorMessage {
                         VStack(spacing: 12) {
                             ContentUnavailableView(
-                                "Transcript Unavailable",
+                                AppStrings.localized("Transcript Unavailable", language: appLanguage),
                                 systemImage: "exclamationmark.triangle",
                                 description: Text(MarkdownRenderer.attributedString(from: error))
                             )
                             Button {
                                 Task { await viewModel.loadHistory() }
                             } label: {
-                                Label("Retry", systemImage: "arrow.clockwise")
+                                Label(AppStrings.localized("Retry", language: appLanguage), systemImage: "arrow.clockwise")
                             }
                             .buttonStyle(.borderedProminent)
                         }
                     } else if viewModel.timeline.isEmpty {
-                        ContentUnavailableView("No Messages", systemImage: "text.bubble", description: Text("This agent run has no transcript messages yet."))
+                        ContentUnavailableView(
+                            AppStrings.localized("No Messages", language: appLanguage),
+                            systemImage: "text.bubble",
+                            description: Text(AppStrings.localized("This agent run has no transcript messages yet.", language: appLanguage))
+                        )
                     } else {
                         List(viewModel.timeline) { item in
                         VStack(alignment: .leading, spacing: 4) {
@@ -51,8 +56,8 @@ public struct AgentTranscriptView: View {
                     }
                 } else { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
             }
-            .navigationTitle("Agent Transcript").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+            .navigationTitle(AppStrings.localized("Agent Transcript", language: appLanguage)).navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button(AppStrings.localized("Done", language: appLanguage)) { dismiss() } } }
             .task {
                 if viewModel == nil {
                     let vm = AgentTimelineViewModel(

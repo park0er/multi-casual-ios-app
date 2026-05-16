@@ -6,6 +6,7 @@ public struct AgentLiveView: View {
     public let workspaceId: String?
     @Environment(AuthSession.self) private var authSession
     @Environment(APIClient.self) private var api
+    @Environment(\.appLanguage) private var appLanguage
     @State private var viewModel: AgentTimelineViewModel?
     @State private var isCollapsed = false
     @State private var showTranscript = false
@@ -27,7 +28,13 @@ public struct AgentLiveView: View {
                     Text("Agent").font(.subheadline.bold())
                     Spacer()
                     if !timeline.isEmpty {
-                        MarkdownText("\(timeline.count) events").font(.caption).foregroundStyle(.secondary)
+                        MarkdownText(
+                            timeline.count == 1
+                                ? AppStrings.localized("1 event", language: appLanguage)
+                                : "\(timeline.count) \(AppStrings.localized("events", language: appLanguage))"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                         .font(.caption).foregroundStyle(.secondary)
