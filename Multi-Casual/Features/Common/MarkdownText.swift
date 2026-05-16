@@ -54,15 +54,18 @@ public struct MarkdownText: View {
     public var body: some View {
         let localizedMarkdown = AppStrings.localized(markdown, language: appLanguage)
         let blocks = MarkdownRenderer.blocks(from: localizedMarkdown)
-        if blocks.count == 1, case .paragraph(let text) = blocks[0] {
-            Text(MarkdownRenderer.attributedString(from: text))
-        } else {
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                    MarkdownBlockView(block: block)
+        Group {
+            if blocks.count == 1, case .paragraph(let text) = blocks[0] {
+                Text(MarkdownRenderer.attributedString(from: text))
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                        MarkdownBlockView(block: block)
+                    }
                 }
             }
         }
+        .selectableRenderedText()
     }
 }
 
@@ -243,6 +246,10 @@ private struct MarkdownTableCellDetailSheet: View {
 }
 
 private extension View {
+    func selectableRenderedText() -> some View {
+        textSelection(.enabled)
+    }
+
     @ViewBuilder
     func markdownTableCellNavigationTitleMode() -> some View {
         #if os(iOS)

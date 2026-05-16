@@ -1,6 +1,21 @@
 import XCTest
 
 final class MarkdownCoverageTests: XCTestCase {
+    func test_markdownTextEnablesRenderedTextSelection() throws {
+        let sourceRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let fileURL = sourceRoot.appendingPathComponent("Multi-Casual/Features/Common/MarkdownText.swift")
+        let source = try String(contentsOf: fileURL, encoding: .utf8)
+
+        XCTAssertTrue(
+            source.contains(".selectableRenderedText()"),
+            "MarkdownText should apply selectableRenderedText() so member and agent rendered text can be long-pressed, selected, and copied."
+        )
+        XCTAssertTrue(
+            source.contains("textSelection(.enabled)"),
+            "selectableRenderedText() should enable SwiftUI text selection."
+        )
+    }
+
     func test_dynamicUserAndBackendTextUsesMarkdownRendering() throws {
         let sourceRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let forbiddenPatterns: [(path: String, pattern: String)] = [
