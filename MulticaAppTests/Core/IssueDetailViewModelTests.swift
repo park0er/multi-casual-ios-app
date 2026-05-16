@@ -763,6 +763,58 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.error)
     }
 
+    func test_submitReplyAllowsAttachmentOnlyImageReply() async throws {
+        var commentBody: [String: Any] = [:]
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/upload-file"):
+                let body = String(data: MockURLProtocol.bodyData(for: req), encoding: .utf8) ?? ""
+                XCTAssertTrue(body.contains(#"name="file"; filename="reply-photo.png""#))
+                XCTAssertTrue(body.contains("reply-png"))
+                let json = """
+                {"id":"att-reply-image","workspace_id":"w1","issue_id":"i1","comment_id":null,
+                 "uploader_type":"member","uploader_id":"u1","filename":"reply-photo.png",
+                 "url":"https://cdn.example/reply-photo.png","download_url":"https://cdn.example/reply-photo.png",
+                 "content_type":"image/png","size_bytes":9,"created_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("POST", "/api/issues/i1/comments"):
+                commentBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                let json = """
+                {"id":"r1","content":"","author_id":"u1","author_type":"member",
+                 "parent_id":"c1","issue_id":"i1","created_at":"2026-01-02T00:00:00Z",
+                 "attachments":[]}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("GET", "/api/issues/i1"):
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-02T00:00:00Z"))
+            default:
+                if let response = Self.emptyLatestProgressResponse(for: req) {
+                    return response
+                }
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        let uploaded = await vm.uploadReplyAttachment(
+            parentId: "c1",
+            filename: "reply-photo.png",
+            data: Data("reply-png".utf8),
+            contentType: "image/png"
+        )
+        let submitted = await vm.submitReply(parentId: "c1", content: " \n ")
+
+        XCTAssertTrue(uploaded)
+        XCTAssertTrue(submitted)
+        XCTAssertEqual(commentBody["content"] as? String, "")
+        XCTAssertEqual(commentBody["parent_id"] as? String, "c1")
+        XCTAssertEqual(commentBody["attachment_ids"] as? [String], ["att-reply-image"])
+        XCTAssertEqual(vm.replyAttachments["c1"]?.map(\.id) ?? [], [])
+        XCTAssertNil(vm.error)
+    }
+
     func test_updateCommentReplacesExistingComment() async throws {
         let client = makeClient { req in
             switch (req.httpMethod, req.url?.path) {
@@ -1145,6 +1197,57 @@ final class IssueDetailViewModelTests: XCTestCase {
             "GET /api/issues/i1/task-runs",
             "GET /api/issues/i1/timeline",
         ]))
+        XCTAssertNil(vm.error)
+    }
+
+    func test_submitCommentAllowsAttachmentOnlyImageComment() async throws {
+        var commentBody: [String: Any] = [:]
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/upload-file"):
+                let body = String(data: MockURLProtocol.bodyData(for: req), encoding: .utf8) ?? ""
+                XCTAssertTrue(body.contains(#"name="file"; filename="photo.png""#))
+                XCTAssertTrue(body.contains("png-data"))
+                let json = """
+                {"id":"att-image","workspace_id":"w1","issue_id":"i1","comment_id":null,
+                 "uploader_type":"member","uploader_id":"u1","filename":"photo.png",
+                 "url":"https://cdn.example/photo.png","download_url":"https://cdn.example/photo.png",
+                 "content_type":"image/png","size_bytes":8,"created_at":"2026-01-01T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("POST", "/api/issues/i1/comments"):
+                commentBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                let json = """
+                {"id":"c1","content":"","author_id":"u1","author_type":"member",
+                 "parent_id":null,"issue_id":"i1","created_at":"2026-01-02T00:00:00Z",
+                 "attachments":[]}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("GET", "/api/issues/i1"):
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-02T00:00:00Z"))
+            default:
+                if let response = Self.emptyLatestProgressResponse(for: req) {
+                    return response
+                }
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        let uploaded = await vm.uploadCommentAttachment(
+            filename: "photo.png",
+            data: Data("png-data".utf8),
+            contentType: "image/png"
+        )
+        XCTAssertTrue(uploaded)
+        XCTAssertTrue(vm.canSubmitComment)
+
+        await vm.submitComment()
+
+        XCTAssertEqual(commentBody["content"] as? String, "")
+        XCTAssertEqual(commentBody["attachment_ids"] as? [String], ["att-image"])
+        XCTAssertTrue(vm.commentAttachments.isEmpty)
         XCTAssertNil(vm.error)
     }
 

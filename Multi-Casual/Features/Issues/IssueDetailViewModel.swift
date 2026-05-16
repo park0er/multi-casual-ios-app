@@ -87,7 +87,10 @@ public final class IssueDetailViewModel {
     }
 
     public var canSubmitComment: Bool {
-        !commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        (
+            !commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !commentAttachments.isEmpty
+        ) &&
         !isSubmittingComment &&
         !isUploadingCommentAttachment
     }
@@ -643,7 +646,7 @@ public final class IssueDetailViewModel {
 
     public func submitComment() async {
         let content = commentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !content.isEmpty else { return }
+        guard !content.isEmpty || !commentAttachments.isEmpty else { return }
         guard await submitComment(content: content, parentId: nil) else { return }
         commentDraft = ""
         commentAttachments = []
@@ -705,7 +708,8 @@ public final class IssueDetailViewModel {
 
     public func submitReply(parentId: String, content: String) async -> Bool {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
+        let attachments = replyAttachments[parentId] ?? []
+        guard !trimmed.isEmpty || !attachments.isEmpty else { return false }
         let didSubmit = await submitComment(content: trimmed, parentId: parentId)
         if didSubmit {
             replyAttachments[parentId] = []

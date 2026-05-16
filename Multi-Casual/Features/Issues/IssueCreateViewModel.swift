@@ -68,7 +68,9 @@ public final class IssueCreateViewModel {
     }
 
     public var canSubmit: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSubmitting
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !isSubmitting &&
+        !isUploadingAttachment
     }
 
     public var canQuickCreate: Bool {

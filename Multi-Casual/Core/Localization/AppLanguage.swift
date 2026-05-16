@@ -82,6 +82,7 @@ public enum AppStrings {
         "Activity": "活动",
         "Add a comment…": "添加评论…",
         "Add Attachment": "添加附件",
+        "Add Image": "添加图片",
         "Add Reaction": "添加回应",
         "Add Sub-issue": "添加子 Issue",
         "Agent": "Agent",

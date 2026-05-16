@@ -1,4 +1,5 @@
 #if canImport(SwiftUI) && canImport(UIKit)
+import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -52,7 +53,9 @@ private struct IssueCreateForm: View {
     @Bindable var viewModel: IssueCreateViewModel
     let onCancel: () -> Void
     let onCreated: () -> Void
+    @Environment(\.appLanguage) private var appLanguage
     @State private var isShowingAttachmentImporter = false
+    @State private var selectedImageItem: PhotosPickerItem?
 
     var body: some View {
         NavigationStack {
@@ -197,17 +200,32 @@ private struct IssueCreateForm: View {
                         }
                     }
 
-                    Button {
-                        isShowingAttachmentImporter = true
-                    } label: {
-                        if viewModel.isUploadingAttachment {
-                            ProgressView()
-                        } else {
-                            Label("Add Attachment", systemImage: "paperclip")
+                    HStack(spacing: 12) {
+                        PhotosPicker(
+                            selection: $selectedImageItem,
+                            matching: .images
+                        ) {
+                            if viewModel.isUploadingAttachment {
+                                ProgressView()
+                            } else {
+                                Label(AppStrings.localized("Add Image", language: appLanguage), systemImage: "photo")
+                            }
                         }
+                        .disabled(viewModel.isUploadingAttachment || viewModel.isSubmitting)
+                        .accessibilityIdentifier("IssueCreateAddImageButton")
+
+                        Button {
+                            isShowingAttachmentImporter = true
+                        } label: {
+                            if viewModel.isUploadingAttachment {
+                                ProgressView()
+                            } else {
+                                Label(AppStrings.localized("Add Attachment", language: appLanguage), systemImage: "paperclip")
+                            }
+                        }
+                        .disabled(viewModel.isUploadingAttachment || viewModel.isSubmitting)
+                        .accessibilityIdentifier("IssueCreateAddAttachmentButton")
                     }
-                    .disabled(viewModel.isUploadingAttachment || viewModel.isSubmitting)
-                    .accessibilityIdentifier("IssueCreateAddAttachmentButton")
                 }
 
                 if viewModel.isLoadingOptions {
@@ -236,6 +254,9 @@ private struct IssueCreateForm: View {
                 allowsMultipleSelection: false
             ) { result in
                 handleAttachmentImport(result)
+            }
+            .onChange(of: selectedImageItem) { _, item in
+                handleImageSelection(item)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -273,6 +294,30 @@ private struct IssueCreateForm: View {
             }
         } catch {
             viewModel.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func handleImageSelection(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task { @MainActor in
+            defer { selectedImageItem = nil }
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    throw AttachmentImportError.unreadableImage
+                }
+                let payload = try AttachmentImport.imagePayload(
+                    data: data,
+                    contentType: item.supportedContentTypes.first { $0.conforms(to: .image) },
+                    filenamePrefix: "issue-image"
+                )
+                await viewModel.uploadAttachment(
+                    filename: payload.filename,
+                    data: payload.data,
+                    contentType: payload.contentType
+                )
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
         }
     }
 }

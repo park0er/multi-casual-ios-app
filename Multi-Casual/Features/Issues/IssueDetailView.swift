@@ -1,4 +1,5 @@
 #if canImport(SwiftUI) && canImport(UIKit)
+import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -13,6 +14,7 @@ public struct IssueDetailView: View {
     @State private var showCreateSubIssue = false
     @State private var showSubscribers = false
     @State private var showCommentAttachmentImporter = false
+    @State private var selectedCommentImageItem: PhotosPickerItem?
     @State private var showDeleteIssueConfirmation = false
     @State private var showCancelTaskConfirmation = false
     @State private var showDeleteAttachmentConfirmation = false
@@ -820,6 +822,20 @@ public struct IssueDetailView: View {
             }
 
             HStack(spacing: 12) {
+                PhotosPicker(
+                    selection: $selectedCommentImageItem,
+                    matching: .images
+                ) {
+                    if vm.isUploadingCommentAttachment {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "photo.circle")
+                            .font(.title3)
+                    }
+                }
+                .disabled(vm.isUploadingCommentAttachment || vm.isSubmittingComment)
+                .accessibilityIdentifier("IssueDetailAddCommentImageButton")
+
                 Button {
                     showCommentAttachmentImporter = true
                 } label: {
@@ -883,6 +899,9 @@ public struct IssueDetailView: View {
         ) { result in
             handleCommentAttachmentImport(result, vm: vm)
         }
+        .onChange(of: selectedCommentImageItem) { _, item in
+            handleCommentImageSelection(item, vm: vm)
+        }
     }
 
     private func handleCommentAttachmentImport(_ result: Result<[URL], Error>, vm: IssueDetailViewModel) {
@@ -898,6 +917,30 @@ public struct IssueDetailView: View {
             }
         } catch {
             vm.error = error.localizedDescription
+        }
+    }
+
+    private func handleCommentImageSelection(_ item: PhotosPickerItem?, vm: IssueDetailViewModel) {
+        guard let item else { return }
+        Task { @MainActor in
+            defer { selectedCommentImageItem = nil }
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    throw AttachmentImportError.unreadableImage
+                }
+                let payload = try AttachmentImport.imagePayload(
+                    data: data,
+                    contentType: item.supportedContentTypes.first { $0.conforms(to: .image) },
+                    filenamePrefix: "comment-image"
+                )
+                await vm.uploadCommentAttachment(
+                    filename: payload.filename,
+                    data: payload.data,
+                    contentType: payload.contentType
+                )
+            } catch {
+                vm.error = error.localizedDescription
+            }
         }
     }
 }
@@ -952,6 +995,7 @@ public struct CommentRowView: View {
     @State private var isSaving = false
     @State private var showDeleteConfirmation = false
     @State private var showReplyAttachmentImporter = false
+    @State private var selectedReplyImageItem: PhotosPickerItem?
     @State private var replyAttachmentError: String?
     @Environment(\.appLanguage) private var appLanguage
     @FocusState private var focusedEditor: CommentEditorFocus?
@@ -1089,6 +1133,20 @@ public struct CommentRowView: View {
                         .disabled(mentionableAgents.isEmpty || isSaving)
                         .accessibilityIdentifier("CommentReplyAgentMentionButton")
 
+                        PhotosPicker(
+                            selection: $selectedReplyImageItem,
+                            matching: .images
+                        ) {
+                            if isUploadingReplyAttachment {
+                                ProgressView()
+                            } else {
+                                Label(AppStrings.localized("Add Image", language: appLanguage), systemImage: "photo")
+                            }
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(isSaving || isUploadingReplyAttachment)
+                        .accessibilityIdentifier("CommentReplyAddImageButton")
+
                         Button {
                             showReplyAttachmentImporter = true
                         } label: {
@@ -1121,7 +1179,7 @@ public struct CommentRowView: View {
                             }
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(isSaving || isUploadingReplyAttachment || replyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(isSaving || isUploadingReplyAttachment || !canSubmitReply)
                     }
                 }
             }
@@ -1141,6 +1199,9 @@ public struct CommentRowView: View {
                 allowsMultipleSelection: false
             ) { result in
                 handleReplyAttachmentImport(result)
+            }
+            .onChange(of: selectedReplyImageItem) { _, item in
+                handleReplyImageSelection(item)
             }
             .alert(AppStrings.localized("Delete Comment", language: appLanguage), isPresented: $showDeleteConfirmation) {
                 Button(AppStrings.localized("Delete", language: appLanguage), role: .destructive) {
@@ -1162,6 +1223,10 @@ public struct CommentRowView: View {
 
     private var canDelete: Bool {
         comment.authorId == currentUserId
+    }
+
+    private var canSubmitReply: Bool {
+        !replyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !replyAttachments.isEmpty
     }
 
     private func openReplyEditor() {
@@ -1224,6 +1289,30 @@ public struct CommentRowView: View {
             }
         } catch {
             replyAttachmentError = error.localizedDescription
+        }
+    }
+
+    private func handleReplyImageSelection(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task { @MainActor in
+            defer { selectedReplyImageItem = nil }
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    throw AttachmentImportError.unreadableImage
+                }
+                let payload = try AttachmentImport.imagePayload(
+                    data: data,
+                    contentType: item.supportedContentTypes.first { $0.conforms(to: .image) },
+                    filenamePrefix: "reply-image"
+                )
+                replyAttachmentError = nil
+                let uploaded = await onUploadReplyAttachment(comment.id, payload)
+                if !uploaded {
+                    replyAttachmentError = AppStrings.localized("Upload failed.", language: appLanguage)
+                }
+            } catch {
+                replyAttachmentError = error.localizedDescription
+            }
         }
     }
 
