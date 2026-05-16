@@ -1305,6 +1305,8 @@ public enum IssueStatus: String, Codable, CaseIterable, Sendable, Comparable {
         .cancelled,
     ]
 
+    public static let listCases: [IssueStatus] = displayCases
+
     public static let boardCases: [IssueStatus] = [
         .backlog,
         .todo,

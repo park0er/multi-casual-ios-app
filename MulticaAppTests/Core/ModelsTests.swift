@@ -184,6 +184,10 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(IssueStatus.displayCases, [.backlog, .todo, .inProgress, .inReview, .done, .blocked, .cancelled])
     }
 
+    func test_issueStatus_listCasesIncludeCancelledForListMode() {
+        XCTAssertEqual(IssueStatus.listCases, [.backlog, .todo, .inProgress, .inReview, .done, .blocked, .cancelled])
+    }
+
     func test_issueStatus_boardCasesMatchDesktopBoardStatuses() {
         XCTAssertEqual(IssueStatus.boardCases, [.backlog, .todo, .inProgress, .inReview, .done, .blocked])
     }

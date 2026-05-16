@@ -338,7 +338,7 @@ public final class IssueListViewModel {
             lastError = UserVisibleError("Pick a workspace before updating Issues.")
             return
         }
-        guard let currentIssue = IssueStatus.boardCases
+        guard let currentIssue = IssueStatus.listCases
             .compactMap({ issuesByStatus[$0]?.first(where: { $0.id == issueId }) })
             .first
         else { return }
@@ -360,7 +360,7 @@ public final class IssueListViewModel {
         targetIssues.insert(movedIssue, at: min(insertIndex, targetIssues.count))
 
         let previousBuckets = issuesByStatus
-        for bucketStatus in IssueStatus.boardCases {
+        for bucketStatus in IssueStatus.listCases {
             issuesByStatus[bucketStatus]?.removeAll { $0.id == issueId }
         }
         issuesByStatus[status] = renumbered(targetIssues)
@@ -399,7 +399,7 @@ public final class IssueListViewModel {
             syncFlatIssues()
             return
         }
-        for status in IssueStatus.boardCases {
+        for status in IssueStatus.listCases {
             let page = try await api.listIssues(
                 workspaceId: workspaceId,
                 status: status,
@@ -478,20 +478,20 @@ public final class IssueListViewModel {
     }
 
     private func syncFlatIssues() {
-        let issues = IssueStatus.boardCases.flatMap { issuesByStatus[$0] ?? [] }
+        let issues = IssueStatus.listCases.flatMap { issuesByStatus[$0] ?? [] }
         loader.items = sorted(issues)
-        loader.hasMore = IssueStatus.boardCases.contains { statusHasMore($0) }
+        loader.hasMore = IssueStatus.listCases.contains { statusHasMore($0) }
     }
 
     private func replaceIssue(_ issue: Issue, preferredIndex: Int? = nil) {
-        let previousStatus = IssueStatus.boardCases.first { status in
+        let previousStatus = IssueStatus.listCases.first { status in
             issuesByStatus[status]?.contains { $0.id == issue.id } == true
         }
 
-        for status in IssueStatus.boardCases {
+        for status in IssueStatus.listCases {
             issuesByStatus[status]?.removeAll { $0.id == issue.id }
         }
-        if IssueStatus.boardCases.contains(issue.status) {
+        if IssueStatus.listCases.contains(issue.status) {
             var bucket = issuesByStatus[issue.status, default: []]
             if let preferredIndex {
                 bucket.insert(issue, at: min(max(0, preferredIndex), bucket.count))
@@ -513,7 +513,7 @@ public final class IssueListViewModel {
         assigneeId: String?
     ) {
         var patched: [Issue] = []
-        for bucketStatus in IssueStatus.boardCases {
+        for bucketStatus in IssueStatus.listCases {
             let existing = issuesByStatus[bucketStatus] ?? []
             issuesByStatus[bucketStatus] = existing.compactMap { issue in
                 guard ids.contains(issue.id) else { return issue }
@@ -528,7 +528,7 @@ public final class IssueListViewModel {
                 return nil
             }
         }
-        for issue in patched where IssueStatus.boardCases.contains(issue.status) {
+        for issue in patched where IssueStatus.listCases.contains(issue.status) {
             issuesByStatus[issue.status, default: []].append(issue)
         }
         resetPaginationCountsFromBuckets()
@@ -536,7 +536,7 @@ public final class IssueListViewModel {
     }
 
     private func removeIssues(withIds ids: Set<String>) {
-        for status in IssueStatus.boardCases {
+        for status in IssueStatus.listCases {
             issuesByStatus[status]?.removeAll { ids.contains($0.id) }
         }
         resetPaginationCountsFromBuckets()
@@ -544,7 +544,7 @@ public final class IssueListViewModel {
     }
 
     private func resetPaginationCountsFromBuckets() {
-        for status in IssueStatus.boardCases {
+        for status in IssueStatus.listCases {
             let count = issuesByStatus[status, default: []].count
             offsetsByStatus[status] = count
             totalsByStatus[status] = count
@@ -557,7 +557,7 @@ public final class IssueListViewModel {
         if let previousStatus {
             affectedStatuses.insert(previousStatus)
         }
-        if IssueStatus.boardCases.contains(newStatus) {
+        if IssueStatus.listCases.contains(newStatus) {
             affectedStatuses.insert(newStatus)
         }
 
@@ -569,7 +569,7 @@ public final class IssueListViewModel {
         if let total = totalsByStatus[previousStatus] {
             totalsByStatus[previousStatus] = max(0, total - 1)
         }
-        if IssueStatus.boardCases.contains(newStatus), let total = totalsByStatus[newStatus] {
+        if IssueStatus.listCases.contains(newStatus), let total = totalsByStatus[newStatus] {
             totalsByStatus[newStatus] = total + 1
         }
     }
@@ -641,7 +641,7 @@ public final class IssueListViewModel {
     }
 
     private func nextStatusWithMore() -> IssueStatus? {
-        IssueStatus.boardCases.first { statusHasMore($0) }
+        IssueStatus.listCases.first { statusHasMore($0) }
     }
 
     private func resetPagination() {
@@ -661,7 +661,7 @@ public final class IssueListViewModel {
 
     private func rebuildBucketsFromLoadedItems() {
         resetBuckets()
-        for issue in loader.items where IssueStatus.boardCases.contains(issue.status) {
+        for issue in loader.items where IssueStatus.listCases.contains(issue.status) {
             issuesByStatus[issue.status, default: []].append(issue)
         }
         resetPaginationCountsFromBuckets()

@@ -11,7 +11,7 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertEqual(vm.lastError?.localizedDescription, "Pick a workspace before opening Issues.")
     }
 
-    func test_loadNext_fetchesFirstPageForEachDesktopBoardStatus() async throws {
+    func test_loadNext_fetchesFirstPageForEachIssueListStatus() async throws {
         var requestedStatuses: [String] = []
         let client = makeClient { req in
             if req.url?.path == "/api/issues/child-progress" {
@@ -29,9 +29,10 @@ final class IssueListViewModelTests: XCTestCase {
 
         await vm.loadNext()
 
-        XCTAssertEqual(requestedStatuses, ["backlog", "todo", "in_progress", "in_review", "done", "blocked"])
-        XCTAssertEqual(vm.loader.items.map(\.status), [.backlog, .todo, .inProgress, .inReview, .done, .blocked])
+        XCTAssertEqual(requestedStatuses, ["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"])
+        XCTAssertEqual(vm.loader.items.map(\.status), [.backlog, .todo, .inProgress, .inReview, .done, .blocked, .cancelled])
         XCTAssertEqual(vm.issuesByStatus[.todo]?.map(\.id), ["todo-1"])
+        XCTAssertEqual(vm.issuesByStatus[.cancelled]?.map(\.id), ["cancelled-1"])
         XCTAssertFalse(vm.loader.hasMore)
     }
 
@@ -82,7 +83,7 @@ final class IssueListViewModelTests: XCTestCase {
 
         await vm.loadNext()
 
-        XCTAssertEqual(requestedPriorities, Array(repeating: "urgent", count: IssueStatus.boardCases.count))
+        XCTAssertEqual(requestedPriorities, Array(repeating: "urgent", count: IssueStatus.listCases.count))
         XCTAssertEqual(Set(vm.loader.items.map(\.priority)), [.urgent])
     }
 
@@ -128,7 +129,7 @@ final class IssueListViewModelTests: XCTestCase {
 
         await vm.loadNext()
 
-        XCTAssertEqual(issueQueries.count, IssueStatus.boardCases.count)
+        XCTAssertEqual(issueQueries.count, IssueStatus.listCases.count)
         XCTAssertTrue(issueQueries.allSatisfy { $0.first(where: { $0.name == "assignee_id" })?.value == "u1" })
         XCTAssertTrue(issueQueries.allSatisfy { $0.first(where: { $0.name == "creator_id" }) == nil })
     }
@@ -148,7 +149,7 @@ final class IssueListViewModelTests: XCTestCase {
 
         await vm.loadNext()
 
-        XCTAssertEqual(issueQueries.count, IssueStatus.boardCases.count)
+        XCTAssertEqual(issueQueries.count, IssueStatus.listCases.count)
         XCTAssertTrue(issueQueries.allSatisfy { $0.first(where: { $0.name == "creator_id" })?.value == "u1" })
         XCTAssertTrue(issueQueries.allSatisfy { $0.first(where: { $0.name == "assignee_id" }) == nil })
     }
@@ -187,7 +188,7 @@ final class IssueListViewModelTests: XCTestCase {
         await vm.loadNext()
 
         XCTAssertEqual(agentRequests, 1)
-        XCTAssertEqual(issueQueries.count, IssueStatus.boardCases.count)
+        XCTAssertEqual(issueQueries.count, IssueStatus.listCases.count)
         XCTAssertTrue(issueQueries.allSatisfy { $0.first(where: { $0.name == "assignee_ids" })?.value == "a1,a3" })
         XCTAssertTrue(issueQueries.allSatisfy { $0.first(where: { $0.name == "assignee_id" }) == nil })
     }

@@ -180,7 +180,7 @@ public struct IssueListView: View {
                     description: Text(MarkdownRenderer.attributedString(from: AppStrings.localized(vm.scope.emptyDescription, language: appLanguage)))
                 )
             }
-            ForEach(IssueStatus.boardCases, id: \.self) { status in
+            ForEach(IssueStatus.listCases, id: \.self) { status in
                 let issues = vm.issues(for: status)
                 if !issues.isEmpty {
                     Section {
