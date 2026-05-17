@@ -76,6 +76,7 @@
 "Invite" = "邀请";
 "Invite Member" = "邀请成员";
 "Issue" = "Issue";
+"Issue not found" = "未找到 Issue";
 "Label" = "标签";
 "Labels" = "标签";
 "Last 30 Days" = "最近 30 天";
@@ -126,6 +127,7 @@
 "Notifications" = "通知";
 "Number" = "编号";
 "Newest First" = "最新优先";
+"OK" = "确定";
 "Oldest First" = "最旧优先";
 "Open" = "打开";
 "Open Issue" = "打开 Issue";

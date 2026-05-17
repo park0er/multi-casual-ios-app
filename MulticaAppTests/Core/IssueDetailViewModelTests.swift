@@ -1107,6 +1107,65 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertEqual(vm.commentDraft, #"Please check [@David\[TF\]](mention://agent/a1) "#)
     }
 
+    func test_commentMarkdownContextResolvesMemberAndAgentMentionNames() throws {
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: makeClient { req in
+            XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+            return Self.response(for: req, body: Data("{}".utf8), status: 500)
+        })
+        vm.subscriberMembers = [
+            WorkspaceMember(
+                id: "m1",
+                workspaceId: "w1",
+                userId: "u1",
+                role: "member",
+                name: "Parker Zhang",
+                email: "parker@example.com",
+                avatarUrl: nil
+            )
+        ]
+        vm.subscriberAgents = [
+            try Self.decodeAgent(id: "a1", name: "Codex Worker")
+        ]
+
+        let context = vm.commentMarkdownContext(issuePrefix: "PAR")
+
+        XCTAssertEqual(context.mentionDisplayNamesByURL["mention://member/u1"], "Parker Zhang")
+        XCTAssertEqual(context.mentionDisplayNamesByURL["mention://member/m1"], "Parker Zhang")
+        XCTAssertEqual(context.mentionDisplayNamesByURL["mention://user/u1"], "Parker Zhang")
+        XCTAssertEqual(context.mentionDisplayNamesByURL["mention://user/m1"], "Parker Zhang")
+        XCTAssertEqual(context.mentionDisplayNamesByURL["mention://agent/a1"], "Codex Worker")
+        XCTAssertEqual(context.issueReferencePrefixes, ["PAR"])
+    }
+
+    func test_resolveIssueReferenceSearchesByIdentifierAndReturnsExactIssue() async throws {
+        var queryItems: [URLQueryItem] = []
+        let client = makeClient { req in
+            XCTAssertEqual(req.url?.path, "/api/issues/search")
+            queryItems = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            return Self.response(
+                for: req,
+                body: Data("""
+                {"issues":[
+                  {"id":"i-other","identifier":"PAR-730","number":730,"title":"Wrong","description":null,
+                   "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+                   "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"},
+                  {"id":"i73","identifier":"PAR-73","number":73,"title":"Right","description":null,
+                   "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+                   "project_id":null,"workspace_id":"w1","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
+                ],"has_more":false,"total":2}
+                """.utf8)
+            )
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+
+        let issue = try await vm.resolveIssueReference("PAR-73")
+
+        XCTAssertEqual(issue.id, "i73")
+        XCTAssertEqual(queryItems.first(where: { $0.name == "q" })?.value, "PAR-73")
+        XCTAssertEqual(queryItems.first(where: { $0.name == "workspace_id" })?.value, "w1")
+        XCTAssertEqual(queryItems.first(where: { $0.name == "include_closed" })?.value, "true")
+    }
+
     func test_submitCommentSendsAgentMentionMarkdownForBackendTrigger() async throws {
         var submittedContent: String?
         let client = makeClient { req in

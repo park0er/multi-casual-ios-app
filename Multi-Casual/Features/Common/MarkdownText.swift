@@ -1,5 +1,29 @@
 #if canImport(SwiftUI)
+import Foundation
 import SwiftUI
+
+public struct MarkdownRenderContext: Equatable {
+    public static let empty = MarkdownRenderContext()
+
+    public let mentionDisplayNamesByURL: [String: String]
+    public let issueReferencePrefixes: [String]
+
+    public init(
+        mentionDisplayNamesByURL: [String: String] = [:],
+        issueReferencePrefixes: [String] = []
+    ) {
+        self.mentionDisplayNamesByURL = mentionDisplayNamesByURL
+        self.issueReferencePrefixes = Array(Set(issueReferencePrefixes.map { $0.uppercased() }))
+            .filter { !$0.isEmpty }
+            .sorted { lhs, rhs in
+                lhs.count == rhs.count ? lhs < rhs : lhs.count > rhs.count
+            }
+    }
+
+    var isEmpty: Bool {
+        mentionDisplayNamesByURL.isEmpty && issueReferencePrefixes.isEmpty
+    }
+}
 
 public enum MarkdownRenderer {
     public enum Block: Equatable {
@@ -26,6 +50,12 @@ public enum MarkdownRenderer {
         }
     }
 
+    public static func interactiveMarkdown(from markdown: String, context: MarkdownRenderContext) -> String {
+        guard !context.isEmpty else { return markdown }
+        let mentionResolved = resolveMentionLabels(in: markdown, context: context)
+        return autolinkIssueReferences(in: mentionResolved, context: context)
+    }
+
     public static func blocks(from markdown: String) -> [Block] {
         let normalized = markdown.replacingOccurrences(of: "\r\n", with: "\n")
         var parser = BlockParser(lines: normalized.components(separatedBy: "\n"))
@@ -45,19 +75,125 @@ public enum MarkdownRenderer {
         }
         return columnTitle
     }
+
+    private static func resolveMentionLabels(in markdown: String, context: MarkdownRenderContext) -> String {
+        guard !context.mentionDisplayNamesByURL.isEmpty else { return markdown }
+        let pattern = #"\[((?:\\.|[^\]\\])*)\]\((mention://(?:agent|member|user)/[^\s\)]+)\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return markdown }
+        let nsRange = NSRange(markdown.startIndex..<markdown.endIndex, in: markdown)
+        let matches = regex.matches(in: markdown, range: nsRange)
+        guard !matches.isEmpty else { return markdown }
+
+        var rendered = markdown
+        for match in matches.reversed() {
+            guard match.numberOfRanges >= 3,
+                  let fullRange = Range(match.range(at: 0), in: rendered),
+                  let urlRange = Range(match.range(at: 2), in: rendered)
+            else { continue }
+            let url = String(rendered[urlRange])
+            guard let displayName = context.mentionDisplayNamesByURL[url] else { continue }
+            rendered.replaceSubrange(fullRange, with: "[@\(escapeMarkdownLinkLabel(displayName))](\(url))")
+        }
+        return rendered
+    }
+
+    private static func autolinkIssueReferences(in markdown: String, context: MarkdownRenderContext) -> String {
+        guard !context.issueReferencePrefixes.isEmpty else { return markdown }
+        let prefixPattern = context.issueReferencePrefixes
+            .map { NSRegularExpression.escapedPattern(for: $0) }
+            .joined(separator: "|")
+        let pattern = #"(?<![A-Za-z0-9])("# + prefixPattern + #")-[0-9]+(?![A-Za-z0-9])"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return markdown }
+
+        let protectedRanges = protectedMarkdownNSRanges(in: markdown)
+        let nsRange = NSRange(markdown.startIndex..<markdown.endIndex, in: markdown)
+        let matches = regex.matches(in: markdown, range: nsRange)
+        guard !matches.isEmpty else { return markdown }
+
+        var rendered = markdown
+        for match in matches.reversed() {
+            guard let range = Range(match.range(at: 0), in: rendered) else { continue }
+            guard !protectedRanges.contains(where: { NSIntersectionRange($0, match.range(at: 0)).length > 0 }) else { continue }
+            let identifier = String(rendered[range])
+            let encoded = identifier.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? identifier
+            rendered.replaceSubrange(range, with: "[\(identifier)](multica://issue-reference/\(encoded))")
+        }
+        return rendered
+    }
+
+    private static func protectedMarkdownNSRanges(in markdown: String) -> [NSRange] {
+        var ranges: [Range<String.Index>] = []
+        var index = markdown.startIndex
+
+        while index < markdown.endIndex {
+            let character = markdown[index]
+            if let fence = codeFenceMarker(at: index, in: markdown),
+               let closingRange = markdown.range(of: fence, range: markdown.index(index, offsetBy: fence.count)..<markdown.endIndex) {
+                ranges.append(index..<markdown.index(closingRange.upperBound, offsetBy: 0))
+                index = closingRange.upperBound
+                continue
+            }
+
+            if character == "`" {
+                let next = markdown.index(after: index)
+                if let closing = markdown[next...].firstIndex(of: "`") {
+                    ranges.append(index..<markdown.index(after: closing))
+                    index = markdown.index(after: closing)
+                    continue
+                }
+            }
+
+            if character == "[",
+               let labelEnd = markdown[index...].firstIndex(of: "]") {
+                let afterLabel = markdown.index(after: labelEnd)
+                if afterLabel < markdown.endIndex,
+                   markdown[afterLabel] == "(",
+                   let urlEnd = markdown[afterLabel...].firstIndex(of: ")") {
+                    ranges.append(index..<markdown.index(after: urlEnd))
+                    index = markdown.index(after: urlEnd)
+                    continue
+                }
+            }
+
+            index = markdown.index(after: index)
+        }
+
+        return ranges.map { NSRange($0, in: markdown) }
+    }
+
+    private static func codeFenceMarker(at index: String.Index, in markdown: String) -> String? {
+        let rest = markdown[index...]
+        if rest.hasPrefix("```") {
+            return "```"
+        }
+        if rest.hasPrefix("~~~") {
+            return "~~~"
+        }
+        return nil
+    }
+
+    private static func escapeMarkdownLinkLabel(_ label: String) -> String {
+        label
+            .replacingOccurrences(of: #"\"#, with: #"\\"#)
+            .replacingOccurrences(of: "[", with: #"\["#)
+            .replacingOccurrences(of: "]", with: #"\]"#)
+    }
 }
 
 public struct MarkdownText: View {
     private let markdown: String
+    private let context: MarkdownRenderContext
     @Environment(\.appLanguage) private var appLanguage
 
-    public init(_ markdown: String) {
+    public init(_ markdown: String, context: MarkdownRenderContext = .empty) {
         self.markdown = markdown
+        self.context = context
     }
 
     public var body: some View {
         let localizedMarkdown = AppStrings.localized(markdown, language: appLanguage)
-        let blocks = MarkdownRenderer.blocks(from: localizedMarkdown)
+        let interactiveMarkdown = MarkdownRenderer.interactiveMarkdown(from: localizedMarkdown, context: context)
+        let blocks = MarkdownRenderer.blocks(from: interactiveMarkdown)
         Group {
             if blocks.count == 1, case .paragraph(let text) = blocks[0] {
                 Text(MarkdownRenderer.attributedString(from: text))

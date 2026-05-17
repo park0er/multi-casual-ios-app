@@ -21,6 +21,8 @@ public struct IssueDetailView: View {
     @State private var pendingCancelTask: AgentTask?
     @State private var pendingDeleteAttachment: Attachment?
     @State private var selectedTranscript: AgentTranscriptSelection?
+    @State private var issueReferenceTarget: IssueReferenceNavigationTarget?
+    @State private var issueReferenceError: String?
     @State private var pinViewModel: PinToggleViewModel?
     @State private var isAgentWorkExpanded = false
     @FocusState private var isCommentInputFocused: Bool
@@ -34,6 +36,12 @@ public struct IssueDetailView: View {
         }
         .markdownNavigationTitle(viewModel?.issue?.identifier ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $issueReferenceTarget) { target in
+            IssueDetailView(issueId: target.issueId)
+        }
+        .environment(\.openURL, OpenURLAction { url in
+            handleMarkdownURL(url)
+        })
         .onAppear {
             if viewModel == nil {
                 viewModel = IssueDetailViewModel(
@@ -148,6 +156,16 @@ public struct IssueDetailView: View {
                 pendingDeleteAttachment = nil
             }
         )
+        .alert(AppStrings.localized("Issue not found", language: appLanguage), isPresented: Binding(
+            get: { issueReferenceError != nil },
+            set: { if !$0 { issueReferenceError = nil } }
+        )) {
+            Button(AppStrings.localized("OK", language: appLanguage), role: .cancel) {
+                issueReferenceError = nil
+            }
+        } message: {
+            Text(issueReferenceError ?? "")
+        }
     }
 
     @ViewBuilder
@@ -517,12 +535,14 @@ public struct IssueDetailView: View {
             if vm.isLoadingComments && vm.commentLoader.items.isEmpty {
                 ProgressView().padding()
             }
+            let markdownContext = vm.commentMarkdownContext(issuePrefix: authSession.currentWorkspace?.issuePrefix)
             ForEach(vm.displayedComments) { comment in
                 CommentRowView(
                     comment: comment,
                     authorDisplayName: vm.commentAuthorName(for: comment),
                     authorAvatarUrl: vm.commentAuthorAvatarURL(for: comment),
                     currentUserId: currentUserId,
+                    markdownContext: markdownContext,
                     mentionableAgents: vm.mentionableAgents,
                     replyAttachments: vm.replyAttachments[comment.id] ?? [],
                     isUploadingReplyAttachment: vm.uploadingReplyAttachmentIds.contains(comment.id),
@@ -943,6 +963,34 @@ public struct IssueDetailView: View {
             }
         }
     }
+
+    private func handleMarkdownURL(_ url: URL) -> OpenURLAction.Result {
+        if url.scheme == "mention" {
+            return .handled
+        }
+        guard url.scheme == "multica",
+              url.host == "issue-reference",
+              let rawIdentifier = url.pathComponents.dropFirst().first,
+              let identifier = rawIdentifier.removingPercentEncoding
+        else {
+            return .systemAction
+        }
+
+        Task { await openIssueReference(identifier) }
+        return .handled
+    }
+
+    @MainActor
+    private func openIssueReference(_ identifier: String) async {
+        guard let vm = viewModel else { return }
+        do {
+            let issue = try await vm.resolveIssueReference(identifier)
+            guard issue.id != issueId else { return }
+            issueReferenceTarget = IssueReferenceNavigationTarget(issueId: issue.id, identifier: issue.identifier)
+        } catch {
+            issueReferenceError = error.localizedDescription
+        }
+    }
 }
 
 private struct AgentTranscriptSelection: Identifiable {
@@ -950,6 +998,13 @@ private struct AgentTranscriptSelection: Identifiable {
     let workspaceId: String?
 
     var id: String { "\(workspaceId ?? "current"):\(taskId)" }
+}
+
+private struct IssueReferenceNavigationTarget: Identifiable, Hashable {
+    let issueId: String
+    let identifier: String
+
+    var id: String { issueId }
 }
 
 private func dismissIssueDetailKeyboard() {
@@ -979,6 +1034,7 @@ public struct CommentRowView: View {
     let authorDisplayName: String
     let authorAvatarUrl: String?
     let currentUserId: String?
+    let markdownContext: MarkdownRenderContext
     let mentionableAgents: [Agent]
     let replyAttachments: [Attachment]
     let isUploadingReplyAttachment: Bool
@@ -1005,6 +1061,7 @@ public struct CommentRowView: View {
         authorDisplayName: String? = nil,
         authorAvatarUrl: String? = nil,
         currentUserId: String? = nil,
+        markdownContext: MarkdownRenderContext = .empty,
         mentionableAgents: [Agent] = [],
         replyAttachments: [Attachment] = [],
         isUploadingReplyAttachment: Bool = false,
@@ -1018,6 +1075,7 @@ public struct CommentRowView: View {
         self.authorDisplayName = authorDisplayName ?? (comment.authorType == "agent" ? "Agent" : "Member")
         self.authorAvatarUrl = authorAvatarUrl
         self.currentUserId = currentUserId
+        self.markdownContext = markdownContext
         self.mentionableAgents = mentionableAgents
         self.replyAttachments = replyAttachments
         self.isUploadingReplyAttachment = isUploadingReplyAttachment
@@ -1103,7 +1161,7 @@ public struct CommentRowView: View {
                     }
                 }
             } else {
-                MarkdownText(comment.content).font(.body)
+                MarkdownText(comment.content, context: markdownContext).font(.body)
             }
             if !comment.attachments.isEmpty {
                 AttachmentListView(attachments: comment.attachments)
@@ -1447,7 +1505,8 @@ private struct SubscriberManagementView: View {
     var body: some View {
         NavigationStack {
             List {
-                if vm.subscriberMembers.isEmpty && vm.subscriberAgents.isEmpty {
+                let activeAgents = vm.subscriberAgents.filter { $0.archivedAt == nil }
+                if vm.subscriberMembers.isEmpty && activeAgents.isEmpty {
                     Section {
                         if vm.isLoadingSubscribers {
                             ProgressView()
@@ -1473,9 +1532,9 @@ private struct SubscriberManagementView: View {
                         }
                     }
                 }
-                if !vm.subscriberAgents.isEmpty {
+                if !activeAgents.isEmpty {
                     Section("Agents") {
-                        ForEach(vm.subscriberAgents) { agent in
+                        ForEach(activeAgents) { agent in
                             SubscriberToggleRow(
                                 title: agent.name,
                                 subtitle: agent.status.capitalized,

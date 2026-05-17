@@ -133,6 +133,28 @@ public final class IssueDetailViewModel {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    public func commentMarkdownContext(issuePrefix: String?) -> MarkdownRenderContext {
+        var mentionDisplayNames: [String: String] = [:]
+        for member in subscriberMembers {
+            mentionDisplayNames["mention://member/\(member.userId)"] = member.name
+            mentionDisplayNames["mention://member/\(member.id)"] = member.name
+            mentionDisplayNames["mention://user/\(member.userId)"] = member.name
+            mentionDisplayNames["mention://user/\(member.id)"] = member.name
+        }
+        for agent in subscriberAgents {
+            mentionDisplayNames["mention://agent/\(agent.id)"] = agent.name
+        }
+
+        let resolvedPrefix = issuePrefix?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? issuePrefix
+            : issue?.identifier.split(separator: "-").first.map(String.init)
+
+        return MarkdownRenderContext(
+            mentionDisplayNamesByURL: mentionDisplayNames,
+            issueReferencePrefixes: resolvedPrefix.map { [$0] } ?? []
+        )
+    }
+
     public func appendAgentMention(_ agent: Agent) {
         let mention = Self.agentMentionMarkdown(agent)
         let trimmedDraft = commentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -252,14 +274,14 @@ public final class IssueDetailViewModel {
 
         do {
             async let members = api.listMembers(workspaceId: workspaceId)
-            async let agents = api.listAgents(workspaceId: workspaceId)
+            async let agents = api.listAgents(workspaceId: workspaceId, includeArchived: true)
             async let projectsPage = api.listProjects(workspaceId: workspaceId, limit: 50, offset: 0)
 
             let loadedMembers = try await members
             let loadedAgents = try await agents
             let loadedProjects = try await projectsPage
             subscriberMembers = loadedMembers
-            subscriberAgents = loadedAgents.filter { $0.archivedAt == nil }
+            subscriberAgents = loadedAgents
 
             if let assigneeId = issue.assigneeId, let assigneeType = issue.assigneeType {
                 switch assigneeType {
@@ -282,6 +304,24 @@ public final class IssueDetailViewModel {
         } catch {
             metadataError = error.localizedDescription
         }
+    }
+
+    public func resolveIssueReference(_ identifier: String) async throws -> Issue {
+        guard let workspaceId = resolvedWorkspaceId else {
+            throw UserVisibleError("Pick a workspace before opening Issues.")
+        }
+        let normalizedIdentifier = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        let page = try await api.searchIssues(
+            workspaceId: workspaceId,
+            query: normalizedIdentifier,
+            limit: 10,
+            offset: 0,
+            includeClosed: true
+        )
+        if let exact = page.items.first(where: { $0.identifier.caseInsensitiveCompare(normalizedIdentifier) == .orderedSame }) {
+            return exact
+        }
+        throw UserVisibleError("Issue \(normalizedIdentifier) was not found.")
     }
 
     public func loadSubscribers() async {

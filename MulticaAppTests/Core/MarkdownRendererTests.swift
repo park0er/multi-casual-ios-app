@@ -11,6 +11,69 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertEqual(attributed.link(for: "link")?.absoluteString, "https://multica.ai")
     }
 
+    func test_interactiveMarkdownResolvesMentionLabelsAndAutolinksIssueReferences() throws {
+        let context = MarkdownRenderContext(
+            mentionDisplayNamesByURL: [
+                "mention://agent/a1": "Codex Worker",
+                "mention://member/u1": "Parker Zhang",
+            ],
+            issueReferencePrefixes: ["PAR"]
+        )
+
+        let rendered = MarkdownRenderer.interactiveMarkdown(
+            from: "Ping [@Agent](mention://agent/a1), [@member](mention://member/u1), see PAR-73.",
+            context: context
+        )
+
+        XCTAssertEqual(
+            rendered,
+            "Ping [@Codex Worker](mention://agent/a1), [@Parker Zhang](mention://member/u1), see [PAR-73](multica://issue-reference/PAR-73)."
+        )
+    }
+
+    func test_interactiveMarkdownDoesNotAutolinkIssueReferencesInsideExistingLinksOrCode() throws {
+        let context = MarkdownRenderContext(issueReferencePrefixes: ["PAR"])
+
+        let rendered = MarkdownRenderer.interactiveMarkdown(
+            from: """
+            Keep [PAR-73](https://example.com) and `PAR-74` unchanged.
+
+            ```
+            PAR-75 stays plain in code.
+            ```
+
+            Link PAR-76.
+            """,
+            context: context
+        )
+
+        XCTAssertEqual(
+            rendered,
+            """
+            Keep [PAR-73](https://example.com) and `PAR-74` unchanged.
+
+            ```
+            PAR-75 stays plain in code.
+            ```
+
+            Link [PAR-76](multica://issue-reference/PAR-76).
+            """
+        )
+    }
+
+    func test_interactiveMarkdownEscapesMentionDisplayNamesForMarkdownLinks() throws {
+        let context = MarkdownRenderContext(
+            mentionDisplayNamesByURL: ["mention://agent/a1": #"David[TF]\Ops"#]
+        )
+
+        let rendered = MarkdownRenderer.interactiveMarkdown(
+            from: "Ping [@old](mention://agent/a1)",
+            context: context
+        )
+
+        XCTAssertEqual(rendered, #"Ping [@David\[TF\]\\Ops](mention://agent/a1)"#)
+    }
+
     func test_attributedStringPreservesUserNewlinesAndListMarkers() throws {
         let source = "First paragraph\n\n- one\n- two"
 
