@@ -74,6 +74,12 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertEqual(rendered, #"Ping [@David\[TF\]\\Ops](mention://agent/a1)"#)
     }
 
+    func test_containsMarkdownLinkDetectsInteractiveIssueReferenceLinks() throws {
+        XCTAssertTrue(MarkdownRenderer.containsMarkdownLink(in: "[PAR-73](multica://issue-reference/PAR-73)"))
+        XCTAssertTrue(MarkdownRenderer.containsMarkdownLink(in: "Ping [@Codex](mention://agent/a1)"))
+        XCTAssertFalse(MarkdownRenderer.containsMarkdownLink(in: "PAR-73 is plain text before autolinking"))
+    }
+
     func test_attributedStringPreservesUserNewlinesAndListMarkers() throws {
         let source = "First paragraph\n\n- one\n- two"
 

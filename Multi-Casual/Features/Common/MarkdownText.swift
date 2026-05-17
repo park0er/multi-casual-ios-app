@@ -1,6 +1,9 @@
 #if canImport(SwiftUI)
 import Foundation
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 public struct MarkdownRenderContext: Equatable {
     public static let empty = MarkdownRenderContext()
@@ -54,6 +57,13 @@ public enum MarkdownRenderer {
         guard !context.isEmpty else { return markdown }
         let mentionResolved = resolveMentionLabels(in: markdown, context: context)
         return autolinkIssueReferences(in: mentionResolved, context: context)
+    }
+
+    public static func containsMarkdownLink(in markdown: String) -> Bool {
+        let pattern = #"\[((?:\\.|[^\]\\])*)\]\(([^\s\)]+)\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
+        let range = NSRange(markdown.startIndex..<markdown.endIndex, in: markdown)
+        return regex.firstMatch(in: markdown, range: range) != nil
     }
 
     public static func blocks(from markdown: String) -> [Block] {
@@ -196,7 +206,7 @@ public struct MarkdownText: View {
         let blocks = MarkdownRenderer.blocks(from: interactiveMarkdown)
         Group {
             if blocks.count == 1, case .paragraph(let text) = blocks[0] {
-                Text(MarkdownRenderer.attributedString(from: text))
+                MarkdownInlineText(text)
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
@@ -216,16 +226,16 @@ private struct MarkdownBlockView: View {
     var body: some View {
         switch block {
         case .paragraph(let text):
-            Text(MarkdownRenderer.attributedString(from: text))
+            MarkdownInlineText(text)
         case .heading(let level, let text):
-            Text(MarkdownRenderer.attributedString(from: text))
+            MarkdownInlineText(text)
                 .font(font(forHeadingLevel: level))
         case .unorderedList(let items):
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text("•")
-                        Text(MarkdownRenderer.attributedString(from: item))
+                        MarkdownInlineText(item)
                     }
                 }
             }
@@ -235,7 +245,7 @@ private struct MarkdownBlockView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text("\(index + 1).")
                             .monospacedDigit()
-                        Text(MarkdownRenderer.attributedString(from: item))
+                        MarkdownInlineText(item)
                     }
                 }
             }
@@ -244,7 +254,7 @@ private struct MarkdownBlockView: View {
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(Color.secondary.opacity(0.45))
                     .frame(width: 3)
-                Text(MarkdownRenderer.attributedString(from: text))
+                MarkdownInlineText(text)
                     .foregroundStyle(.secondary)
             }
         case .codeBlock(let code):
@@ -302,6 +312,103 @@ private struct MarkdownBlockView: View {
         }
     }
 }
+
+private struct MarkdownInlineText: View {
+    let markdown: String
+
+    init(_ markdown: String) {
+        self.markdown = markdown
+    }
+
+    var body: some View {
+        if MarkdownRenderer.containsMarkdownLink(in: markdown) {
+            #if os(iOS)
+            InteractiveMarkdownText(markdown: markdown)
+            #else
+            Text(MarkdownRenderer.attributedString(from: markdown))
+            #endif
+        } else {
+            Text(MarkdownRenderer.attributedString(from: markdown))
+        }
+    }
+}
+
+#if os(iOS)
+private struct InteractiveMarkdownText: UIViewRepresentable {
+    let markdown: String
+    @Environment(\.openURL) private var openURL
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.backgroundColor = .clear
+        textView.delegate = context.coordinator
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.isScrollEnabled = false
+        textView.adjustsFontForContentSizeCategory = true
+        textView.textContainerInset = .zero
+        textView.textContainer.lineFragmentPadding = 0
+        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        textView.linkTextAttributes = [
+            .foregroundColor: UIColor.systemBlue,
+            .underlineStyle: 0,
+        ]
+        return textView
+    }
+
+    func updateUIView(_ textView: UITextView, context: Context) {
+        context.coordinator.openURL = openURL
+        let attributed = NSMutableAttributedString(MarkdownRenderer.attributedString(from: markdown))
+        let fullRange = NSRange(location: 0, length: attributed.length)
+        attributed.enumerateAttribute(.font, in: fullRange) { value, range, _ in
+            if value == nil {
+                attributed.addAttribute(.font, value: UIFont.preferredFont(forTextStyle: .body), range: range)
+            }
+        }
+        attributed.enumerateAttribute(.foregroundColor, in: fullRange) { value, range, _ in
+            let hasLink = attributed.attribute(.link, at: range.location, effectiveRange: nil) != nil
+            if value == nil && !hasLink {
+                attributed.addAttribute(.foregroundColor, value: UIColor.label, range: range)
+            }
+        }
+        textView.attributedText = attributed
+        textView.invalidateIntrinsicContentSize()
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let width = proposal.width ?? UIScreen.main.bounds.width
+        let size = uiView.sizeThatFits(
+            CGSize(width: width, height: .greatestFiniteMagnitude)
+        )
+        return CGSize(width: width, height: ceil(size.height))
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(openURL: openURL)
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var openURL: OpenURLAction
+
+        init(openURL: OpenURLAction) {
+            self.openURL = openURL
+        }
+
+        func textView(
+            _ textView: UITextView,
+            shouldInteractWith URL: URL,
+            in characterRange: NSRange,
+            interaction: UITextItemInteraction
+        ) -> Bool {
+            if URL.scheme == "multica" || URL.scheme == "mention" {
+                openURL(URL)
+                return false
+            }
+            return true
+        }
+    }
+}
+#endif
 
 private struct MarkdownTableRow: View {
     let cells: [String]
