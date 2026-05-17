@@ -6,8 +6,8 @@ import MultiCasual
 @main
 struct Multi-CasualMain: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var authSession = AuthSession()
-    @State private var apiClient = APIClient()
+    @State private var authSession = AuthSession(keychain: KeychainStore(service: AppEnvironment.current.keychainService))
+    @State private var apiClient = APIClient(baseURL: AppEnvironment.current.apiBaseURL)
     @State private var languageSettings = AppLanguageSettings()
 
     var body: some Scene {

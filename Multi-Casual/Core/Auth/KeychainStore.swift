@@ -10,7 +10,7 @@ public final class KeychainStore: Sendable {
 
     public let service: String
 
-    public init(service: String = "ai.multica.app") {
+    public init(service: String = AppEnvironment.current.keychainService) {
         self.service = service
     }
 

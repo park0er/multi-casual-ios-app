@@ -75,6 +75,33 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(user.email, "test@example.com")
     }
 
+    func test_clientUsesInjectedBaseURLForSelfHostedEnvironment() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: config)
+        var capturedURL: URL?
+
+        MockURLProtocol.handler = { req in
+            capturedURL = req.url
+            return Self.response(
+                req,
+                body: #"{"id":"u1","email":"p@xiaomi.com","name":"Parker"}"#.data(using: .utf8)!
+            )
+        }
+
+        let client = APIClient(
+            session: session,
+            baseURL: AppEnvironment.xiaomi.apiBaseURL,
+            token: "test-token"
+        )
+
+        _ = try await client.getMe()
+
+        XCTAssertEqual(capturedURL?.scheme, "http")
+        XCTAssertEqual(capturedURL?.host, "staging-multica.ad.xiaomi.srv")
+        XCTAssertEqual(capturedURL?.path, "/api/me")
+    }
+
     func test_updateMe_usesDesktopEndpointAndBody() async throws {
         var body: [String: Any] = [:]
         MockURLProtocol.handler = { req in

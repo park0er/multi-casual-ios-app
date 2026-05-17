@@ -3,6 +3,8 @@ import Foundation
 public actor WebSocketActor {
     public static let shared = WebSocketActor()
 
+    private let environment: AppEnvironment
+
     // Keyed by (event type, subscription UUID) so individual subscribers can be
     // removed on stream termination without sweeping everything.
     private var continuations: [String: [UUID: AsyncStream<WSEvent>.Continuation]] = [:]
@@ -13,7 +15,9 @@ public actor WebSocketActor {
     private var lastToken: String?
     private var lastWorkspaceId: String?
 
-    public init() {}
+    public init(environment: AppEnvironment = .current) {
+        self.environment = environment
+    }
 
     public func connect(token: String, workspaceId: String) async {
         if isConnected, lastToken == token, lastWorkspaceId == workspaceId {
@@ -74,6 +78,20 @@ public actor WebSocketActor {
         return WSEvent(type: envelope.type, taskId: taskId, payload: payload)
     }
 
+    public static func makeConnectionURL(baseURL: URL, workspaceId: String) throws -> URL {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            throw URLError(.badURL)
+        }
+        components.queryItems = [
+            URLQueryItem(name: "workspace_id", value: workspaceId),
+            URLQueryItem(name: "client_platform", value: "ios"),
+        ]
+        guard let url = components.url else {
+            throw URLError(.badURL)
+        }
+        return url
+    }
+
     /// AsyncStream of WSEvents matching the given event type. Pass "*" for all events.
     /// Stream terminates when disconnect() is called or a non-transient error is hit.
     public func subscribe(to eventType: String) -> AsyncStream<WSEvent> {
@@ -92,15 +110,10 @@ public actor WebSocketActor {
     // MARK: - Internals
 
     private func openTask(token: String, workspaceId: String) async {
-        guard var components = URLComponents(string: "wss://api.multica.ai/ws") else {
-            finishAllStreams()
-            return
-        }
-        components.queryItems = [
-            URLQueryItem(name: "workspace_id", value: workspaceId),
-            URLQueryItem(name: "client_platform", value: "ios"),
-        ]
-        guard let url = components.url else {
+        let url: URL
+        do {
+            url = try Self.makeConnectionURL(baseURL: environment.webSocketURL, workspaceId: workspaceId)
+        } catch {
             finishAllStreams()
             return
         }

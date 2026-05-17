@@ -23,4 +23,17 @@ final class WebSocketActorTests: XCTestCase {
 
         XCTAssertNil(WebSocketActor.decodeEventFrame(data: frame))
     }
+
+    func test_webSocketURLIncludesWorkspaceAndClientPlatform() throws {
+        let url = try WebSocketActor.makeConnectionURL(
+            baseURL: AppEnvironment.xiaomi.webSocketURL,
+            workspaceId: "workspace-123"
+        )
+
+        XCTAssertEqual(url.scheme, "ws")
+        XCTAssertEqual(url.host, "staging-multica.ad.xiaomi.srv")
+        XCTAssertEqual(url.path, "/ws")
+        XCTAssertTrue(url.absoluteString.contains("workspace_id=workspace-123"))
+        XCTAssertTrue(url.absoluteString.contains("client_platform=ios"))
+    }
 }

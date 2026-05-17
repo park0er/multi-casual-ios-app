@@ -128,7 +128,7 @@ struct RootView: View {
     }
 
     private func handleDeepLink(_ url: URL) {
-        guard url.scheme == "ai.multica.app" else { return }
+        guard url.scheme == AppEnvironment.current.urlScheme else { return }
         switch url.host {
         case "inbox": selectedTab = .inbox
         case "issues": selectedTab = .issues

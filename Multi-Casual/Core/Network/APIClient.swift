@@ -105,7 +105,7 @@ public final class APIClient: @unchecked Sendable {
     // AuthSession.token() is nonisolated (Keychain access is thread-safe).
     public convenience init(
         session: URLSession = .shared,
-        baseURL: URL = URL(string: "https://api.multica.ai")!,
+        baseURL: URL = AppEnvironment.current.apiBaseURL,
         requestTimeout: TimeInterval = APIClient.defaultRequestTimeout,
         authSession: AuthSession
     ) {
@@ -122,7 +122,7 @@ public final class APIClient: @unchecked Sendable {
     // Test/flexible init
     public init(
         session: URLSession = .shared,
-        baseURL: URL = URL(string: "https://api.multica.ai")!,
+        baseURL: URL = AppEnvironment.current.apiBaseURL,
         requestTimeout: TimeInterval = APIClient.defaultRequestTimeout,
         token: String? = nil,
         tokenProvider: (@Sendable () -> String?)? = nil,

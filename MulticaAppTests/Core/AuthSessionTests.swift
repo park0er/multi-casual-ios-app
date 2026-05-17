@@ -21,6 +21,12 @@ final class AuthSessionTests: XCTestCase {
         MockURLProtocol.handler = nil
     }
 
+    func test_xiaomiKeychainServiceIsSeparateFromOfficialService() {
+        XCTAssertNotEqual(AppEnvironment.official.keychainService, AppEnvironment.xiaomi.keychainService)
+        XCTAssertEqual(AppEnvironment.official.keychainService, "ai.multica.app")
+        XCTAssertEqual(AppEnvironment.xiaomi.keychainService, "ai.multica.app.xiaomi")
+    }
+
     func test_installDebugToken_savesProvidedToken() throws {
         let session = AuthSession(keychain: store)
 
