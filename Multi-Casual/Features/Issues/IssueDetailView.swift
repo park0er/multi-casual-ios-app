@@ -965,6 +965,17 @@ public struct IssueDetailView: View {
     }
 
     private func handleMarkdownURL(_ url: URL) -> OpenURLAction.Result {
+        if url.scheme == "mention", url.host == "issue" {
+            guard let rawIssueId = url.pathComponents.dropFirst().first,
+                  let targetIssueId = rawIssueId.removingPercentEncoding,
+                  !targetIssueId.isEmpty
+            else {
+                return .handled
+            }
+            Task { await openIssueId(targetIssueId) }
+            return .handled
+        }
+
         if url.scheme == "mention" {
             return .handled
         }
@@ -990,6 +1001,13 @@ public struct IssueDetailView: View {
         } catch {
             issueReferenceError = error.localizedDescription
         }
+    }
+
+    @MainActor
+    private func openIssueId(_ targetIssueId: String) async {
+        let normalizedIssueId = targetIssueId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedIssueId.isEmpty, normalizedIssueId != issueId else { return }
+        issueReferenceTarget = IssueReferenceNavigationTarget(issueId: normalizedIssueId, identifier: normalizedIssueId)
     }
 }
 

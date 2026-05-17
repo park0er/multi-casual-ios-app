@@ -1,9 +1,6 @@
 #if canImport(SwiftUI)
 import Foundation
 import SwiftUI
-#if os(iOS)
-import UIKit
-#endif
 
 public struct MarkdownRenderContext: Equatable {
     public static let empty = MarkdownRenderContext()
@@ -204,18 +201,25 @@ public struct MarkdownText: View {
         let localizedMarkdown = AppStrings.localized(markdown, language: appLanguage)
         let interactiveMarkdown = MarkdownRenderer.interactiveMarkdown(from: localizedMarkdown, context: context)
         let blocks = MarkdownRenderer.blocks(from: interactiveMarkdown)
-        Group {
-            if blocks.count == 1, case .paragraph(let text) = blocks[0] {
-                MarkdownInlineText(text)
-            } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                        MarkdownBlockView(block: block)
-                    }
+        if MarkdownRenderer.containsMarkdownLink(in: interactiveMarkdown) {
+            markdownContent(blocks: blocks)
+        } else {
+            markdownContent(blocks: blocks)
+                .selectableRenderedText()
+        }
+    }
+
+    @ViewBuilder
+    private func markdownContent(blocks: [MarkdownRenderer.Block]) -> some View {
+        if blocks.count == 1, case .paragraph(let text) = blocks[0] {
+            MarkdownInlineText(text)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                    MarkdownBlockView(block: block)
                 }
             }
         }
-        .selectableRenderedText()
     }
 }
 
@@ -322,93 +326,153 @@ private struct MarkdownInlineText: View {
 
     var body: some View {
         if MarkdownRenderer.containsMarkdownLink(in: markdown) {
-            #if os(iOS)
-            InteractiveMarkdownText(markdown: markdown)
-            #else
-            Text(MarkdownRenderer.attributedString(from: markdown))
-            #endif
+            LinkedMarkdownInlineText(markdown: markdown)
         } else {
             Text(MarkdownRenderer.attributedString(from: markdown))
         }
     }
 }
 
-#if os(iOS)
-private struct InteractiveMarkdownText: UIViewRepresentable {
+private struct LinkedMarkdownInlineText: View {
     let markdown: String
     @Environment(\.openURL) private var openURL
 
-    func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
-        textView.backgroundColor = .clear
-        textView.delegate = context.coordinator
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.isScrollEnabled = false
-        textView.adjustsFontForContentSizeCategory = true
-        textView.textContainerInset = .zero
-        textView.textContainer.lineFragmentPadding = 0
-        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        textView.linkTextAttributes = [
-            .foregroundColor: UIColor.systemBlue,
-            .underlineStyle: 0,
-        ]
-        return textView
+    private var runs: [MarkdownInlineRun] {
+        MarkdownInlineRun.runs(from: markdown)
     }
 
-    func updateUIView(_ textView: UITextView, context: Context) {
-        context.coordinator.openURL = openURL
-        let attributed = NSMutableAttributedString(MarkdownRenderer.attributedString(from: markdown))
-        let fullRange = NSRange(location: 0, length: attributed.length)
-        attributed.enumerateAttribute(.font, in: fullRange) { value, range, _ in
-            if value == nil {
-                attributed.addAttribute(.font, value: UIFont.preferredFont(forTextStyle: .body), range: range)
+    var body: some View {
+        InlineFlowLayout(spacing: 0, lineSpacing: 3) {
+            ForEach(runs) { run in
+                if let url = run.url {
+                    Button {
+                        openURL(url)
+                    } label: {
+                        Text(MarkdownRenderer.attributedString(from: run.text))
+                            .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .fixedSize()
+                } else {
+                    Text(MarkdownRenderer.attributedString(from: run.text))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-        }
-        attributed.enumerateAttribute(.foregroundColor, in: fullRange) { value, range, _ in
-            let hasLink = attributed.attribute(.link, at: range.location, effectiveRange: nil) != nil
-            if value == nil && !hasLink {
-                attributed.addAttribute(.foregroundColor, value: UIColor.label, range: range)
-            }
-        }
-        textView.attributedText = attributed
-        textView.invalidateIntrinsicContentSize()
-    }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
-        let width = proposal.width ?? UIScreen.main.bounds.width
-        let size = uiView.sizeThatFits(
-            CGSize(width: width, height: .greatestFiniteMagnitude)
-        )
-        return CGSize(width: width, height: ceil(size.height))
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(openURL: openURL)
-    }
-
-    final class Coordinator: NSObject, UITextViewDelegate {
-        var openURL: OpenURLAction
-
-        init(openURL: OpenURLAction) {
-            self.openURL = openURL
-        }
-
-        func textView(
-            _ textView: UITextView,
-            shouldInteractWith URL: URL,
-            in characterRange: NSRange,
-            interaction: UITextItemInteraction
-        ) -> Bool {
-            if URL.scheme == "multica" || URL.scheme == "mention" {
-                openURL(URL)
-                return false
-            }
-            return true
         }
     }
 }
-#endif
+
+private struct MarkdownInlineRun: Identifiable, Equatable {
+    let id: Int
+    let text: String
+    let url: URL?
+
+    static func runs(from markdown: String) -> [MarkdownInlineRun] {
+        let pattern = #"\[((?:\\.|[^\]\\])*)\]\(([^\s\)]+)\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return [MarkdownInlineRun(id: 0, text: markdown, url: nil)]
+        }
+
+        let nsRange = NSRange(markdown.startIndex..<markdown.endIndex, in: markdown)
+        let matches = regex.matches(in: markdown, range: nsRange)
+        guard !matches.isEmpty else {
+            return [MarkdownInlineRun(id: 0, text: markdown, url: nil)]
+        }
+
+        var runs: [MarkdownInlineRun] = []
+        var cursor = markdown.startIndex
+        var nextId = 0
+
+        for match in matches {
+            guard match.numberOfRanges >= 3,
+                  let fullRange = Range(match.range(at: 0), in: markdown),
+                  let labelRange = Range(match.range(at: 1), in: markdown),
+                  let urlRange = Range(match.range(at: 2), in: markdown)
+            else { continue }
+
+            if cursor < fullRange.lowerBound {
+                runs.append(MarkdownInlineRun(id: nextId, text: String(markdown[cursor..<fullRange.lowerBound]), url: nil))
+                nextId += 1
+            }
+
+            let urlString = String(markdown[urlRange])
+            runs.append(
+                MarkdownInlineRun(
+                    id: nextId,
+                    text: String(markdown[labelRange]),
+                    url: URL(string: urlString)
+                )
+            )
+            nextId += 1
+            cursor = fullRange.upperBound
+        }
+
+        if cursor < markdown.endIndex {
+            runs.append(MarkdownInlineRun(id: nextId, text: String(markdown[cursor..<markdown.endIndex]), url: nil))
+        }
+
+        return runs.filter { !$0.text.isEmpty }
+    }
+}
+
+private struct InlineFlowLayout: Layout {
+    let spacing: CGFloat
+    let lineSpacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? subviews.reduce(CGFloat.zero) { partial, subview in
+            partial + subview.sizeThatFits(.unspecified).width + spacing
+        }
+        let layout = arrange(subviews: subviews, maxWidth: max(maxWidth, 1))
+        return CGSize(width: maxWidth, height: layout.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let layout = arrange(subviews: subviews, maxWidth: max(bounds.width, 1))
+        for item in layout.items {
+            subviews[item.index].place(
+                at: CGPoint(x: bounds.minX + item.origin.x, y: bounds.minY + item.origin.y),
+                proposal: ProposedViewSize(width: item.size.width, height: item.size.height)
+            )
+        }
+    }
+
+    private func arrange(subviews: Subviews, maxWidth: CGFloat) -> (items: [Item], height: CGFloat) {
+        var items: [Item] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var lineHeight: CGFloat = 0
+
+        for index in subviews.indices {
+            let remainingWidth = max(maxWidth - x, 1)
+            var size = subviews[index].sizeThatFits(
+                ProposedViewSize(width: remainingWidth, height: nil)
+            )
+
+            if x > 0, size.width > remainingWidth {
+                y += lineHeight + lineSpacing
+                x = 0
+                lineHeight = 0
+                size = subviews[index].sizeThatFits(
+                    ProposedViewSize(width: maxWidth, height: nil)
+                )
+            }
+
+            items.append(Item(index: index, origin: CGPoint(x: x, y: y), size: size))
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+
+        return (items, y + lineHeight)
+    }
+
+    private struct Item {
+        let index: Int
+        let origin: CGPoint
+        let size: CGSize
+    }
+}
 
 private struct MarkdownTableRow: View {
     let cells: [String]
