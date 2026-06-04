@@ -294,6 +294,37 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(capturedQueries[2].first(where: { $0.name == "creator_id" })?.value, "u1")
     }
 
+    func test_listIssuesDecodesIssuesWrapperWithoutItemsKey() async throws {
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/issues")
+            let json = """
+            {"issues":[{
+              "id":"a77e75ff-59d4-4a42-a267-7be40a49141b",
+              "workspace_id":"7f97e6b9-2db3-489c-a270-4e4c6d354469",
+              "number":206,
+              "identifier":"PAR-206",
+              "title":"研究一下 motion",
+              "description":"动效说是可以用 https://motion.dev/",
+              "status":"in_progress",
+              "priority":"none",
+              "assignee_id":null,
+              "assignee_type":null,
+              "project_id":null,
+              "created_at":"2026-06-05T00:00:00Z",
+              "updated_at":"2026-06-05T00:00:00Z"
+            }],"has_more":false,"total":1}
+            """.data(using: .utf8)!
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let page = try await client.listIssues(workspaceId: "7f97e6b9-2db3-489c-a270-4e4c6d354469")
+
+        XCTAssertEqual(page.items.map(\.identifier), ["PAR-206"])
+        XCTAssertEqual(page.items.first?.status, .inProgress)
+        XCTAssertFalse(page.hasMore)
+        XCTAssertEqual(page.total, 1)
+    }
+
     func test_searchIssuesAndProjectsUseDesktopSearchEndpoints() async throws {
         var requests: [(path: String, queryItems: [URLQueryItem])] = []
         MockURLProtocol.handler = { req in
