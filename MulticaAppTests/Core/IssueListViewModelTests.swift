@@ -3,6 +3,18 @@ import XCTest
 
 @MainActor
 final class IssueListViewModelTests: XCTestCase {
+    func test_issueListViewAutoRefreshesWhileVisibleAndActive() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceURL = root.appendingPathComponent("Multi-Casual/Features/Issues/IssueListView.swift")
+        let source = try String(contentsOf: sourceURL)
+
+        XCTAssertTrue(source.contains("@State private var autoRefreshTask: Task<Void, Never>?"))
+        XCTAssertTrue(source.contains("private let autoRefreshIntervalNanoseconds"))
+        XCTAssertTrue(source.contains("startAutoRefresh()"))
+        XCTAssertTrue(source.contains("stopAutoRefresh()"))
+        XCTAssertTrue(source.contains("await viewModel?.refreshIfIdle()"))
+    }
+
     func test_loadNext_withoutWorkspaceSurfacesActionableError() async throws {
         let vm = IssueListViewModel(api: makeClient(), authSession: AuthSession(userDefaults: makeUserDefaults()))
 

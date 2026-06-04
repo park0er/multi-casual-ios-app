@@ -6,11 +6,14 @@ public struct IssueListView: View {
     @Environment(AuthSession.self) private var authSession
     @Environment(APIClient.self) private var api
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: IssueListViewModel?
     @State private var showingBatchDeleteConfirmation = false
     @State private var searchText = ""
     @State private var collapsedStatusSections: Set<IssueStatus> = []
+    @State private var autoRefreshTask: Task<Void, Never>?
     private let initialScope: IssueListViewModel.Scope
+    private let autoRefreshIntervalNanoseconds: UInt64 = 30_000_000_000
 
     public init(scope: IssueListViewModel.Scope = .all) {
         self.initialScope = scope
@@ -164,11 +167,45 @@ public struct IssueListView: View {
                 }
                 #endif
             }
+            startAutoRefresh()
+        }
+        .onDisappear {
+            stopAutoRefresh()
         }
         .onChange(of: authSession.currentWorkspace?.id) { _, _ in
             guard let viewModel else { return }
             Task { await viewModel.refresh() }
+            startAutoRefresh()
         }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:
+                Task { await viewModel?.refreshIfIdle() }
+                startAutoRefresh()
+            default:
+                stopAutoRefresh()
+            }
+        }
+    }
+
+    private func startAutoRefresh() {
+        stopAutoRefresh()
+        autoRefreshTask = Task {
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: autoRefreshIntervalNanoseconds)
+                } catch {
+                    break
+                }
+                if Task.isCancelled { break }
+                await viewModel?.refreshIfIdle()
+            }
+        }
+    }
+
+    private func stopAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
     }
 
     private func listView(vm: IssueListViewModel) -> some View {

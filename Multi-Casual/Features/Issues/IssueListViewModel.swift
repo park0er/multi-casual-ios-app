@@ -170,6 +170,11 @@ public final class IssueListViewModel {
         await loadNext()
     }
 
+    public func refreshIfIdle() async {
+        guard !isLoading else { return }
+        await refresh()
+    }
+
     public func setSearchQuery(_ query: String) async {
         guard scope == .all else { return }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
