@@ -884,6 +884,18 @@ public struct IssueDetailView: View {
                 .focused($isCommentInputFocused)
                 .accessibilityIdentifier("IssueDetailCommentInput")
 
+                if isCommentInputFocused {
+                    Button {
+                        isCommentInputFocused = false
+                        dismissIssueDetailKeyboard()
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                            .font(.title3)
+                    }
+                    .accessibilityLabel(AppStrings.localized("Dismiss Keyboard", language: appLanguage))
+                    .accessibilityIdentifier("IssueDetailDismissKeyboardButton")
+                }
+
                 Button {
                     Task {
                         await vm.submitComment()
@@ -903,15 +915,6 @@ public struct IssueDetailView: View {
         }
         .padding(.horizontal).padding(.vertical, 8).background(.background)
         .overlay(alignment: .top) { Divider() }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button(AppStrings.localized("Done", language: appLanguage)) {
-                    isCommentInputFocused = false
-                    dismissIssueDetailKeyboard()
-                }
-            }
-        }
         .fileImporter(
             isPresented: $showCommentAttachmentImporter,
             allowedContentTypes: [.item],
@@ -1066,6 +1069,7 @@ public struct CommentRowView: View {
     @State private var editDraft = ""
     @State private var isReplying = false
     @State private var replyDraft = ""
+    @State private var replyDraftAgentMentions: [IssueDetailViewModel.AgentMentionDraftToken] = []
     @State private var isSaving = false
     @State private var showDeleteConfirmation = false
     @State private var showReplyAttachmentImporter = false
@@ -1238,8 +1242,21 @@ public struct CommentRowView: View {
 
                         Spacer()
 
+                        if focusedEditor == .reply {
+                            Button {
+                                focusedEditor = nil
+                                dismissIssueDetailKeyboard()
+                            } label: {
+                                Image(systemName: "keyboard.chevron.compact.down")
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(AppStrings.localized("Dismiss Keyboard", language: appLanguage))
+                            .accessibilityIdentifier("CommentReplyDismissKeyboardButton")
+                        }
+
                         Button(AppStrings.localized("Cancel", language: appLanguage)) {
                             replyDraft = ""
+                            replyDraftAgentMentions = []
                             isReplying = false
                             focusedEditor = nil
                         }
@@ -1260,15 +1277,6 @@ public struct CommentRowView: View {
                 }
             }
         }.padding(.horizontal).padding(.vertical, 6)
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button(AppStrings.localized("Done", language: appLanguage)) {
-                        focusedEditor = nil
-                        dismissIssueDetailKeyboard()
-                    }
-                }
-            }
             .fileImporter(
                 isPresented: $showReplyAttachmentImporter,
                 allowedContentTypes: [.item],
@@ -1307,6 +1315,7 @@ public struct CommentRowView: View {
 
     private func openReplyEditor() {
         replyDraft = ""
+        replyDraftAgentMentions = []
         isReplying = true
         focusEditor(.reply)
     }
@@ -1332,24 +1341,18 @@ public struct CommentRowView: View {
     private func submitReply() async {
         isSaving = true
         defer { isSaving = false }
-        let submitted = await onReply(comment.id, replyDraft)
+        let content = IssueDetailViewModel.serializeMentionDraft(replyDraft, mentions: replyDraftAgentMentions)
+        let submitted = await onReply(comment.id, content)
         if submitted {
             replyDraft = ""
+            replyDraftAgentMentions = []
             isReplying = false
             focusedEditor = nil
         }
     }
 
     private func appendAgentMention(_ agent: Agent, to draft: inout String) {
-        let mention = IssueDetailViewModel.agentMentionMarkdown(agent)
-        let trimmedDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedDraft.isEmpty {
-            draft = "\(mention) "
-        } else if draft.last?.isWhitespace == true {
-            draft += "\(mention) "
-        } else {
-            draft += " \(mention) "
-        }
+        IssueDetailViewModel.appendAgentMention(agent, to: &draft, mentions: &replyDraftAgentMentions)
     }
 
     private func handleReplyAttachmentImport(_ result: Result<[URL], Error>) {

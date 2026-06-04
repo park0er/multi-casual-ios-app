@@ -1094,7 +1094,7 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.error)
     }
 
-    func test_appendAgentMentionUsesDesktopMentionMarkdown() throws {
+    func test_appendAgentMentionKeepsComposerReadableAndSerializesMarkdown() throws {
         let agent = try Self.decodeAgent(id: "a1", name: "David[TF]")
         let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: makeClient { req in
             XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
@@ -1104,7 +1104,23 @@ final class IssueDetailViewModelTests: XCTestCase {
         vm.commentDraft = "Please check"
         vm.appendAgentMention(agent)
 
-        XCTAssertEqual(vm.commentDraft, #"Please check [@David\[TF\]](mention://agent/a1) "#)
+        XCTAssertEqual(vm.commentDraft, "Please check @David[TF] ")
+        XCTAssertEqual(vm.serializedCommentDraft(), #"Please check [@David\[TF\]](mention://agent/a1) "#)
+    }
+
+    func test_commentComposerUsesCompactKeyboardDismissControl() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceURL = root.appendingPathComponent("Multi-Casual/Features/Issues/IssueDetailView.swift")
+        let source = try String(contentsOf: sourceURL)
+
+        XCTAssertFalse(
+            source.contains("ToolbarItemGroup(placement: .keyboard)"),
+            "The comment composer should not add a full-width keyboard toolbar that can cover the input."
+        )
+        XCTAssertTrue(
+            source.contains("IssueDetailDismissKeyboardButton"),
+            "The comment composer should expose a compact keyboard dismiss button near the editor controls."
+        )
     }
 
     func test_commentMarkdownContextResolvesMemberAndAgentMentionNames() throws {
@@ -1193,6 +1209,7 @@ final class IssueDetailViewModelTests: XCTestCase {
 
         vm.commentDraft = "Take a look"
         vm.appendAgentMention(agent)
+        XCTAssertEqual(vm.commentDraft, "Take a look @Codex ")
         await vm.submitComment()
 
         XCTAssertEqual(submittedContent, "Take a look [@Codex](mention://agent/a1)")

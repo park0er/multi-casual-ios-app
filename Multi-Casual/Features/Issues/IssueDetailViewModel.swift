@@ -4,6 +4,16 @@ import Observation
 @Observable
 @MainActor
 public final class IssueDetailViewModel {
+    public struct AgentMentionDraftToken: Equatable, Sendable {
+        public let visibleText: String
+        public let markdown: String
+
+        public init(visibleText: String, markdown: String) {
+            self.visibleText = visibleText
+            self.markdown = markdown
+        }
+    }
+
     public enum CommentSortOrder: String, CaseIterable, Identifiable {
         case ascending
         case descending
@@ -34,6 +44,7 @@ public final class IssueDetailViewModel {
     public let commentLoader = PaginatedLoader<Comment>()
     public private(set) var commentSortOrder: CommentSortOrder = .descending
     public var commentDraft = ""
+    public var commentDraftAgentMentions: [AgentMentionDraftToken] = []
     public var commentAttachments: [Attachment] = []
     public var replyAttachments: [String: [Attachment]] = [:]
     public var isSubmittingComment = false
@@ -156,15 +167,43 @@ public final class IssueDetailViewModel {
     }
 
     public func appendAgentMention(_ agent: Agent) {
-        let mention = Self.agentMentionMarkdown(agent)
-        let trimmedDraft = commentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        Self.appendAgentMention(agent, to: &commentDraft, mentions: &commentDraftAgentMentions)
+    }
+
+    public func serializedCommentDraft() -> String {
+        Self.serializeMentionDraft(commentDraft, mentions: commentDraftAgentMentions)
+    }
+
+    public static func appendAgentMention(
+        _ agent: Agent,
+        to draft: inout String,
+        mentions: inout [AgentMentionDraftToken]
+    ) {
+        let visible = visibleAgentMention(agent)
+        let trimmedDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedDraft.isEmpty {
-            commentDraft = "\(mention) "
-        } else if commentDraft.last?.isWhitespace == true {
-            commentDraft += "\(mention) "
+            draft = "\(visible) "
+        } else if draft.last?.isWhitespace == true {
+            draft += "\(visible) "
         } else {
-            commentDraft += " \(mention) "
+            draft += " \(visible) "
         }
+        let token = AgentMentionDraftToken(visibleText: visible, markdown: agentMentionMarkdown(agent))
+        if !mentions.contains(token) {
+            mentions.append(token)
+        }
+    }
+
+    public static func serializeMentionDraft(_ draft: String, mentions: [AgentMentionDraftToken]) -> String {
+        mentions
+            .sorted { $0.visibleText.count > $1.visibleText.count }
+            .reduce(draft) { rendered, mention in
+                rendered.replacingOccurrences(of: mention.visibleText, with: mention.markdown)
+            }
+    }
+
+    public static func visibleAgentMention(_ agent: Agent) -> String {
+        "@\(agent.name)"
     }
 
     public static func agentMentionMarkdown(_ agent: Agent) -> String {
@@ -685,10 +724,11 @@ public final class IssueDetailViewModel {
     }
 
     public func submitComment() async {
-        let content = commentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let content = serializedCommentDraft().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty || !commentAttachments.isEmpty else { return }
         guard await submitComment(content: content, parentId: nil) else { return }
         commentDraft = ""
+        commentDraftAgentMentions = []
         commentAttachments = []
     }
 
