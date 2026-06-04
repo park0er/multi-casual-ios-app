@@ -111,12 +111,13 @@ public final class IssueCreateViewModel {
         defer { isLoadingOptions = false }
 
         do {
-            async let members = api.listMembers(workspaceId: workspaceId)
-            async let agents = api.listAgents(workspaceId: workspaceId)
+            async let members = WorkspaceMetadataCache.shared.members(workspaceId: workspaceId, api: api)
+            async let agents = WorkspaceMetadataCache.shared.agents(workspaceId: workspaceId, api: api)
+            async let projectOptions = WorkspaceMetadataCache.shared.projects(workspaceId: workspaceId, api: api)
 
             let loadedMembers = try await members
             let loadedAgents = try await agents
-            let loadedProjects = try await loadAllProjects(workspaceId: workspaceId)
+            let loadedProjects = try await projectOptions
 
             assigneeOptions = loadedMembers.map {
                 IssueAssigneeOption(
@@ -135,7 +136,7 @@ public final class IssueCreateViewModel {
                     subtitle: "Agent"
                 )
             }
-            projects = loadedProjects
+            self.projects = loadedProjects
 
             if selectedAssigneeOptionId != Self.noAssigneeId && selectedAssignee == nil {
                 selectedAssigneeOptionId = Self.noAssigneeId
@@ -151,28 +152,6 @@ public final class IssueCreateViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-
-    private func loadAllProjects(workspaceId: String) async throws -> [Project] {
-        let limit = 50
-        var offset = 0
-        var allProjects: [Project] = []
-
-        while true {
-            let page = try await api.listProjects(workspaceId: workspaceId, limit: limit, offset: offset)
-            allProjects.append(contentsOf: page.items)
-            offset += page.items.count
-
-            let shouldContinue: Bool
-            if let total = page.total {
-                shouldContinue = offset < total
-            } else {
-                shouldContinue = page.hasMore
-            }
-            guard shouldContinue, !page.items.isEmpty else { break }
-        }
-
-        return allProjects
     }
 
     public func submit() async -> Bool {

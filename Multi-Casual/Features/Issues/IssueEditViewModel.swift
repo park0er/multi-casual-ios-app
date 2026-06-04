@@ -93,9 +93,15 @@ public final class IssueEditViewModel {
         errorMessage = nil
         defer { isLoadingOptions = false }
 
-        async let membersResult = optionResult { try await api.listMembers(workspaceId: workspaceId) }
-        async let agentsResult = optionResult { try await api.listAgents(workspaceId: workspaceId) }
-        async let projectsResult = optionResult { try await loadAllProjects(workspaceId: workspaceId) }
+        async let membersResult = optionResult {
+            try await WorkspaceMetadataCache.shared.members(workspaceId: workspaceId, api: api)
+        }
+        async let agentsResult = optionResult {
+            try await WorkspaceMetadataCache.shared.agents(workspaceId: workspaceId, api: api)
+        }
+        async let projectsResult = optionResult {
+            try await WorkspaceMetadataCache.shared.projects(workspaceId: workspaceId, api: api)
+        }
         async let labelsResult = optionResult {
             let response = try await api.listLabels(workspaceId: workspaceId)
             return response.labels
@@ -234,28 +240,6 @@ public final class IssueEditViewModel {
             return originalProjectId
         }
         return nil
-    }
-
-    private func loadAllProjects(workspaceId: String) async throws -> [Project] {
-        let limit = 50
-        var offset = 0
-        var allProjects: [Project] = []
-
-        while true {
-            let page = try await api.listProjects(workspaceId: workspaceId, limit: limit, offset: offset)
-            allProjects.append(contentsOf: page.items)
-            offset += page.items.count
-
-            let shouldContinue: Bool
-            if let total = page.total {
-                shouldContinue = offset < total
-            } else {
-                shouldContinue = page.hasMore
-            }
-            guard shouldContinue, !page.items.isEmpty else { break }
-        }
-
-        return allProjects
     }
 
     private func optionResult<T>(_ operation: () async throws -> T) async -> Result<T, Error> {

@@ -58,8 +58,8 @@ public final class ProjectsViewModel {
 
         do {
             workspaceRepoURLs = authSession.currentWorkspace?.repos.map(\.url) ?? []
-            async let members = api.listMembers(workspaceId: workspaceId)
-            async let agents = api.listAgents(workspaceId: workspaceId)
+            async let members = WorkspaceMetadataCache.shared.members(workspaceId: workspaceId, api: api)
+            async let agents = WorkspaceMetadataCache.shared.agents(workspaceId: workspaceId, api: api)
             let loadedMembers = try await members
             let loadedAgents = try await agents
             projectLeadOptions = loadedMembers.map {

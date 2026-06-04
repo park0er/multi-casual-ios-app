@@ -312,13 +312,17 @@ public final class IssueDetailViewModel {
         projectDisplayName = nil
 
         do {
-            async let members = api.listMembers(workspaceId: workspaceId)
-            async let agents = api.listAgents(workspaceId: workspaceId, includeArchived: true)
-            async let projectsPage = api.listProjects(workspaceId: workspaceId, limit: 50, offset: 0)
+            async let members = WorkspaceMetadataCache.shared.members(workspaceId: workspaceId, api: api)
+            async let agents = WorkspaceMetadataCache.shared.agents(
+                workspaceId: workspaceId,
+                includeArchived: true,
+                api: api
+            )
+            async let projects = WorkspaceMetadataCache.shared.projects(workspaceId: workspaceId, api: api)
 
             let loadedMembers = try await members
             let loadedAgents = try await agents
-            let loadedProjects = try await projectsPage
+            let loadedProjects = try await projects
             subscriberMembers = loadedMembers
             subscriberAgents = loadedAgents
 
@@ -334,10 +338,14 @@ public final class IssueDetailViewModel {
             }
 
             if let projectId = issue.projectId {
-                if let project = loadedProjects.items.first(where: { $0.id == projectId }) {
+                if let project = loadedProjects.first(where: { $0.id == projectId }) {
                     projectDisplayName = project.name
                 } else {
-                    projectDisplayName = try await api.getProject(id: projectId, workspaceId: workspaceId).name
+                    projectDisplayName = try await WorkspaceMetadataCache.shared.project(
+                        id: projectId,
+                        workspaceId: workspaceId,
+                        api: api
+                    ).name
                 }
             }
         } catch {

@@ -4,6 +4,7 @@ import Observation
 @Observable
 public final class APIClient: @unchecked Sendable {
     public static let defaultRequestTimeout: TimeInterval = 45
+    public let cacheIdentifier = UUID()
 
     public struct CountResponse: Codable, Sendable {
         public let count: Int

@@ -261,8 +261,8 @@ public final class IssueListViewModel {
         defer { isLoadingBatchAssignees = false }
 
         do {
-            async let members = api.listMembers(workspaceId: workspaceId)
-            async let agents = api.listAgents(workspaceId: workspaceId)
+            async let members = WorkspaceMetadataCache.shared.members(workspaceId: workspaceId, api: api)
+            async let agents = WorkspaceMetadataCache.shared.agents(workspaceId: workspaceId, api: api)
 
             let loadedMembers = try await members
             let loadedAgents = try await agents
@@ -435,7 +435,7 @@ public final class IssueListViewModel {
             guard let userId = authSession.currentUser?.id else {
                 throw UserVisibleError("Sign in before opening My Issues.")
             }
-            let agentIds = try await api.listAgents(workspaceId: workspaceId)
+            let agentIds = try await WorkspaceMetadataCache.shared.agents(workspaceId: workspaceId, api: api)
                 .filter { $0.ownerId == userId }
                 .map(\.id)
                 .sorted()
