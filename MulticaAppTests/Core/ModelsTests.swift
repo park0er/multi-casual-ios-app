@@ -457,6 +457,40 @@ final class ModelsTests: XCTestCase {
         XCTAssertTrue(page.hasMore)
     }
 
+    func test_pageResponse_decodesFractionalIssuePosition() throws {
+        let json = """
+        {"issues": [
+            {"id":"i1","identifier":"T-1","number":1,"title":"T","description":null,
+             "status":"todo","priority":"medium","assignee_id":null,"assignee_type":null,
+             "project_id":null,"workspace_id":"w","position":-1.5,
+             "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}
+        ], "has_more": true, "total": 1}
+        """.data(using: .utf8)!
+
+        let page = try decoder.decode(PageResponse<Issue>.self, from: json)
+
+        XCTAssertEqual(page.items.first?.position, -1.5)
+    }
+
+    func test_pageResponseRethrowsNestedCollectionDecodeError() throws {
+        let json = """
+        {"issues": [
+            {"id":"i1","identifier":"T-1","number":1,"title":"T","description":null,
+             "status":"todo","priority":"medium","assignee_id":null,"assignee_type":null,
+             "project_id":null,"workspace_id":"w","updated_at":"2026-01-01T00:00:00Z"}
+        ], "has_more": true, "total": 1}
+        """.data(using: .utf8)!
+
+        XCTAssertThrowsError(try decoder.decode(PageResponse<Issue>.self, from: json)) { error in
+            guard case DecodingError.keyNotFound(let key, let context) = error else {
+                return XCTFail("Expected nested keyNotFound, got \(error)")
+            }
+
+            XCTAssertEqual(key.stringValue, "created_at")
+            XCTAssertEqual(context.codingPath.map(\.stringValue), ["issues", "Index 0"])
+        }
+    }
+
     func test_pageResponse_decodesBareArray() throws {
         let json = """
         [

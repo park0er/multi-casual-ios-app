@@ -631,8 +631,8 @@ public final class IssueListViewModel {
 
     private func orderedByPosition(_ issues: [Issue]) -> [Issue] {
         issues.enumerated().sorted { lhs, rhs in
-            let leftPosition = lhs.element.position ?? lhs.offset
-            let rightPosition = rhs.element.position ?? rhs.offset
+            let leftPosition = lhs.element.position ?? Double(lhs.offset)
+            let rightPosition = rhs.element.position ?? Double(rhs.offset)
             if leftPosition == rightPosition {
                 return lhs.element.updatedAt > rhs.element.updatedAt
             }
@@ -705,7 +705,7 @@ private extension Issue {
             workspaceId: workspaceId,
             dueDate: dueDate,
             attachments: attachments,
-            position: position ?? self.position,
+            position: position.map(Double.init) ?? self.position,
             labels: labels,
             reactions: reactions,
             createdAt: createdAt,

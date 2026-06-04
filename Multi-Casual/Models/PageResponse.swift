@@ -21,11 +21,13 @@ public struct PageResponse<T: Decodable & Sendable>: Decodable, Sendable {
         hasMore = (try? container.decode(Bool.self, forKey: DynamicKey("has_more"))) ?? false
         total = try? container.decode(Int.self, forKey: DynamicKey("total"))
 
-        // Try each known collection key. If none match, surface the mismatch
-        // instead of silently returning an empty page.
+        // Decode the collection under the key the server actually returned.
+        // If the collection exists but an element shape changed, preserve that
+        // nested decoding error instead of misreporting a missing `items` key.
         for key in Self.knownKeys {
-            if let arr = try? container.decode([T].self, forKey: DynamicKey(key)) {
-                items = arr
+            let dynamicKey = DynamicKey(key)
+            if container.contains(dynamicKey) {
+                items = try container.decode([T].self, forKey: dynamicKey)
                 return
             }
         }
