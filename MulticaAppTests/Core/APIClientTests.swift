@@ -326,6 +326,26 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(requests[1].queryItems.first(where: { $0.name == "limit" })?.value, "10")
     }
 
+    func test_searchIssuesDecodesIssuesWrapperWithFractionalPosition() async throws {
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/issues/search")
+            let json = """
+            {"issues":[{
+              "id":"i1","identifier":"PAR-1","number":1,"title":"Search result","description":null,
+              "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+              "project_id":null,"workspace_id":"w1","position":-1.5,
+              "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"
+            }],"has_more":false,"total":1}
+            """.data(using: .utf8)!
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let page = try await client.searchIssues(workspaceId: "w1", query: "PAR-1")
+
+        XCTAssertEqual(page.items.map(\.identifier), ["PAR-1"])
+        XCTAssertEqual(page.items.first?.position, -1.5)
+    }
+
     func test_quickCreateIssueUsesDesktopEndpointAndBody() async throws {
         var capturedURL: URL?
         var capturedBody: [String: Any]?
