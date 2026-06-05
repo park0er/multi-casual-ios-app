@@ -487,7 +487,6 @@ public final class IssueListViewModel {
         loader.items.append(contentsOf: page.items)
         loader.hasMore = page.inferringHasMore(fromOffset: offset).hasMore
         rebuildBucketsFromLoadedItems()
-        try? await loadChildProgress(workspaceId: workspaceId)
     }
 
     private func loadChildProgress(workspaceId: String) async throws {

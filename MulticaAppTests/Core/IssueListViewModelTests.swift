@@ -273,7 +273,10 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertEqual(requested.first?.query.first(where: { $0.name == "q" })?.value, "Search hit")
         XCTAssertEqual(requested.first?.query.first(where: { $0.name == "workspace_id" })?.value, "w1")
         XCTAssertFalse(requested.first?.query.contains(where: { $0.name == "status" }) ?? true)
-        XCTAssertTrue(requested.map(\.path).contains("/api/issues/child-progress"))
+        XCTAssertFalse(
+            requested.map(\.path).contains("/api/issues/child-progress"),
+            "Live search should match the web client and not block results behind unrelated child-progress refreshes."
+        )
         XCTAssertNil(vm.lastError)
     }
 
@@ -347,8 +350,10 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertNil(vm.lastError)
     }
 
-    func test_searchQueryKeepsResultsWhenChildProgressRefreshFails() async throws {
+    func test_searchQueryDoesNotRequestChildProgress() async throws {
+        var requestedPaths: [String] = []
         let client = makeClient { req in
+            requestedPaths.append(req.url?.path ?? "")
             switch req.url?.path {
             case "/api/issues/search":
                 let json = """
@@ -361,7 +366,8 @@ final class IssueListViewModelTests: XCTestCase {
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
             case "/api/issues/child-progress":
-                return Self.response(for: req, body: Data(), status: 500)
+                XCTFail("Search should not request child-progress.")
+                return Self.childProgressResponse(for: req, progress: [])
             default:
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
                 return Self.emptyIssuesResponse(for: req)
@@ -372,6 +378,7 @@ final class IssueListViewModelTests: XCTestCase {
         await vm.setSearchQuery("ppt")
 
         XCTAssertEqual(vm.loader.items.map(\.id), ["ppt-done"])
+        XCTAssertEqual(requestedPaths, ["/api/issues/search"])
         XCTAssertNil(vm.lastError)
     }
 
