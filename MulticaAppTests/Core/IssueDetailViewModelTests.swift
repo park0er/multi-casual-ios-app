@@ -1123,6 +1123,36 @@ final class IssueDetailViewModelTests: XCTestCase {
         )
     }
 
+    func test_agentMentionPickerDoesNotUseSystemMenuWithCustomRows() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceURL = root.appendingPathComponent("Multi-Casual/Features/Issues/IssueDetailView.swift")
+        let source = try String(contentsOf: sourceURL)
+
+        XCTAssertTrue(
+            source.contains("AgentMentionPickerSheet"),
+            "Agent mention choices should use a stable picker presentation so long names are not clipped by the system Menu near the keyboard."
+        )
+        XCTAssertFalse(
+            source.contains("private struct AgentMentionMenu"),
+            "Agent mention picker should not rely on a SwiftUI Menu with custom Avatar/Markdown rows."
+        )
+    }
+
+    func test_commentRowsExposeReplyAsInlineAction() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceURL = root.appendingPathComponent("Multi-Casual/Features/Issues/IssueDetailView.swift")
+        let source = try String(contentsOf: sourceURL)
+
+        XCTAssertTrue(
+            source.contains("CommentInlineReplyButton"),
+            "Reply should be visible directly on each comment row instead of hidden behind the overflow menu."
+        )
+        XCTAssertFalse(
+            source.contains(#"Label(AppStrings.localized("Reply", language: appLanguage), systemImage: "arrowshape.turn.up.left")"#),
+            "The overflow menu should not be the only Reply entry point."
+        )
+    }
+
     func test_commentMarkdownContextResolvesMemberAndAgentMentionNames() throws {
         let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: makeClient { req in
             XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")

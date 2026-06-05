@@ -869,7 +869,7 @@ public struct IssueDetailView: View {
                 .disabled(vm.isUploadingCommentAttachment || vm.isSubmittingComment)
                 .accessibilityIdentifier("IssueDetailAddCommentAttachmentButton")
 
-                AgentMentionMenu(agents: vm.mentionableAgents) { agent in
+                AgentMentionPicker(agents: vm.mentionableAgents) { agent in
                     vm.appendAgentMention(agent)
                     isCommentInputFocused = true
                 }
@@ -1121,13 +1121,24 @@ public struct CommentRowView: View {
                 Spacer()
                 MarkdownText(iso8601DateOnlyFormatter.string(from: comment.createdAt)).font(.caption2).foregroundStyle(.secondary)
                 if currentUserId != nil {
-                    Menu {
-                        Button {
-                            openReplyEditor()
-                        } label: {
-                            Label(AppStrings.localized("Reply", language: appLanguage), systemImage: "arrowshape.turn.up.left")
+                    Button {
+                        openReplyEditor()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrowshape.turn.up.left")
+                            Text(AppStrings.localized("Reply", language: appLanguage))
                         }
-
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.accentColor.opacity(0.08), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("CommentInlineReplyButton")
+                }
+                if canEdit || canDelete {
+                    Menu {
                         if canEdit {
                             Button {
                                 editDraft = comment.content
@@ -1206,7 +1217,7 @@ public struct CommentRowView: View {
                         .focused($focusedEditor, equals: .reply)
                         .accessibilityIdentifier("CommentReplyEditor")
                     HStack(spacing: 8) {
-                        AgentMentionMenu(agents: mentionableAgents) { agent in
+                        AgentMentionPicker(agents: mentionableAgents) { agent in
                             appendAgentMention(agent, to: &replyDraft)
                             focusedEditor = .reply
                         }
@@ -1413,33 +1424,78 @@ private enum CommentEditorFocus: Hashable {
     case reply
 }
 
-private struct AgentMentionMenu: View {
+private struct AgentMentionPicker: View {
     let agents: [Agent]
     let onSelect: (Agent) -> Void
     @Environment(\.appLanguage) private var appLanguage
+    @State private var isPickerPresented = false
 
     var body: some View {
-        Menu {
-            if agents.isEmpty {
-                MarkdownText("No agents available")
-            } else {
-                ForEach(agents) { agent in
-                    Button {
-                        onSelect(agent)
-                    } label: {
-                        HStack {
-                            AvatarView(name: agent.name, avatarUrl: agent.avatarUrl, kind: .agent, size: 20)
-                            MarkdownText(agent.name)
-                        }
-                    }
-                }
-            }
+        Button {
+            isPickerPresented = true
         } label: {
             Image(systemName: "at")
                 .font(.title3)
                 .foregroundStyle(agents.isEmpty ? Color.secondary : Color.accentColor)
         }
+        .disabled(agents.isEmpty)
         .accessibilityLabel(AppStrings.localized("Mention Agent", language: appLanguage))
+        .sheet(isPresented: $isPickerPresented) {
+            AgentMentionPickerSheet(agents: agents) { agent in
+                onSelect(agent)
+                isPickerPresented = false
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+private struct AgentMentionPickerSheet: View {
+    let agents: [Agent]
+    let onSelect: (Agent) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(agents) { agent in
+                        Button {
+                            onSelect(agent)
+                        } label: {
+                            HStack(spacing: 12) {
+                                AvatarView(name: agent.name, avatarUrl: agent.avatarUrl, kind: .agent, size: 32)
+                                Text(agent.name)
+                                    .font(.body)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                Image(systemName: "at")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        Divider().padding(.leading, 64)
+                    }
+                }
+            }
+            .navigationTitle(AppStrings.localized("Mention Agent", language: appLanguage))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(AppStrings.localized("Cancel", language: appLanguage)) {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 
