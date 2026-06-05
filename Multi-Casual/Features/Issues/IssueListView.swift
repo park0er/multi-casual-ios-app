@@ -13,9 +13,12 @@ public struct IssueListView: View {
     @State private var collapsedStatusSections: Set<IssueStatus> = []
     @State private var autoRefreshTask: Task<Void, Never>?
     @State private var searchTask: Task<Void, Never>?
+    @State private var submittedSearchText = ""
+    @State private var suppressSubmittedSearchClearUntil = Date.distantPast
     private let initialScope: IssueListViewModel.Scope
     private let autoRefreshIntervalNanoseconds: UInt64 = 30_000_000_000
     private let searchDebounceNanoseconds: UInt64 = 350_000_000
+    private let searchSubmitClearSuppressionSeconds: TimeInterval = 1
 
     public init(scope: IssueListViewModel.Scope = .all) {
         self.initialScope = scope
@@ -133,8 +136,8 @@ public struct IssueListView: View {
                 .issueSearchable(
                     enabled: initialScope == .all,
                     text: $searchText,
-                    submit: { scheduleSearch(query: searchText, immediately: true) },
-                    change: { newValue in scheduleSearch(query: newValue) }
+                    submit: { submitSearch(query: searchText) },
+                    change: { newValue in handleSearchTextChange(newValue) }
                 )
                 .safeAreaInset(edge: .bottom) {
                     if vm.isSelectionMode && !vm.selectedIssueIds.isEmpty {
@@ -210,6 +213,32 @@ public struct IssueListView: View {
     private func stopAutoRefresh() {
         autoRefreshTask?.cancel()
         autoRefreshTask = nil
+    }
+
+    private func submitSearch(query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            submittedSearchText = trimmed
+            suppressSubmittedSearchClearUntil = Date().addingTimeInterval(searchSubmitClearSuppressionSeconds)
+        }
+        scheduleSearch(query: query, immediately: true)
+    }
+
+    private func handleSearchTextChange(_ newValue: String) {
+        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty,
+           !submittedSearchText.isEmpty,
+           Date() <= suppressSubmittedSearchClearUntil {
+            suppressSubmittedSearchClearUntil = .distantPast
+            if searchText != submittedSearchText {
+                searchText = submittedSearchText
+            }
+            return
+        }
+        if !trimmed.isEmpty, trimmed != submittedSearchText {
+            suppressSubmittedSearchClearUntil = .distantPast
+        }
+        scheduleSearch(query: newValue)
     }
 
     private func scheduleSearch(query: String, immediately: Bool = false) {

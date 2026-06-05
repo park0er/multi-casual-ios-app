@@ -34,6 +34,29 @@ final class IssueListViewModelTests: XCTestCase {
         )
     }
 
+    func test_issueSearchSubmitProtectsCommittedQueryFromSwiftUIClearEvent() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceURL = root.appendingPathComponent("Multi-Casual/Features/Issues/IssueListView.swift")
+        let source = try String(contentsOf: sourceURL)
+
+        XCTAssertTrue(
+            source.contains("@State private var submittedSearchText"),
+            "Issue search submit should remember the committed query."
+        )
+        XCTAssertTrue(
+            source.contains("submitSearch(query: searchText)"),
+            "Keyboard Search submit should go through the submit-specific path."
+        )
+        XCTAssertTrue(
+            source.contains("handleSearchTextChange(newValue)"),
+            "Search text changes should be coordinated so submit-time clear events do not override committed results."
+        )
+        XCTAssertTrue(
+            source.contains("searchSubmitClearSuppressionSeconds"),
+            "A short suppression window should guard against SwiftUI clearing searchable text while dismissing the keyboard."
+        )
+    }
+
     func test_issueSearchRendersFlatResultsInServerRelevanceOrder() throws {
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let sourceURL = root.appendingPathComponent("Multi-Casual/Features/Issues/IssueListView.swift")
