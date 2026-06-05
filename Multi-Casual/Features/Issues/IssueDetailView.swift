@@ -536,43 +536,24 @@ public struct IssueDetailView: View {
                 ProgressView().padding()
             }
             let markdownContext = vm.commentMarkdownContext(issuePrefix: authSession.currentWorkspace?.issuePrefix)
-            ForEach(vm.displayedComments) { comment in
-                CommentRowView(
-                    comment: comment,
-                    authorDisplayName: vm.commentAuthorName(for: comment),
-                    authorAvatarUrl: vm.commentAuthorAvatarURL(for: comment),
-                    currentUserId: currentUserId,
-                    markdownContext: markdownContext,
-                    mentionableAgents: vm.mentionableAgents,
-                    replyAttachments: vm.replyAttachments[comment.id] ?? [],
-                    isUploadingReplyAttachment: vm.uploadingReplyAttachmentIds.contains(comment.id),
-                    onReply: { parentId, content in
-                        await vm.submitReply(parentId: parentId, content: content)
-                    },
-                    onEdit: { commentId, content in
-                        await vm.updateComment(commentId: commentId, content: content)
-                    },
-                    onDelete: { commentId in
-                        await vm.deleteComment(commentId: commentId)
-                    },
-                    onUploadReplyAttachment: { parentId, payload in
-                        await vm.uploadReplyAttachment(
-                            parentId: parentId,
-                            filename: payload.filename,
-                            data: payload.data,
-                            contentType: payload.contentType
+            ForEach(vm.displayedCommentThreads) { thread in
+                VStack(alignment: .leading, spacing: 4) {
+                    commentRow(
+                        thread.root,
+                        vm: vm,
+                        currentUserId: currentUserId,
+                        markdownContext: markdownContext
+                    )
+                    ForEach(thread.replies) { reply in
+                        commentRow(
+                            reply,
+                            vm: vm,
+                            currentUserId: currentUserId,
+                            markdownContext: markdownContext
                         )
-                    },
-                    onToggleReaction: { emoji in
-                        Task {
-                            await vm.toggleCommentReaction(
-                                commentId: comment.id,
-                                emoji: emoji,
-                                currentUserId: currentUserId
-                            )
-                        }
+                        .padding(.leading, 28)
                     }
-                )
+                }
             }
             if vm.didLoadComments && vm.commentLoader.hasMore {
                 ProgressView().onAppear {
@@ -581,6 +562,50 @@ public struct IssueDetailView: View {
             }
         }
         .accessibilityIdentifier("IssueDetailCommentsSection")
+    }
+
+    private func commentRow(
+        _ comment: Comment,
+        vm: IssueDetailViewModel,
+        currentUserId: String?,
+        markdownContext: MarkdownRenderContext
+    ) -> some View {
+        CommentRowView(
+            comment: comment,
+            authorDisplayName: vm.commentAuthorName(for: comment),
+            authorAvatarUrl: vm.commentAuthorAvatarURL(for: comment),
+            currentUserId: currentUserId,
+            markdownContext: markdownContext,
+            mentionableAgents: vm.mentionableAgents,
+            replyAttachments: vm.replyAttachments[comment.id] ?? [],
+            isUploadingReplyAttachment: vm.uploadingReplyAttachmentIds.contains(comment.id),
+            onReply: { parentId, content in
+                await vm.submitReply(parentId: parentId, content: content)
+            },
+            onEdit: { commentId, content in
+                await vm.updateComment(commentId: commentId, content: content)
+            },
+            onDelete: { commentId in
+                await vm.deleteComment(commentId: commentId)
+            },
+            onUploadReplyAttachment: { parentId, payload in
+                await vm.uploadReplyAttachment(
+                    parentId: parentId,
+                    filename: payload.filename,
+                    data: payload.data,
+                    contentType: payload.contentType
+                )
+            },
+            onToggleReaction: { emoji in
+                Task {
+                    await vm.toggleCommentReaction(
+                        commentId: comment.id,
+                        emoji: emoji,
+                        currentUserId: currentUserId
+                    )
+                }
+            }
+        )
     }
 
     private func latestProgressSection(vm: IssueDetailViewModel) -> some View {

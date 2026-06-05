@@ -14,6 +14,13 @@ public final class IssueDetailViewModel {
         }
     }
 
+    public struct CommentThread: Identifiable, Sendable {
+        public let root: Comment
+        public let replies: [Comment]
+
+        public var id: String { root.id }
+    }
+
     public enum CommentSortOrder: String, CaseIterable, Identifiable {
         case ascending
         case descending
@@ -125,6 +132,22 @@ public final class IssueDetailViewModel {
         }
     }
 
+    public var displayedCommentThreads: [CommentThread] {
+        let commentsById = Dictionary(uniqueKeysWithValues: commentLoader.items.map { ($0.id, $0) })
+        let rootIdsByCommentId = Dictionary(uniqueKeysWithValues: commentLoader.items.map {
+            ($0.id, rootCommentId(for: $0, commentsById: commentsById))
+        })
+        let rootComments = commentLoader.items.filter { rootIdsByCommentId[$0.id] == $0.id }
+        let sortedRoots = sortRootComments(rootComments)
+
+        return sortedRoots.map { root in
+            let replies = commentLoader.items
+                .filter { $0.id != root.id && rootIdsByCommentId[$0.id] == root.id }
+                .sorted(by: sortCommentsAscending)
+            return CommentThread(root: root, replies: replies)
+        }
+    }
+
     public var usageSummaryText: String {
         usageSummaryText(language: .english)
     }
@@ -207,10 +230,14 @@ public final class IssueDetailViewModel {
     }
 
     public static func agentMentionMarkdown(_ agent: Agent) -> String {
-        let label = agent.name
+        agentMentionMarkdown(agentId: agent.id, label: agent.name)
+    }
+
+    private static func agentMentionMarkdown(agentId: String, label: String) -> String {
+        let escapedLabel = label
             .replacingOccurrences(of: "[", with: "\\[")
             .replacingOccurrences(of: "]", with: "\\]")
-        return "[@\(label)](mention://agent/\(agent.id))"
+        return "[@\(escapedLabel)](mention://agent/\(agentId))"
     }
 
     public func loadInitialData() async {
@@ -798,7 +825,13 @@ public final class IssueDetailViewModel {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         let attachments = replyAttachments[parentId] ?? []
         guard !trimmed.isEmpty || !attachments.isEmpty else { return false }
-        let didSubmit = await submitComment(content: trimmed, parentId: parentId)
+        let rootParentId = threadRootCommentId(for: parentId)
+        let outgoingContent = replyContentWithImplicitAgentMentions(trimmed, rootParentId: rootParentId)
+        let didSubmit = await submitComment(
+            content: outgoingContent,
+            parentId: rootParentId,
+            attachmentParentId: parentId
+        )
         if didSubmit {
             replyAttachments[parentId] = []
         }
@@ -836,14 +869,14 @@ public final class IssueDetailViewModel {
         }
     }
 
-    private func submitComment(content: String, parentId: String?) async -> Bool {
+    private func submitComment(content: String, parentId: String?, attachmentParentId: String? = nil) async -> Bool {
         isSubmittingComment = true; defer { isSubmittingComment = false }
         do {
             let comment = try await api.addComment(
                 issueId: issueId,
                 content: content,
                 parentId: parentId,
-                attachmentIds: attachmentIds(forParentId: parentId),
+                attachmentIds: attachmentIds(forParentId: attachmentParentId ?? parentId),
                 workspaceId: resolvedWorkspaceId
             )
             commentLoader.items.append(comment)
@@ -855,6 +888,81 @@ public final class IssueDetailViewModel {
         } catch {
             self.error = error.localizedDescription
             return false
+        }
+    }
+
+    private func sortRootComments(_ comments: [Comment]) -> [Comment] {
+        comments.sorted {
+            if $0.createdAt == $1.createdAt { return $0.id < $1.id }
+            return commentSortOrder == .ascending ? $0.createdAt < $1.createdAt : $0.createdAt > $1.createdAt
+        }
+    }
+
+    private func sortCommentsAscending(_ lhs: Comment, _ rhs: Comment) -> Bool {
+        lhs.createdAt == rhs.createdAt ? lhs.id < rhs.id : lhs.createdAt < rhs.createdAt
+    }
+
+    private func rootCommentId(for comment: Comment, commentsById: [String: Comment]) -> String {
+        var current = comment
+        var visited = Set<String>()
+        while let parentId = current.parentId, let parent = commentsById[parentId], !visited.contains(parent.id) {
+            visited.insert(current.id)
+            current = parent
+        }
+        return current.id
+    }
+
+    private func threadRootCommentId(for commentId: String) -> String {
+        let commentsById = Dictionary(uniqueKeysWithValues: commentLoader.items.map { ($0.id, $0) })
+        guard let comment = commentsById[commentId] else { return commentId }
+        return rootCommentId(for: comment, commentsById: commentsById)
+    }
+
+    private func replyContentWithImplicitAgentMentions(_ content: String, rootParentId: String) -> String {
+        guard !content.contains("mention://agent/") else { return content }
+        let mentions = participatingAgentMentions(inThreadRootId: rootParentId)
+        guard !mentions.isEmpty else { return content }
+        let mentionMarkdown = mentions
+            .map { Self.agentMentionMarkdown(agentId: $0.id, label: $0.label) }
+            .joined(separator: " ")
+        return content.isEmpty ? mentionMarkdown : "\(content) \(mentionMarkdown)"
+    }
+
+    private func participatingAgentMentions(inThreadRootId rootId: String) -> [(id: String, label: String)] {
+        let commentsById = Dictionary(uniqueKeysWithValues: commentLoader.items.map { ($0.id, $0) })
+        let threadComments = commentLoader.items
+            .filter { rootCommentId(for: $0, commentsById: commentsById) == rootId }
+            .sorted(by: sortCommentsAscending)
+        let agentsById = Dictionary(uniqueKeysWithValues: subscriberAgents.map { ($0.id, $0.name) })
+        var seen = Set<String>()
+        var mentions: [(id: String, label: String)] = []
+
+        func appendAgent(id: String) {
+            guard !seen.contains(id) else { return }
+            seen.insert(id)
+            mentions.append((id: id, label: agentsById[id] ?? id))
+        }
+
+        for comment in threadComments {
+            if comment.authorType == "agent" {
+                appendAgent(id: comment.authorId)
+            }
+            for id in Self.agentMentionIds(in: comment.content) {
+                appendAgent(id: id)
+            }
+        }
+        return mentions
+    }
+
+    private static func agentMentionIds(in content: String) -> [String] {
+        let pattern = #"mention://agent/([^\s)]+)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(content.startIndex..<content.endIndex, in: content)
+        return regex.matches(in: content, range: range).compactMap { match in
+            guard match.numberOfRanges > 1,
+                  let idRange = Range(match.range(at: 1), in: content)
+            else { return nil }
+            return String(content[idRange])
         }
     }
 

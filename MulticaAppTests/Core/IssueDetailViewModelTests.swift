@@ -3,6 +3,27 @@ import XCTest
 
 @MainActor
 final class IssueDetailViewModelTests: XCTestCase {
+    func test_displayedCommentThreadsGroupRepliesUnderRootPosts() {
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: makeClient { req in
+            XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
+            return Self.response(for: req, body: Data("{}".utf8), status: 500)
+        })
+        vm.commentLoader.items = [
+            Comment(id: "r2", content: "Nested", authorId: "u3", authorType: "member", parentId: "r1", issueId: "i1", createdAt: Date(timeIntervalSince1970: 40)),
+            Comment(id: "c2", content: "Second post", authorId: "u2", authorType: "member", parentId: nil, issueId: "i1", createdAt: Date(timeIntervalSince1970: 20)),
+            Comment(id: "r1", content: "Reply", authorId: "u2", authorType: "member", parentId: "c1", issueId: "i1", createdAt: Date(timeIntervalSince1970: 30)),
+            Comment(id: "c1", content: "First post", authorId: "u1", authorType: "member", parentId: nil, issueId: "i1", createdAt: Date(timeIntervalSince1970: 10)),
+        ]
+
+        vm.setCommentSortOrder(.ascending)
+        XCTAssertEqual(vm.displayedCommentThreads.map(\.root.id), ["c1", "c2"])
+        XCTAssertEqual(vm.displayedCommentThreads.first?.replies.map(\.id), ["r1", "r2"])
+
+        vm.setCommentSortOrder(.descending)
+        XCTAssertEqual(vm.displayedCommentThreads.map(\.root.id), ["c2", "c1"])
+        XCTAssertEqual(vm.displayedCommentThreads.last?.replies.map(\.id), ["r1", "r2"])
+    }
+
     func test_displayedCommentsCanSwitchBetweenAscendingAndDescendingOrder() {
         let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: makeClient { req in
             XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
@@ -700,6 +721,79 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertEqual(submittedContent, "Reply **markdown**")
         XCTAssertEqual(vm.commentLoader.items.map(\.id), ["r1"])
         XCTAssertNil(vm.error)
+    }
+
+    func test_submitReplyInsideThreadUsesRootParentAndImplicitlyMentionsParticipatingAgent() async throws {
+        var submittedParentId: String?
+        var submittedContent: String?
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/issues/i1/comments"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                submittedParentId = body["parent_id"] as? String
+                submittedContent = body["content"] as? String
+                let json = """
+                {"id":"r2","content":"Continuing","author_id":"u1","author_type":"member",
+                 "parent_id":"c1","issue_id":"i1","created_at":"2026-01-03T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("GET", "/api/issues/i1"):
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-03T00:00:00Z"))
+            default:
+                if let response = Self.emptyLatestProgressResponse(for: req) {
+                    return response
+                }
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+        vm.subscriberAgents = [try Self.decodeAgent(id: "a1", name: "Codex")]
+        vm.commentLoader.items = [
+            Comment(id: "c1", content: "Please work on this", authorId: "u1", authorType: "member", parentId: nil, issueId: "i1", createdAt: Date(timeIntervalSince1970: 10)),
+            Comment(id: "r1", content: "Agent response", authorId: "a1", authorType: "agent", parentId: "c1", issueId: "i1", createdAt: Date(timeIntervalSince1970: 20)),
+        ]
+
+        let didSubmit = await vm.submitReply(parentId: "r1", content: " \nContinue please ")
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(submittedParentId, "c1")
+        XCTAssertEqual(submittedContent, "Continue please [@Codex](mention://agent/a1)")
+    }
+
+    func test_submitReplyDoesNotDuplicateExplicitAgentMention() async throws {
+        var submittedContent: String?
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/issues/i1/comments"):
+                let body = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                submittedContent = body["content"] as? String
+                let json = """
+                {"id":"r2","content":"Explicit","author_id":"u1","author_type":"member",
+                 "parent_id":"c1","issue_id":"i1","created_at":"2026-01-03T00:00:00Z"}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case ("GET", "/api/issues/i1"):
+                return Self.response(for: req, body: Self.issueJSON(updatedAt: "2026-01-03T00:00:00Z"))
+            default:
+                if let response = Self.emptyLatestProgressResponse(for: req) {
+                    return response
+                }
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(for: req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: client)
+        vm.subscriberAgents = [try Self.decodeAgent(id: "a1", name: "Codex")]
+        vm.commentLoader.items = [
+            Comment(id: "c1", content: "Please work on this", authorId: "u1", authorType: "member", parentId: nil, issueId: "i1", createdAt: Date(timeIntervalSince1970: 10)),
+            Comment(id: "r1", content: "Agent response", authorId: "a1", authorType: "agent", parentId: "c1", issueId: "i1", createdAt: Date(timeIntervalSince1970: 20)),
+        ]
+
+        let didSubmit = await vm.submitReply(parentId: "c1", content: "Already [@Codex](mention://agent/a1)")
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(submittedContent, "Already [@Codex](mention://agent/a1)")
     }
 
     func test_uploadReplyAttachmentAndSubmitIncludesAttachmentIds() async throws {
