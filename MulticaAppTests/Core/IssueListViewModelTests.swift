@@ -323,7 +323,7 @@ final class IssueListViewModelTests: XCTestCase {
             case "/api/issues/search":
                 includeClosed = components?.queryItems?.first(where: { $0.name == "include_closed" })?.value
                 let query = components?.queryItems?.first(where: { $0.name == "q" })?.value
-                XCTAssertEqual(query, "ppt")
+                XCTAssertEqual(query, "pp")
                 let json = """
                 {"issues":[
                   {"id":"ppt-done","identifier":"PAR-206","number":206,"title":"PPT调研","description":null,
@@ -379,6 +379,72 @@ final class IssueListViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.loader.items.map(\.id), ["ppt-done"])
         XCTAssertEqual(requestedPaths, ["/api/issues/search"])
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_threeCharacterAsciiSearchUsesFastPrefixAndFiltersLocally() async throws {
+        var requestedQueries: [String] = []
+        let client = makeClient { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            switch req.url?.path {
+            case "/api/issues/search":
+                requestedQueries.append(components?.queryItems?.first(where: { $0.name == "q" })?.value ?? "")
+                let json = """
+                {"issues":[
+                  {"id":"ppt-hit","identifier":"PAR-162","number":162,"title":"PPT SKILL大调研","description":null,
+                   "status":"done","priority":"none","assignee_id":null,"assignee_type":null,
+                   "project_id":null,"workspace_id":"w1",
+                   "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-03T00:00:00Z"},
+                  {"id":"prefix-only","identifier":"PAR-76","number":76,"title":"App Store 上架准备","description":null,
+                   "status":"done","priority":"none","assignee_id":null,"assignee_type":null,
+                   "project_id":null,"workspace_id":"w1",
+                   "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-03T00:00:00Z"}
+                ],"has_more":false,"total":2}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.setSearchQuery("ppt")
+
+        XCTAssertEqual(requestedQueries, ["pp"])
+        XCTAssertEqual(vm.loader.items.map(\.id), ["ppt-hit"])
+        XCTAssertEqual(vm.issuesByStatus[.done]?.map(\.id), ["ppt-hit"])
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_refreshIfIdleSkipsActiveSearch() async throws {
+        var requestedQueries: [String] = []
+        let client = makeClient { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            switch req.url?.path {
+            case "/api/issues/search":
+                requestedQueries.append(components?.queryItems?.first(where: { $0.name == "q" })?.value ?? "")
+                let json = """
+                {"issues":[
+                  {"id":"ppt-hit","identifier":"PAR-162","number":162,"title":"PPT SKILL大调研","description":null,
+                   "status":"done","priority":"none","assignee_id":null,"assignee_type":null,
+                   "project_id":null,"workspace_id":"w1",
+                   "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-03T00:00:00Z"}
+                ],"has_more":false,"total":1}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.setSearchQuery("ppt")
+        await vm.refreshIfIdle()
+
+        XCTAssertEqual(requestedQueries, ["pp"])
+        XCTAssertEqual(vm.loader.items.map(\.id), ["ppt-hit"])
         XCTAssertNil(vm.lastError)
     }
 
@@ -446,7 +512,7 @@ final class IssueListViewModelTests: XCTestCase {
         await firstTask.value
         await secondTask.value
 
-        XCTAssertEqual(requestedQueries, ["p", "ppt"])
+        XCTAssertEqual(requestedQueries, ["p", "pp"])
         XCTAssertEqual(vm.searchQuery, "ppt")
         XCTAssertEqual(vm.loader.items.map(\.id), ["ppt-done"])
         XCTAssertNil(vm.lastError)
@@ -498,7 +564,7 @@ final class IssueListViewModelTests: XCTestCase {
         await firstTask.value
         await secondTask.value
 
-        XCTAssertEqual(requestedQueries, ["p", "ppt"])
+        XCTAssertEqual(requestedQueries, ["p", "pp"])
         XCTAssertEqual(vm.searchQuery, "ppt")
         XCTAssertEqual(vm.loader.items.map(\.id), ["ppt-done"])
         XCTAssertNil(vm.lastError)

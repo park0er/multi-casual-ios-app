@@ -113,6 +113,7 @@ public final class IssueListViewModel {
     private var isLoading = false
     private var pendingLoadAfterCurrent = false
     private var hasLoadedFirstPages = false
+    private var searchSourceOffset = 0
 
     private struct ServerFilter {
         var assigneeId: String?
@@ -191,7 +192,7 @@ public final class IssueListViewModel {
     }
 
     public func refreshIfIdle() async {
-        guard !isLoading else { return }
+        guard !isLoading, !isSearching else { return }
         await refresh()
     }
 
@@ -473,20 +474,40 @@ public final class IssueListViewModel {
 
     private func loadSearchPage(workspaceId: String) async throws {
         let query = searchQuery
-        let offset = loader.items.count
+        let plan = searchPlan(for: query)
+        let offset = plan.requiresLocalFilter ? searchSourceOffset : loader.items.count
         loader.isLoading = true
         defer { loader.isLoading = false }
         let page = try await api.searchIssues(
             workspaceId: workspaceId,
-            query: query,
+            query: plan.serverQuery,
             limit: Self.pageSize,
             offset: offset,
             includeClosed: true
         )
         guard searchQuery == query else { return }
-        loader.items.append(contentsOf: page.items)
+        let visibleItems = plan.requiresLocalFilter
+            ? page.items.filter { issueMatches($0, query: query) }
+            : page.items
+        loader.items.append(contentsOf: visibleItems)
+        if plan.requiresLocalFilter {
+            searchSourceOffset = offset + page.items.count
+        }
         loader.hasMore = page.inferringHasMore(fromOffset: offset).hasMore
         rebuildBucketsFromLoadedItems()
+    }
+
+    private func searchPlan(for query: String) -> (serverQuery: String, requiresLocalFilter: Bool) {
+        guard query.count == 3, query.unicodeScalars.allSatisfy({ $0.isASCII && CharacterSet.alphanumerics.contains($0) }) else {
+            return (query, false)
+        }
+        return (String(query.prefix(2)), true)
+    }
+
+    private func issueMatches(_ issue: Issue, query: String) -> Bool {
+        [issue.identifier, issue.title, issue.description ?? ""].contains {
+            $0.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
     }
 
     private func loadChildProgress(workspaceId: String) async throws {
@@ -678,6 +699,7 @@ public final class IssueListViewModel {
     private func resetPagination() {
         loader.reset()
         resetBuckets()
+        searchSourceOffset = 0
         hasLoadedFirstPages = false
         lastError = nil
     }
