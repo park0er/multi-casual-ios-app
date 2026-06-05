@@ -41,9 +41,13 @@ public struct IssueListView: View {
                         Divider()
                     }
                     Group {
-                        switch vm.viewMode {
-                        case .list: listView(vm: vm)
-                        case .board: boardView(vm: vm)
+                        if vm.isSearching {
+                            listView(vm: vm)
+                        } else {
+                            switch vm.viewMode {
+                            case .list: listView(vm: vm)
+                            case .board: boardView(vm: vm)
+                            }
                         }
                     }
                 }
@@ -236,35 +240,41 @@ public struct IssueListView: View {
                     description: Text(MarkdownRenderer.attributedString(from: AppStrings.localized(vm.scope.emptyDescription, language: appLanguage)))
                 )
             }
-            ForEach(IssueStatus.listCases, id: \.self) { status in
-                let issues = vm.issues(for: status)
-                if !issues.isEmpty {
-                    Section {
-                        if !collapsedStatusSections.contains(status) {
-                            ForEach(issues) { issue in
-                                issueListRow(issue: issue, vm: vm)
+            if vm.isSearching {
+                ForEach(vm.searchResults) { issue in
+                    issueListRow(issue: issue, vm: vm)
+                }
+            } else {
+                ForEach(IssueStatus.listCases, id: \.self) { status in
+                    let issues = vm.issues(for: status)
+                    if !issues.isEmpty {
+                        Section {
+                            if !collapsedStatusSections.contains(status) {
+                                ForEach(issues) { issue in
+                                    issueListRow(issue: issue, vm: vm)
+                                }
                             }
-                        }
-                    } header: {
-                        Button {
-                            toggleStatusSection(status)
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: collapsedStatusSections.contains(status) ? "chevron.right" : "chevron.down")
-                                    .frame(width: 12)
-                                Image(systemName: status.icon)
-                                MarkdownText(AppStrings.localized(status.displayName, language: appLanguage))
-                                MarkdownText("(\(issues.count))")
-                                    .foregroundStyle(.secondary)
-                                Spacer(minLength: 0)
+                        } header: {
+                            Button {
+                                toggleStatusSection(status)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: collapsedStatusSections.contains(status) ? "chevron.right" : "chevron.down")
+                                        .frame(width: 12)
+                                    Image(systemName: status.icon)
+                                    MarkdownText(AppStrings.localized(status.displayName, language: appLanguage))
+                                    MarkdownText("(\(issues.count))")
+                                        .foregroundStyle(.secondary)
+                                    Spacer(minLength: 0)
+                                }
+                                .contentShape(Rectangle())
                             }
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
+                            .font(.caption.weight(.semibold))
+                            .accessibilityIdentifier("IssueStatusSectionHeader-\(status.rawValue)")
+                            .accessibilityLabel("\(AppStrings.localized(status.displayName, language: appLanguage)) status section")
+                            .accessibilityValue(collapsedStatusSections.contains(status) ? "Collapsed" : "Expanded")
                         }
-                        .buttonStyle(.plain)
-                        .font(.caption.weight(.semibold))
-                        .accessibilityIdentifier("IssueStatusSectionHeader-\(status.rawValue)")
-                        .accessibilityLabel("\(AppStrings.localized(status.displayName, language: appLanguage)) status section")
-                        .accessibilityValue(collapsedStatusSections.contains(status) ? "Collapsed" : "Expanded")
                     }
                 }
             }

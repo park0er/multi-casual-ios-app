@@ -93,6 +93,8 @@ public final class IssueListViewModel {
     public var lastError: Error?
     public var priorityFilter: IssuePriority?
     public var searchQuery = ""
+    public var isSearching: Bool { !searchQuery.isEmpty }
+    public var searchResults: [Issue] { loader.items }
     public var scope: Scope
     public var isSelectionMode = false
     public var isLoadingBatchAssignees = false
@@ -109,6 +111,7 @@ public final class IssueListViewModel {
     private var totalsByStatus: [IssueStatus: Int] = [:]
     private var pageHasMoreByStatus: [IssueStatus: Bool] = [:]
     private var isLoading = false
+    private var pendingLoadAfterCurrent = false
     private var hasLoadedFirstPages = false
 
     private struct ServerFilter {
@@ -129,10 +132,13 @@ public final class IssueListViewModel {
             lastError = UserVisibleError("Pick a workspace before opening Issues.")
             return
         }
-        guard !isLoading, loader.hasMore else { return }
+        guard loader.hasMore else { return }
+        if isLoading {
+            pendingLoadAfterCurrent = true
+            return
+        }
+        isLoading = true
         do {
-            isLoading = true
-            defer { isLoading = false }
             if !searchQuery.isEmpty {
                 try await loadSearchPage(workspaceId: wsId)
             } else if !hasLoadedFirstPages {
@@ -142,26 +148,40 @@ public final class IssueListViewModel {
                 let filter = try await serverFilter(workspaceId: wsId)
                 if filter.matchesNothing {
                     loader.hasMore = false
-                    return
+                } else {
+                    let page = try await api.listIssues(
+                        workspaceId: wsId,
+                        status: status,
+                        priority: priorityFilter,
+                        assigneeId: filter.assigneeId,
+                        assigneeIds: filter.assigneeIds,
+                        creatorId: filter.creatorId,
+                        limit: Self.pageSize,
+                        offset: offset
+                    )
+                    append(page, for: status)
                 }
-                let page = try await api.listIssues(
-                    workspaceId: wsId,
-                    status: status,
-                    priority: priorityFilter,
-                    assigneeId: filter.assigneeId,
-                    assigneeIds: filter.assigneeIds,
-                    creatorId: filter.creatorId,
-                    limit: Self.pageSize,
-                    offset: offset
-                )
-                append(page, for: status)
             } else {
                 loader.hasMore = false
             }
             lastError = nil
         } catch {
-            loader.hasMore = false
-            lastError = error
+            if Self.isCancellation(error) || pendingLoadAfterCurrent {
+                if pendingLoadAfterCurrent {
+                    loader.hasMore = true
+                } else {
+                    loader.hasMore = false
+                }
+                lastError = nil
+            } else {
+                loader.hasMore = false
+                lastError = error
+            }
+        }
+        isLoading = false
+        if pendingLoadAfterCurrent {
+            pendingLoadAfterCurrent = false
+            await loadNext()
         }
     }
 
@@ -452,16 +472,22 @@ public final class IssueListViewModel {
     }
 
     private func loadSearchPage(workspaceId: String) async throws {
-        try await loader.loadNext { [api, workspaceId, searchQuery] offset in
-            try await api.searchIssues(
-                workspaceId: workspaceId,
-                query: searchQuery,
-                limit: Self.pageSize,
-                offset: offset
-            )
-        }
+        let query = searchQuery
+        let offset = loader.items.count
+        loader.isLoading = true
+        defer { loader.isLoading = false }
+        let page = try await api.searchIssues(
+            workspaceId: workspaceId,
+            query: query,
+            limit: Self.pageSize,
+            offset: offset,
+            includeClosed: true
+        )
+        guard searchQuery == query else { return }
+        loader.items.append(contentsOf: page.items)
+        loader.hasMore = page.inferringHasMore(fromOffset: offset).hasMore
         rebuildBucketsFromLoadedItems()
-        try await loadChildProgress(workspaceId: workspaceId)
+        try? await loadChildProgress(workspaceId: workspaceId)
     }
 
     private func loadChildProgress(workspaceId: String) async throws {
@@ -674,6 +700,17 @@ public final class IssueListViewModel {
         if searchQuery.isEmpty {
             loader.items = sorted(loader.items)
         }
+    }
+
+    private static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let urlError = error as? URLError {
+            return urlError.code == .cancelled
+        }
+        if case APIClient.APIError.networkError(let underlying) = error {
+            return isCancellation(underlying)
+        }
+        return false
     }
 }
 

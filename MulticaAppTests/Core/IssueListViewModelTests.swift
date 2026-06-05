@@ -34,6 +34,21 @@ final class IssueListViewModelTests: XCTestCase {
         )
     }
 
+    func test_issueSearchRendersFlatResultsInServerRelevanceOrder() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceURL = root.appendingPathComponent("Multi-Casual/Features/Issues/IssueListView.swift")
+        let source = try String(contentsOf: sourceURL)
+
+        XCTAssertTrue(
+            source.contains("if vm.isSearching"),
+            "Search mode should switch away from status-grouped rendering so server relevance is not buried under status sections."
+        )
+        XCTAssertTrue(
+            source.contains("ForEach(vm.searchResults)"),
+            "Search mode should render the flat server-ordered results."
+        )
+    }
+
     func test_loadNext_withoutWorkspaceSurfacesActionableError() async throws {
         let vm = IssueListViewModel(api: makeClient(), authSession: AuthSession(userDefaults: makeUserDefaults()))
 
@@ -294,6 +309,191 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertEqual(vm.loader.items.map(\.id), ["done-hit", "todo-hit"])
         XCTAssertEqual(vm.issues(for: .done).map(\.id), ["done-hit"])
         XCTAssertEqual(vm.issues(for: .todo).map(\.id), ["todo-hit"])
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_searchQueryIncludesClosedIssuesSoDoneResearchCanBeFound() async throws {
+        var includeClosed: String?
+        let client = makeClient { req in
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            switch req.url?.path {
+            case "/api/issues/search":
+                includeClosed = components?.queryItems?.first(where: { $0.name == "include_closed" })?.value
+                let query = components?.queryItems?.first(where: { $0.name == "q" })?.value
+                XCTAssertEqual(query, "ppt")
+                let json = """
+                {"issues":[
+                  {"id":"ppt-done","identifier":"PAR-206","number":206,"title":"PPT调研","description":null,
+                   "status":"done","priority":"none","assignee_id":null,"assignee_type":null,
+                   "project_id":null,"workspace_id":"w1","position":99,
+                   "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-03T00:00:00Z"}
+                ],"has_more":false,"total":1}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/issues/child-progress":
+                return Self.childProgressResponse(for: req, progress: [])
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.setSearchQuery("ppt")
+
+        XCTAssertEqual(includeClosed, "true")
+        XCTAssertEqual(vm.loader.items.map(\.id), ["ppt-done"])
+        XCTAssertEqual(vm.issuesByStatus[.done]?.map(\.id), ["ppt-done"])
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_searchQueryKeepsResultsWhenChildProgressRefreshFails() async throws {
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/issues/search":
+                let json = """
+                {"issues":[
+                  {"id":"ppt-done","identifier":"PAR-206","number":206,"title":"PPT调研","description":null,
+                   "status":"done","priority":"none","assignee_id":null,"assignee_type":null,
+                   "project_id":null,"workspace_id":"w1",
+                   "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-03T00:00:00Z"}
+                ],"has_more":false,"total":1}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/issues/child-progress":
+                return Self.response(for: req, body: Data(), status: 500)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.setSearchQuery("ppt")
+
+        XCTAssertEqual(vm.loader.items.map(\.id), ["ppt-done"])
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_cancelledSearchDoesNotSurfaceAsUserVisibleError() async throws {
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/issues/search":
+                throw URLError(.cancelled)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        await vm.setSearchQuery("ppt")
+
+        XCTAssertEqual(vm.searchQuery, "ppt")
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_newSearchRunsAfterCancellingInFlightSearch() async throws {
+        let firstSearchStarted = DispatchSemaphore(value: 0)
+        let releaseFirstSearch = DispatchSemaphore(value: 0)
+        var requestedQueries: [String] = []
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/issues/search":
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let query = components?.queryItems?.first(where: { $0.name == "q" })?.value ?? ""
+                requestedQueries.append(query)
+                if query == "p" {
+                    firstSearchStarted.signal()
+                    _ = releaseFirstSearch.wait(timeout: .now() + 2)
+                    throw URLError(.cancelled)
+                }
+                let json = """
+                {"issues":[
+                  {"id":"ppt-done","identifier":"PAR-206","number":206,"title":"PPT调研","description":null,
+                   "status":"done","priority":"none","assignee_id":null,"assignee_type":null,
+                   "project_id":null,"workspace_id":"w1",
+                   "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-03T00:00:00Z"}
+                ],"has_more":false,"total":1}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/issues/child-progress":
+                return Self.childProgressResponse(for: req, progress: [])
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        let firstTask = Task { @MainActor in await vm.setSearchQuery("p") }
+        let waitResult = await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                continuation.resume(returning: firstSearchStarted.wait(timeout: .now() + 2))
+            }
+        }
+        XCTAssertEqual(waitResult, .success)
+        let secondTask = Task { @MainActor in await vm.setSearchQuery("ppt") }
+
+        releaseFirstSearch.signal()
+        await firstTask.value
+        await secondTask.value
+
+        XCTAssertEqual(requestedQueries, ["p", "ppt"])
+        XCTAssertEqual(vm.searchQuery, "ppt")
+        XCTAssertEqual(vm.loader.items.map(\.id), ["ppt-done"])
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_newSearchRunsAfterStaleInFlightSearchFails() async throws {
+        let firstSearchStarted = DispatchSemaphore(value: 0)
+        let releaseFirstSearch = DispatchSemaphore(value: 0)
+        var requestedQueries: [String] = []
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/issues/search":
+                let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+                let query = components?.queryItems?.first(where: { $0.name == "q" })?.value ?? ""
+                requestedQueries.append(query)
+                if query == "p" {
+                    firstSearchStarted.signal()
+                    _ = releaseFirstSearch.wait(timeout: .now() + 2)
+                    return Self.response(for: req, body: Data(), status: 500)
+                }
+                let json = """
+                {"issues":[
+                  {"id":"ppt-done","identifier":"PAR-206","number":206,"title":"PPT调研","description":null,
+                   "status":"done","priority":"none","assignee_id":null,"assignee_type":null,
+                   "project_id":null,"workspace_id":"w1",
+                   "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-03T00:00:00Z"}
+                ],"has_more":false,"total":1}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/issues/child-progress":
+                return Self.childProgressResponse(for: req, progress: [])
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+
+        let firstTask = Task { @MainActor in await vm.setSearchQuery("p") }
+        let waitResult = await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                continuation.resume(returning: firstSearchStarted.wait(timeout: .now() + 2))
+            }
+        }
+        XCTAssertEqual(waitResult, .success)
+        let secondTask = Task { @MainActor in await vm.setSearchQuery("ppt") }
+
+        releaseFirstSearch.signal()
+        await firstTask.value
+        await secondTask.value
+
+        XCTAssertEqual(requestedQueries, ["p", "ppt"])
+        XCTAssertEqual(vm.searchQuery, "ppt")
+        XCTAssertEqual(vm.loader.items.map(\.id), ["ppt-done"])
         XCTAssertNil(vm.lastError)
     }
 
