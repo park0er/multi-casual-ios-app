@@ -12,8 +12,10 @@ public struct IssueListView: View {
     @State private var searchText = ""
     @State private var collapsedStatusSections: Set<IssueStatus> = []
     @State private var autoRefreshTask: Task<Void, Never>?
+    @State private var searchTask: Task<Void, Never>?
     private let initialScope: IssueListViewModel.Scope
     private let autoRefreshIntervalNanoseconds: UInt64 = 30_000_000_000
+    private let searchDebounceNanoseconds: UInt64 = 350_000_000
 
     public init(scope: IssueListViewModel.Scope = .all) {
         self.initialScope = scope
@@ -127,11 +129,8 @@ public struct IssueListView: View {
                 .issueSearchable(
                     enabled: initialScope == .all,
                     text: $searchText,
-                    submit: { Task { await vm.setSearchQuery(searchText) } },
-                    clear: { newValue in
-                        guard newValue.isEmpty, !vm.searchQuery.isEmpty else { return }
-                        Task { await vm.setSearchQuery("") }
-                    }
+                    submit: { scheduleSearch(query: searchText, immediately: true) },
+                    change: { newValue in scheduleSearch(query: newValue) }
                 )
                 .safeAreaInset(edge: .bottom) {
                     if vm.isSelectionMode && !vm.selectedIssueIds.isEmpty {
@@ -171,6 +170,7 @@ public struct IssueListView: View {
         }
         .onDisappear {
             stopAutoRefresh()
+            cancelSearchTask()
         }
         .onChange(of: authSession.currentWorkspace?.id) { _, _ in
             guard let viewModel else { return }
@@ -206,6 +206,25 @@ public struct IssueListView: View {
     private func stopAutoRefresh() {
         autoRefreshTask?.cancel()
         autoRefreshTask = nil
+    }
+
+    private func scheduleSearch(query: String, immediately: Bool = false) {
+        searchTask?.cancel()
+        searchTask = Task { @MainActor in
+            if !immediately {
+                do {
+                    try await Task.sleep(nanoseconds: searchDebounceNanoseconds)
+                } catch {
+                    return
+                }
+            }
+            await viewModel?.setSearchQuery(query)
+        }
+    }
+
+    private func cancelSearchTask() {
+        searchTask?.cancel()
+        searchTask = nil
     }
 
     private func listView(vm: IssueListViewModel) -> some View {
@@ -412,13 +431,13 @@ private extension View {
         enabled: Bool,
         text: Binding<String>,
         submit: @escaping () -> Void,
-        clear: @escaping (String) -> Void
+        change: @escaping (String) -> Void
     ) -> some View {
         if enabled {
             self
                 .searchable(text: text, prompt: "Search issues")
                 .onSubmit(of: .search, submit)
-                .onChange(of: text.wrappedValue) { _, newValue in clear(newValue) }
+                .onChange(of: text.wrappedValue) { _, newValue in change(newValue) }
         } else {
             self
         }

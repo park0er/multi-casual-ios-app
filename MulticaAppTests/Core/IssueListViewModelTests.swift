@@ -15,6 +15,25 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertTrue(source.contains("await viewModel?.refreshIfIdle()"))
     }
 
+    func test_issueSearchRunsAsSearchTextChanges() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceURL = root.appendingPathComponent("Multi-Casual/Features/Issues/IssueListView.swift")
+        let source = try String(contentsOf: sourceURL)
+
+        XCTAssertTrue(
+            source.contains("@State private var searchTask: Task<Void, Never>?"),
+            "Issue search should debounce live text changes instead of relying only on keyboard submit."
+        )
+        XCTAssertTrue(
+            source.contains("scheduleSearch(query: newValue)"),
+            "Search text changes should schedule a real IssueListViewModel search."
+        )
+        XCTAssertTrue(
+            source.contains("try await Task.sleep(nanoseconds: searchDebounceNanoseconds)"),
+            "Live issue search should be debounced to avoid a request for every keystroke."
+        )
+    }
+
     func test_loadNext_withoutWorkspaceSurfacesActionableError() async throws {
         let vm = IssueListViewModel(api: makeClient(), authSession: AuthSession(userDefaults: makeUserDefaults()))
 
@@ -240,6 +259,41 @@ final class IssueListViewModelTests: XCTestCase {
         XCTAssertEqual(requested.first?.query.first(where: { $0.name == "workspace_id" })?.value, "w1")
         XCTAssertFalse(requested.first?.query.contains(where: { $0.name == "status" }) ?? true)
         XCTAssertTrue(requested.map(\.path).contains("/api/issues/child-progress"))
+        XCTAssertNil(vm.lastError)
+    }
+
+    func test_searchQueryPreservesServerRelevanceOrder() async throws {
+        let client = makeClient { req in
+            switch req.url?.path {
+            case "/api/issues/search":
+                let json = """
+                {"issues":[
+                  {"id":"done-hit","identifier":"PAR-9","number":9,"title":"Best match","description":null,
+                   "status":"done","priority":"none","assignee_id":null,"assignee_type":null,
+                   "project_id":null,"workspace_id":"w1","position":99,
+                   "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-03T00:00:00Z"},
+                  {"id":"todo-hit","identifier":"PAR-1","number":1,"title":"Lower match","description":null,
+                   "status":"todo","priority":"none","assignee_id":null,"assignee_type":null,
+                   "project_id":null,"workspace_id":"w1","position":0,
+                   "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-02T00:00:00Z"}
+                ],"has_more":false,"total":2}
+                """.data(using: .utf8)!
+                return Self.response(for: req, body: json)
+            case "/api/issues/child-progress":
+                return Self.childProgressResponse(for: req, progress: [])
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.emptyIssuesResponse(for: req)
+            }
+        }
+        let vm = IssueListViewModel(api: client, authSession: makeAuthSession())
+        vm.setSortOption(.number)
+
+        await vm.setSearchQuery("match")
+
+        XCTAssertEqual(vm.loader.items.map(\.id), ["done-hit", "todo-hit"])
+        XCTAssertEqual(vm.issues(for: .done).map(\.id), ["done-hit"])
+        XCTAssertEqual(vm.issues(for: .todo).map(\.id), ["todo-hit"])
         XCTAssertNil(vm.lastError)
     }
 

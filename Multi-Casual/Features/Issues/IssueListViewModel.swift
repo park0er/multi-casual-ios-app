@@ -483,6 +483,7 @@ public final class IssueListViewModel {
     }
 
     private func syncFlatIssues() {
+        guard searchQuery.isEmpty else { return }
         let issues = IssueStatus.listCases.flatMap { issuesByStatus[$0] ?? [] }
         loader.items = sorted(issues)
         loader.hasMore = IssueStatus.listCases.contains { statusHasMore($0) }
@@ -670,7 +671,9 @@ public final class IssueListViewModel {
             issuesByStatus[issue.status, default: []].append(issue)
         }
         resetPaginationCountsFromBuckets()
-        loader.items = sorted(loader.items)
+        if searchQuery.isEmpty {
+            loader.items = sorted(loader.items)
+        }
     }
 }
 
