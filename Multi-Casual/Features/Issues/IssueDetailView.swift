@@ -25,7 +25,13 @@ public struct IssueDetailView: View {
     @State private var issueReferenceError: String?
     @State private var pinViewModel: PinToggleViewModel?
     @State private var isAgentWorkExpanded = false
-    @FocusState private var isCommentInputFocused: Bool
+    @State private var activeReplyTarget: IssueReplyTarget?
+    @State private var replyDraft = ""
+    @State private var replyDraftAgentMentions: [IssueDetailViewModel.AgentMentionDraftToken] = []
+    @State private var replyAttachmentError: String?
+    @State private var showReplyAttachmentImporter = false
+    @State private var selectedReplyImageItem: PhotosPickerItem?
+    @FocusState private var composerFocus: IssueComposerFocus?
 
     public init(issueId: String) { self.issueId = issueId }
 
@@ -209,7 +215,11 @@ public struct IssueDetailView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .accessibilityIdentifier("IssueDetailScrollView")
-            commentInputBar(vm: vm)
+            if let activeReplyTarget {
+                replyInputBar(vm: vm, target: activeReplyTarget)
+            } else {
+                commentInputBar(vm: vm)
+            }
         }
     }
 
@@ -576,25 +586,14 @@ public struct IssueDetailView: View {
             authorAvatarUrl: vm.commentAuthorAvatarURL(for: comment),
             currentUserId: currentUserId,
             markdownContext: markdownContext,
-            mentionableAgents: vm.mentionableAgents,
-            replyAttachments: vm.replyAttachments[comment.id] ?? [],
-            isUploadingReplyAttachment: vm.uploadingReplyAttachmentIds.contains(comment.id),
-            onReply: { parentId, content in
-                await vm.submitReply(parentId: parentId, content: content)
+            onStartReply: { comment in
+                startReply(to: comment, authorDisplayName: vm.commentAuthorName(for: comment))
             },
             onEdit: { commentId, content in
                 await vm.updateComment(commentId: commentId, content: content)
             },
             onDelete: { commentId in
                 await vm.deleteComment(commentId: commentId)
-            },
-            onUploadReplyAttachment: { parentId, payload in
-                await vm.uploadReplyAttachment(
-                    parentId: parentId,
-                    filename: payload.filename,
-                    data: payload.data,
-                    contentType: payload.contentType
-                )
             },
             onToggleReaction: { emoji in
                 Task {
@@ -896,7 +895,7 @@ public struct IssueDetailView: View {
 
                 AgentMentionPicker(agents: vm.mentionableAgents) { agent in
                     vm.appendAgentMention(agent)
-                    isCommentInputFocused = true
+                    focusComposer(.comment)
                 }
                 .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
                 .accessibilityIdentifier("IssueDetailAgentMentionButton")
@@ -906,12 +905,12 @@ public struct IssueDetailView: View {
                 ), axis: .vertical)
                 .lineLimit(1...4).padding(.horizontal, 12).padding(.vertical, 8)
                 .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 20))
-                .focused($isCommentInputFocused)
+                .focused($composerFocus, equals: .comment)
                 .accessibilityIdentifier("IssueDetailCommentInput")
 
-                if isCommentInputFocused {
+                if composerFocus == .comment {
                     Button {
-                        isCommentInputFocused = false
+                        composerFocus = nil
                         dismissIssueDetailKeyboard()
                     } label: {
                         Image(systemName: "keyboard.chevron.compact.down")
@@ -924,7 +923,7 @@ public struct IssueDetailView: View {
                 Button {
                     Task {
                         await vm.submitComment()
-                        isCommentInputFocused = false
+                        composerFocus = nil
                     }
                 } label: {
                     if vm.isSubmittingComment { ProgressView() }
@@ -949,6 +948,258 @@ public struct IssueDetailView: View {
         }
         .onChange(of: selectedCommentImageItem) { _, item in
             handleCommentImageSelection(item, vm: vm)
+        }
+    }
+
+    private func replyInputBar(vm: IssueDetailViewModel, target: IssueReplyTarget) -> some View {
+        let replyAttachments = vm.replyAttachments[target.commentId] ?? []
+        let isUploadingReplyAttachment = vm.uploadingReplyAttachmentIds.contains(target.commentId)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrowshape.turn.up.left")
+                    .font(.caption)
+                    .foregroundStyle(Color.accentColor)
+                MarkdownText("Replying to \(target.authorDisplayName)")
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                Spacer()
+                Button {
+                    cancelActiveReply(vm: vm)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityLabel(AppStrings.localized("Cancel", language: appLanguage))
+                .accessibilityIdentifier("IssueDetailCancelReplyButton")
+            }
+
+            if !replyAttachments.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(replyAttachments) { attachment in
+                            Label {
+                                MarkdownText(attachment.filename)
+                                    .font(.caption)
+                            } icon: {
+                                Image(systemName: "paperclip")
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.secondary.opacity(0.1), in: Capsule())
+                        }
+                    }
+                }
+            }
+
+            if let replyAttachmentError {
+                MarkdownText(replyAttachmentError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            HStack(spacing: 12) {
+                PhotosPicker(
+                    selection: $selectedReplyImageItem,
+                    matching: .images
+                ) {
+                    if isUploadingReplyAttachment {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "photo.circle")
+                            .font(.title3)
+                    }
+                }
+                .disabled(isUploadingReplyAttachment || vm.isSubmittingComment)
+                .accessibilityIdentifier("CommentReplyAddImageButton")
+
+                Button {
+                    showReplyAttachmentImporter = true
+                } label: {
+                    if isUploadingReplyAttachment {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "paperclip.circle")
+                            .font(.title3)
+                    }
+                }
+                .disabled(isUploadingReplyAttachment || vm.isSubmittingComment)
+                .accessibilityIdentifier("CommentReplyAddAttachmentButton")
+
+                AgentMentionPicker(agents: vm.mentionableAgents) { agent in
+                    IssueDetailViewModel.appendAgentMention(
+                        agent,
+                        to: &replyDraft,
+                        mentions: &replyDraftAgentMentions
+                    )
+                    focusComposer(.reply)
+                }
+                .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
+                .accessibilityIdentifier("CommentReplyAgentMentionButton")
+
+                TextField(AppStrings.localized("Reply…", language: appLanguage), text: $replyDraft, axis: .vertical)
+                    .lineLimit(1...4)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 20))
+                    .focused($composerFocus, equals: .reply)
+                    .accessibilityIdentifier("IssueDetailReplyInput")
+
+                if composerFocus == .reply {
+                    Button {
+                        composerFocus = nil
+                        dismissIssueDetailKeyboard()
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                            .font(.title3)
+                    }
+                    .accessibilityLabel(AppStrings.localized("Dismiss Keyboard", language: appLanguage))
+                    .accessibilityIdentifier("CommentReplyDismissKeyboardButton")
+                }
+
+                Button {
+                    Task { await submitActiveReply(vm: vm, target: target) }
+                } label: {
+                    if vm.isSubmittingComment {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(canSubmitReply(vm: vm, target: target) ? Color.blue : Color.secondary)
+                    }
+                }
+                .disabled(!canSubmitReply(vm: vm, target: target) || isUploadingReplyAttachment)
+                .accessibilityIdentifier("IssueDetailReplySendButton")
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.background)
+        .overlay(alignment: .top) { Divider() }
+        .fileImporter(
+            isPresented: $showReplyAttachmentImporter,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: false
+        ) { result in
+            handleReplyAttachmentImport(result, vm: vm, target: target)
+        }
+        .onChange(of: selectedReplyImageItem) { _, item in
+            handleReplyImageSelection(item, vm: vm, target: target)
+        }
+        .onAppear {
+            focusComposer(.reply)
+        }
+    }
+
+    private func startReply(to comment: Comment, authorDisplayName: String) {
+        activeReplyTarget = IssueReplyTarget(commentId: comment.id, authorDisplayName: authorDisplayName)
+        replyDraft = ""
+        replyDraftAgentMentions = []
+        replyAttachmentError = nil
+        focusComposer(.reply)
+    }
+
+    private func cancelActiveReply(vm: IssueDetailViewModel) {
+        if let activeReplyTarget {
+            vm.replyAttachments[activeReplyTarget.commentId] = []
+        }
+        activeReplyTarget = nil
+        replyDraft = ""
+        replyDraftAgentMentions = []
+        replyAttachmentError = nil
+        selectedReplyImageItem = nil
+        composerFocus = nil
+        dismissIssueDetailKeyboard()
+    }
+
+    private func canSubmitReply(vm: IssueDetailViewModel, target: IssueReplyTarget) -> Bool {
+        (
+            !replyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !(vm.replyAttachments[target.commentId] ?? []).isEmpty
+        ) &&
+        !vm.isSubmittingComment &&
+        !vm.uploadingReplyAttachmentIds.contains(target.commentId)
+    }
+
+    private func submitActiveReply(vm: IssueDetailViewModel, target: IssueReplyTarget) async {
+        let content = IssueDetailViewModel.serializeMentionDraft(
+            replyDraft,
+            mentions: replyDraftAgentMentions
+        )
+        let submitted = await vm.submitReply(parentId: target.commentId, content: content)
+        if submitted {
+            activeReplyTarget = nil
+            replyDraft = ""
+            replyDraftAgentMentions = []
+            replyAttachmentError = nil
+            selectedReplyImageItem = nil
+            composerFocus = nil
+        }
+    }
+
+    private func handleReplyAttachmentImport(
+        _ result: Result<[URL], Error>,
+        vm: IssueDetailViewModel,
+        target: IssueReplyTarget
+    ) {
+        do {
+            guard let url = try result.get().first else { return }
+            let payload = try AttachmentImport.payload(from: url)
+            replyAttachmentError = nil
+            Task {
+                let uploaded = await vm.uploadReplyAttachment(
+                    parentId: target.commentId,
+                    filename: payload.filename,
+                    data: payload.data,
+                    contentType: payload.contentType
+                )
+                if !uploaded {
+                    replyAttachmentError = AppStrings.localized("Upload failed.", language: appLanguage)
+                }
+            }
+        } catch {
+            replyAttachmentError = error.localizedDescription
+        }
+    }
+
+    private func handleReplyImageSelection(
+        _ item: PhotosPickerItem?,
+        vm: IssueDetailViewModel,
+        target: IssueReplyTarget
+    ) {
+        guard let item else { return }
+        Task { @MainActor in
+            defer { selectedReplyImageItem = nil }
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    throw AttachmentImportError.unreadableImage
+                }
+                let payload = try AttachmentImport.imagePayload(
+                    data: data,
+                    contentType: item.supportedContentTypes.first { $0.conforms(to: .image) },
+                    filenamePrefix: "reply-image"
+                )
+                replyAttachmentError = nil
+                let uploaded = await vm.uploadReplyAttachment(
+                    parentId: target.commentId,
+                    filename: payload.filename,
+                    data: payload.data,
+                    contentType: payload.contentType
+                )
+                if !uploaded {
+                    replyAttachmentError = AppStrings.localized("Upload failed.", language: appLanguage)
+                }
+            } catch {
+                replyAttachmentError = error.localizedDescription
+            }
+        }
+    }
+
+    private func focusComposer(_ focus: IssueComposerFocus) {
+        Task { @MainActor in
+            await Task.yield()
+            composerFocus = focus
         }
     }
 
@@ -1053,6 +1304,18 @@ private struct IssueReferenceNavigationTarget: Identifiable, Hashable {
     var id: String { issueId }
 }
 
+private struct IssueReplyTarget: Identifiable, Hashable {
+    let commentId: String
+    let authorDisplayName: String
+
+    var id: String { commentId }
+}
+
+private enum IssueComposerFocus: Hashable {
+    case comment
+    case reply
+}
+
 private func dismissIssueDetailKeyboard() {
     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
 }
@@ -1081,27 +1344,17 @@ public struct CommentRowView: View {
     let authorAvatarUrl: String?
     let currentUserId: String?
     let markdownContext: MarkdownRenderContext
-    let mentionableAgents: [Agent]
-    let replyAttachments: [Attachment]
-    let isUploadingReplyAttachment: Bool
-    let onReply: (String, String) async -> Bool
+    let onStartReply: (Comment) -> Void
     let onEdit: (String, String) async -> Bool
     let onDelete: (String) async -> Bool
-    let onUploadReplyAttachment: (String, AttachmentPayload) async -> Bool
     let onToggleReaction: (String) -> Void
 
     @State private var isEditing = false
     @State private var editDraft = ""
-    @State private var isReplying = false
-    @State private var replyDraft = ""
-    @State private var replyDraftAgentMentions: [IssueDetailViewModel.AgentMentionDraftToken] = []
     @State private var isSaving = false
     @State private var showDeleteConfirmation = false
-    @State private var showReplyAttachmentImporter = false
-    @State private var selectedReplyImageItem: PhotosPickerItem?
-    @State private var replyAttachmentError: String?
     @Environment(\.appLanguage) private var appLanguage
-    @FocusState private var focusedEditor: CommentEditorFocus?
+    @FocusState private var isEditFocused: Bool
 
     public init(
         comment: Comment,
@@ -1109,13 +1362,9 @@ public struct CommentRowView: View {
         authorAvatarUrl: String? = nil,
         currentUserId: String? = nil,
         markdownContext: MarkdownRenderContext = .empty,
-        mentionableAgents: [Agent] = [],
-        replyAttachments: [Attachment] = [],
-        isUploadingReplyAttachment: Bool = false,
-        onReply: @escaping (String, String) async -> Bool = { _, _ in false },
+        onStartReply: @escaping (Comment) -> Void = { _ in },
         onEdit: @escaping (String, String) async -> Bool = { _, _ in false },
         onDelete: @escaping (String) async -> Bool = { _ in false },
-        onUploadReplyAttachment: @escaping (String, AttachmentPayload) async -> Bool = { _, _ in false },
         onToggleReaction: @escaping (String) -> Void = { _ in }
     ) {
         self.comment = comment
@@ -1123,13 +1372,9 @@ public struct CommentRowView: View {
         self.authorAvatarUrl = authorAvatarUrl
         self.currentUserId = currentUserId
         self.markdownContext = markdownContext
-        self.mentionableAgents = mentionableAgents
-        self.replyAttachments = replyAttachments
-        self.isUploadingReplyAttachment = isUploadingReplyAttachment
-        self.onReply = onReply
+        self.onStartReply = onStartReply
         self.onEdit = onEdit
         self.onDelete = onDelete
-        self.onUploadReplyAttachment = onUploadReplyAttachment
         self.onToggleReaction = onToggleReaction
     }
 
@@ -1147,7 +1392,7 @@ public struct CommentRowView: View {
                 MarkdownText(iso8601DateOnlyFormatter.string(from: comment.createdAt)).font(.caption2).foregroundStyle(.secondary)
                 if currentUserId != nil {
                     Button {
-                        openReplyEditor()
+                        onStartReply(comment)
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "arrowshape.turn.up.left")
@@ -1168,7 +1413,7 @@ public struct CommentRowView: View {
                             Button {
                                 editDraft = comment.content
                                 isEditing = true
-                                focusEditor(.edit)
+                                focusEdit()
                             } label: {
                                 Label(AppStrings.localized("Edit", language: appLanguage), systemImage: "pencil")
                             }
@@ -1195,13 +1440,13 @@ public struct CommentRowView: View {
                         .frame(minHeight: 88)
                         .padding(8)
                         .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                        .focused($focusedEditor, equals: .edit)
+                        .focused($isEditFocused)
                         .accessibilityIdentifier("CommentEditEditor")
                     HStack(spacing: 8) {
                         Button(AppStrings.localized("Cancel", language: appLanguage)) {
                             editDraft = ""
                             isEditing = false
-                            focusedEditor = nil
+                            isEditFocused = false
                         }
                         .buttonStyle(.borderless)
 
@@ -1225,104 +1470,7 @@ public struct CommentRowView: View {
                 AttachmentListView(attachments: comment.attachments)
             }
             ReactionBarView(badges: commentReactionBadges(comment.reactions), onToggle: onToggleReaction)
-            if isReplying {
-                VStack(alignment: .trailing, spacing: 8) {
-                    if !replyAttachments.isEmpty {
-                        AttachmentListView(attachments: replyAttachments)
-                    }
-                    if let replyAttachmentError {
-                        MarkdownText(replyAttachmentError)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                    TextEditor(text: $replyDraft)
-                        .frame(minHeight: 72)
-                        .padding(8)
-                        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                        .focused($focusedEditor, equals: .reply)
-                        .accessibilityIdentifier("CommentReplyEditor")
-                    HStack(spacing: 8) {
-                        AgentMentionPicker(agents: mentionableAgents) { agent in
-                            appendAgentMention(agent, to: &replyDraft)
-                            focusedEditor = .reply
-                        }
-                        .disabled(mentionableAgents.isEmpty || isSaving)
-                        .accessibilityIdentifier("CommentReplyAgentMentionButton")
-
-                        PhotosPicker(
-                            selection: $selectedReplyImageItem,
-                            matching: .images
-                        ) {
-                            if isUploadingReplyAttachment {
-                                ProgressView()
-                            } else {
-                                Label(AppStrings.localized("Add Image", language: appLanguage), systemImage: "photo")
-                            }
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(isSaving || isUploadingReplyAttachment)
-                        .accessibilityIdentifier("CommentReplyAddImageButton")
-
-                        Button {
-                            showReplyAttachmentImporter = true
-                        } label: {
-                            if isUploadingReplyAttachment {
-                                ProgressView()
-                            } else {
-                                Label(AppStrings.localized("Add Attachment", language: appLanguage), systemImage: "paperclip")
-                            }
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(isSaving || isUploadingReplyAttachment)
-                        .accessibilityIdentifier("CommentReplyAddAttachmentButton")
-
-                        Spacer()
-
-                        if focusedEditor == .reply {
-                            Button {
-                                focusedEditor = nil
-                                dismissIssueDetailKeyboard()
-                            } label: {
-                                Image(systemName: "keyboard.chevron.compact.down")
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel(AppStrings.localized("Dismiss Keyboard", language: appLanguage))
-                            .accessibilityIdentifier("CommentReplyDismissKeyboardButton")
-                        }
-
-                        Button(AppStrings.localized("Cancel", language: appLanguage)) {
-                            replyDraft = ""
-                            replyDraftAgentMentions = []
-                            isReplying = false
-                            focusedEditor = nil
-                        }
-                        .buttonStyle(.borderless)
-
-                        Button {
-                            Task { await submitReply() }
-                        } label: {
-                            if isSaving {
-                                ProgressView()
-                            } else {
-                                Text(AppStrings.localized("Reply", language: appLanguage))
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isSaving || isUploadingReplyAttachment || !canSubmitReply)
-                    }
-                }
-            }
         }.padding(.horizontal).padding(.vertical, 6)
-            .fileImporter(
-                isPresented: $showReplyAttachmentImporter,
-                allowedContentTypes: [.item],
-                allowsMultipleSelection: false
-            ) { result in
-                handleReplyAttachmentImport(result)
-            }
-            .onChange(of: selectedReplyImageItem) { _, item in
-                handleReplyImageSelection(item)
-            }
             .alert(AppStrings.localized("Delete Comment", language: appLanguage), isPresented: $showDeleteConfirmation) {
                 Button(AppStrings.localized("Delete", language: appLanguage), role: .destructive) {
                     Task {
@@ -1345,21 +1493,10 @@ public struct CommentRowView: View {
         comment.authorId == currentUserId
     }
 
-    private var canSubmitReply: Bool {
-        !replyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !replyAttachments.isEmpty
-    }
-
-    private func openReplyEditor() {
-        replyDraft = ""
-        replyDraftAgentMentions = []
-        isReplying = true
-        focusEditor(.reply)
-    }
-
-    private func focusEditor(_ editor: CommentEditorFocus) {
+    private func focusEdit() {
         Task { @MainActor in
             await Task.yield()
-            focusedEditor = editor
+            isEditFocused = true
         }
     }
 
@@ -1370,64 +1507,7 @@ public struct CommentRowView: View {
         if saved {
             editDraft = ""
             isEditing = false
-            focusedEditor = nil
-        }
-    }
-
-    private func submitReply() async {
-        isSaving = true
-        defer { isSaving = false }
-        let content = IssueDetailViewModel.serializeMentionDraft(replyDraft, mentions: replyDraftAgentMentions)
-        let submitted = await onReply(comment.id, content)
-        if submitted {
-            replyDraft = ""
-            replyDraftAgentMentions = []
-            isReplying = false
-            focusedEditor = nil
-        }
-    }
-
-    private func appendAgentMention(_ agent: Agent, to draft: inout String) {
-        IssueDetailViewModel.appendAgentMention(agent, to: &draft, mentions: &replyDraftAgentMentions)
-    }
-
-    private func handleReplyAttachmentImport(_ result: Result<[URL], Error>) {
-        do {
-            guard let url = try result.get().first else { return }
-            let payload = try AttachmentImport.payload(from: url)
-            replyAttachmentError = nil
-            Task {
-                let uploaded = await onUploadReplyAttachment(comment.id, payload)
-                if !uploaded {
-                    replyAttachmentError = AppStrings.localized("Upload failed.", language: appLanguage)
-                }
-            }
-        } catch {
-            replyAttachmentError = error.localizedDescription
-        }
-    }
-
-    private func handleReplyImageSelection(_ item: PhotosPickerItem?) {
-        guard let item else { return }
-        Task { @MainActor in
-            defer { selectedReplyImageItem = nil }
-            do {
-                guard let data = try await item.loadTransferable(type: Data.self) else {
-                    throw AttachmentImportError.unreadableImage
-                }
-                let payload = try AttachmentImport.imagePayload(
-                    data: data,
-                    contentType: item.supportedContentTypes.first { $0.conforms(to: .image) },
-                    filenamePrefix: "reply-image"
-                )
-                replyAttachmentError = nil
-                let uploaded = await onUploadReplyAttachment(comment.id, payload)
-                if !uploaded {
-                    replyAttachmentError = AppStrings.localized("Upload failed.", language: appLanguage)
-                }
-            } catch {
-                replyAttachmentError = error.localizedDescription
-            }
+            isEditFocused = false
         }
     }
 
@@ -1442,11 +1522,6 @@ public struct CommentRowView: View {
             )
         }
     }
-}
-
-private enum CommentEditorFocus: Hashable {
-    case edit
-    case reply
 }
 
 private struct AgentMentionPicker: View {

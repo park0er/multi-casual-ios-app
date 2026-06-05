@@ -1247,6 +1247,33 @@ final class IssueDetailViewModelTests: XCTestCase {
         )
     }
 
+    func test_replyUsesBottomComposerInsteadOfInlineRowEditor() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceURL = root.appendingPathComponent("Multi-Casual/Features/Issues/IssueDetailView.swift")
+        let source = try String(contentsOf: sourceURL)
+
+        XCTAssertTrue(
+            source.contains("activeReplyTarget"),
+            "IssueDetailView should own the selected reply target so the bottom composer can switch modes."
+        )
+        XCTAssertTrue(
+            source.contains("IssueDetailReplyInput"),
+            "Reply mode should render a dedicated bottom reply input in place of the normal comment input."
+        )
+        XCTAssertTrue(
+            source.contains("IssueDetailCancelReplyButton"),
+            "The bottom reply composer needs an explicit way to return to normal comment mode."
+        )
+        XCTAssertFalse(
+            source.contains("if isReplying"),
+            "Comment rows should not open inline reply editors that compete with the bottom composer."
+        )
+        XCTAssertFalse(
+            source.contains("CommentReplyEditor"),
+            "Reply text entry should live in the bottom composer, not inside each comment row."
+        )
+    }
+
     func test_commentMarkdownContextResolvesMemberAndAgentMentionNames() throws {
         let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: makeClient { req in
             XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
