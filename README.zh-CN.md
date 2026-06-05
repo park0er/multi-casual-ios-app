@@ -1,12 +1,19 @@
-# Multica iOS App
+# Multi Casual iOS App
 
-这是一个已经在内部业务中使用的 SwiftUI iOS 客户端，用来把 Multica Web 端核心 workspace 和 Agent 管理工作流带到 iPhone 上。
+这是一个已经在内部业务中使用的 SwiftUI iOS 客户端，用来对接 Multica 官方云服务，并把 Multica Web 端核心 workspace 和 Agent 管理工作流带到 iPhone 上。
 
-> 当前状态：公开源码评审 / 上游贡献提案。这个仓库不是 Multica 官方 App。代码仅按仓库的 source-review license 公开用于评审；未经书面许可，不得复制、改造、再发布、分发 build，也不得暗示这是 Multica 官方 App。
+> 当前状态：公开源码评审 / 上游贡献提案。这个仓库是对接 Multica 官方云服务的独立 iOS 客户端，不是 Multica 官方 App。代码仅按仓库的 source-review license 公开用于评审；未经书面许可，不得复制、改造、再发布、分发 build，也不得暗示这是 Multica 官方 App。
 
 ## 项目是什么
 
-Multica iOS App 是一个原生 iOS 客户端，连接 Multica API，把 Web 产品里的 workspace 工作流带到手机上。它不是一个半吊子的 demo：这个 App 已经进入我们的企业内部业务流程，并且目标是成为 Web 端的完整移动端对标实现。
+Multi Casual iOS App 是一个原生 iOS 客户端，连接 Multica 官方云 API，把 Multica Web 产品里的 workspace 工作流带到手机上。它不是一个半吊子的 demo：这个 App 已经进入我们的企业内部业务流程，并且目标是成为 Web 端的完整移动端对标实现。
+
+这里改名只针对这个 iOS 客户端项目和 GitHub 仓库名；服务对接仍然是 Multica。部分源码路径、scheme、bundle ID 和 API 域名仍保留 Multica 标识，这样当前 App 代码和构建 target 可以暂时不动。
+
+Multica 官方链接：
+
+- Multica 云服务：https://multica.ai/
+- Multica 官方开源项目：https://github.com/multica-ai/multica
 
 - Inbox 和 Chat 入口。
 - Issues 和 My Issues 工作流。
@@ -29,8 +36,8 @@ Multica iOS App 是一个原生 iOS 客户端，连接 Multica API，把 Web 产
 
 交互演示视频通过 HyperFrames 生成，素材来自真实 simulator 操作录屏：
 
-- 英文版：https://github.com/park0er/Multi-Casual/releases/download/demo-2026-05-08/multica-ios-interactive-demo-en.mp4
-- 中文版：https://github.com/park0er/Multi-Casual/releases/download/demo-2026-05-08/multica-ios-interactive-demo-zh.mp4
+- 英文版：https://github.com/park0er/multi-casual-ios-app/releases/download/demo-2026-05-08/multica-ios-interactive-demo-en.mp4
+- 中文版：https://github.com/park0er/multi-casual-ios-app/releases/download/demo-2026-05-08/multica-ios-interactive-demo-zh.mp4
 
 这些 walkthrough 已通过 `demo-2026-05-08` GitHub Release 发布。
 
@@ -90,23 +97,6 @@ xcrun simctl list devices available
 swift test --scratch-path /tmp/multicaapp-swift-test-20260508
 316 tests, 0 failures
 ```
-
-## 上游贡献策略
-
-建议先联系 Multica maintainers，不要直接一次性开巨大 PR：
-
-1. 先问清楚他们更希望这个项目 upstream、成为官方 companion app 候选，还是作为独立 community client。
-2. 确认 license、命名、品牌、API 兼容和 roadmap 边界。
-3. 如果上游愿意接收，建议拆成多个可 review 的 PR：
-   - 项目骨架、auth、workspace、networking。
-   - Issues 列表、详情、评论、创建和编辑。
-   - Inbox、Projects、Settings 和 Agent 管理。
-   - 本地化、性能、UI polish 和 QA。
-
-参考：
-
-- `docs/reports/ios_contribution_and_install_manual_zh_2026-05-08.md`
-- `docs/contact/multica_upstream_contact_draft_2026-05-08.md`
 
 ## License
 

@@ -1,14 +1,21 @@
-# Multica iOS App
+# Multi Casual iOS App
 
 [中文版](README.zh-CN.md)
 
-A production-used SwiftUI iOS client for Multica, built to bring the Multica web app's core workspace and agent-management workflows to iPhone.
+A production-used SwiftUI iOS client for Multica's official cloud service, built to bring the Multica web app's core workspace and agent-management workflows to iPhone.
 
-> Status: public source review / upstream contribution proposal. This repository is not an official Multica app. The code is public for review only under the repository's source-review license; do not copy, redistribute, publish builds, or imply official Multica endorsement unless separate written permission is granted.
+> Status: public source review / upstream contribution proposal. This repository is an independent iOS client for Multica's official cloud service, not an official Multica app. The code is public for review only under the repository's source-review license; do not copy, redistribute, publish builds, or imply official Multica endorsement unless separate written permission is granted.
 
 ## What It Is
 
-Multica iOS App is a native iOS client that connects to Multica APIs and brings the web product's workspace workflows to iPhone. It is not a throwaway prototype: it has been used in our internal company workflow and is designed as a full mobile counterpart to the web app.
+Multi Casual iOS App is a native iOS client that connects to Multica's official cloud APIs and brings the Multica web product's workspace workflows to iPhone. It is not a throwaway prototype: it has been used in our internal company workflow and is designed as a full mobile counterpart to the web app.
+
+Only this client project's public name and GitHub repository name have moved to Multi Casual. The service integration remains Multica, and some source paths, schemes, bundle IDs, and API domains still contain Multica identifiers so the current app code and build targets remain unchanged.
+
+Official Multica links:
+
+- Multica cloud service: https://multica.ai/
+- Multica official open-source project: https://github.com/multica-ai/multica
 
 - Inbox and Chat entry points.
 - Issues and My Issues workflows.
@@ -31,8 +38,8 @@ The repository remains a contribution proposal, not an official Multica release.
 
 Interactive simulator walkthroughs are generated with HyperFrames from real app interaction recordings:
 
-- English: https://github.com/park0er/Multi-Casual/releases/download/demo-2026-05-08/multica-ios-interactive-demo-en.mp4
-- Chinese: https://github.com/park0er/Multi-Casual/releases/download/demo-2026-05-08/multica-ios-interactive-demo-zh.mp4
+- English: https://github.com/park0er/multi-casual-ios-app/releases/download/demo-2026-05-08/multica-ios-interactive-demo-en.mp4
+- Chinese: https://github.com/park0er/multi-casual-ios-app/releases/download/demo-2026-05-08/multica-ios-interactive-demo-zh.mp4
 
 The files are published through the `demo-2026-05-08` GitHub Release.
 
@@ -92,23 +99,6 @@ Recent local verification:
 swift test --scratch-path /tmp/multicaapp-swift-test-20260508
 316 tests, 0 failures
 ```
-
-## Upstream Contribution Strategy
-
-The recommended upstream path is to contact Multica maintainers before opening a large PR:
-
-1. Ask whether this should be upstreamed, become an official companion app candidate, or remain an independent community client.
-2. Confirm license, naming, branding, and API compatibility expectations.
-3. If upstreaming is welcome, split work into reviewable PRs:
-   - Scaffold/auth/workspace/networking.
-   - Issues list/detail/comment/create/edit flows.
-   - Inbox, Projects, Settings, and Agent management.
-   - Localization, performance, UI polish, and QA.
-
-See:
-
-- `docs/reports/ios_contribution_and_install_manual_2026-05-08.md`
-- `docs/contact/multica_upstream_contact_draft_2026-05-08.md`
 
 ## License
 
