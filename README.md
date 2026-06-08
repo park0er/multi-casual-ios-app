@@ -2,20 +2,22 @@
 
 [中文版](README.zh-CN.md)
 
-A production-used SwiftUI iOS client for multi-casual's official cloud service, built to bring the multi-casual web app's core workspace and agent-management workflows to iPhone.
+A production-used SwiftUI iOS client for Multica's official cloud service, built to bring the Multica web app's core workspace and agent-management workflows to iPhone.
 
-> Status: public source review / upstream contribution proposal. This repository is an independent iOS client for multi-casual's official cloud service, not an official multi-casual app. The code is public for review only under the repository's source-review license; do not copy, redistribute, publish builds, or imply official multi-casual endorsement unless separate written permission is granted.
+> Status: public source review / upstream contribution proposal. This repository is an independent iOS client for Multica's official cloud service, not an official Multica app. The code is public for review only under the repository's source-review license; do not copy, redistribute, publish builds, or imply official Multica endorsement unless separate written permission is granted.
 
 ## What It Is
 
-Multi Casual iOS App is a native iOS client that connects to multi-casual's official cloud APIs and brings the multi-casual web product's workspace workflows to iPhone. It is not a throwaway prototype: it has been used in our internal company workflow and is designed as a full mobile counterpart to the web app.
+Multi Casual iOS App is a native iOS client that connects to Multica's official cloud APIs and brings the Multica web product's workspace workflows to iPhone. It is not a throwaway prototype: it has been used in our internal company workflow and is designed as a full mobile counterpart to the web app.
 
-Only this client project's public name and GitHub repository name have moved to Multi Casual. The service integration remains multi-casual, and some source paths, schemes, bundle IDs, and API domains still contain multi-casual identifiers so the current app code and build targets remain unchanged.
+Only this iOS client project's public name and GitHub repository name use "Multi Casual". The backend service integration targets Multica, and some source paths, schemes, bundle IDs, and API domains still contain Multica identifiers so the current app code and build targets remain unchanged.
 
-Official multi-casual links:
+友情 Multica 链接：
 
-- Multica cloud service: https://multica.ai/
-- Multica official open-source project: https://github.com/multica-ai/multica
+- Multica 云服务：https://multica.ai/
+- Multica 官方开源项目：https://github.com/multica-ai/multica
+
+## 主要功能
 
 - Inbox and Chat entry points.
 - Issues and My Issues workflows.
@@ -32,7 +34,7 @@ The app is written in SwiftUI and organized as a Swift Package plus an Xcode hos
 
 This project aims for practical web parity rather than a narrow demo. The current implementation covers the everyday loop we use internally: monitor Inbox and Chat, triage Issues, inspect issue details and comments, create/edit/reassign work, review Projects, and manage Agents/Runtimes/Skills/Autopilots from Settings.
 
-The repository remains a contribution proposal, not an official multi-casual release. The point of opening it is to let multi-casual maintainers review a substantially complete iOS implementation and decide the right path: upstream, official companion app, or a separately maintained client.
+The repository remains a contribution proposal, not an official Multica release. The point of opening it is to let Multica maintainers review a substantially complete iOS implementation and decide the right path: upstream, official companion app, or a separately maintained client.
 
 ## Implementation Scope
 
@@ -84,7 +86,7 @@ Multi-CasualUITests/      Simulator UI coverage and demo walkthrough helpers
 - Xcode 17 or newer.
 - iOS Simulator runtime compatible with the project settings.
 - Swift 5.9 package tools or newer.
-- A multi-casual account and API access for authenticated/manual testing.
+- A Multica account and API access for authenticated/manual testing.
 
 ## Build
 
@@ -92,13 +94,13 @@ The repository can build two iOS app packages from the same Swift codebase:
 
 | Package | Scheme | Bundle ID | API |
 | --- | --- | --- | --- |
-| multi-casual official cloud | `Multi-CasualHost` | `ai.multi-casual.app` | `https://api.multi-casual.ai` |
-| Xiaomi self-hosted | `Multi-Casual-Xiaomi` | `ai.multi-casual.app.xiaomi` | `http://staging-multi-casual.ad.xiaomi.srv` |
+| Multica official cloud | `Multi-CasualHost` | `ai.multi-casual.app` | `https://api.multi-casual.ai` |
+| Xiaomi self-hosted | `Multi-Casual-Xiaomi` | `ai.multi-casual.app.xiaomi` | `http://staging-multica.ad.xiaomi.srv` |
 
 The packages stay separate because they use different server identities, auth tokens, WebSocket endpoints, URL schemes, Keychain services, APNs topics, and release channels.
 
 ```bash
-swift test --scratch-path /tmp/multi-casualapp-swift-test
+swift test --scratch-path /tmp/multi-casual-swift-test
 
 xcodebuild build \
   -project Multi-Casual.xcodeproj \
@@ -128,7 +130,7 @@ xcrun simctl list devices available
 The current suite covers:
 
 - API request shapes and workspace scoping.
-- Model decoding for multi-casual desktop/web API responses.
+- Model decoding for Multica desktop/web API responses.
 - Issue list/detail/create/edit view models.
 - Project, Inbox, Chat, Agent, Runtime, Skill, Autopilot, Label, token, notification, and workspace settings view models.
 - Markdown block and inline rendering, including pipe tables.
@@ -137,7 +139,7 @@ The current suite covers:
 Recent local verification:
 
 ```text
-swift test --scratch-path /tmp/multi-casualapp-swift-test-20260508
+swift test --scratch-path /tmp/multi-casual-swift-test
 316 tests, 0 failures
 ```
 
