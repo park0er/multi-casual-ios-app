@@ -434,7 +434,7 @@
 				MULTI_CASUAL_URL_SCHEME = ai.multi-casual.app;
 				MULTI_CASUAL_WS_URL = "wss://api.multi-casual.ai/ws";
 				PRODUCT_BUNDLE_IDENTIFIER = ai.multi-casual.app;
-				PRODUCT_MODULE_NAME = Multi-CasualHost;
+				PRODUCT_MODULE_NAME = MultiCasualHost;
 				PRODUCT_NAME = Multi-Casual;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.9;
@@ -468,7 +468,7 @@
 				MULTI_CASUAL_URL_SCHEME = ai.multi-casual.app;
 				MULTI_CASUAL_WS_URL = "wss://api.multi-casual.ai/ws";
 				PRODUCT_BUNDLE_IDENTIFIER = ai.multi-casual.app;
-				PRODUCT_MODULE_NAME = Multi-CasualHost;
+				PRODUCT_MODULE_NAME = MultiCasualHost;
 				PRODUCT_NAME = Multi-Casual;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.9;
@@ -542,7 +542,7 @@
 				MULTI_CASUAL_URL_SCHEME = ai.multi-casual.app.xiaomi;
 				MULTI_CASUAL_WS_URL = "ws://staging-multica.ad.xiaomi.srv/ws";
 				PRODUCT_BUNDLE_IDENTIFIER = ai.multi-casual.app.xiaomi;
-				PRODUCT_MODULE_NAME = Multi-CasualHost;
+				PRODUCT_MODULE_NAME = MultiCasualHost;
 				PRODUCT_NAME = Multi-CasualXiaomi;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.9;
@@ -576,7 +576,7 @@
 				MULTI_CASUAL_URL_SCHEME = ai.multi-casual.app.xiaomi;
 				MULTI_CASUAL_WS_URL = "ws://staging-multica.ad.xiaomi.srv/ws";
 				PRODUCT_BUNDLE_IDENTIFIER = ai.multi-casual.app.xiaomi;
-				PRODUCT_MODULE_NAME = Multi-CasualHost;
+				PRODUCT_MODULE_NAME = MultiCasualHost;
 				PRODUCT_NAME = Multi-CasualXiaomi;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.9;
@@ -635,11 +635,11 @@
 /* Begin XCSwiftPackageProductDependency section */
 		1A0000000000000000000061 /* Multi-Casual */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = Multi-Casual;
+			productName = MultiCasual;
 		};
 		3A0000000000000000000061 /* Multi-Casual */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = Multi-Casual;
+			productName = MultiCasual;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

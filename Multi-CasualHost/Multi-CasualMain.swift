@@ -1,10 +1,10 @@
 import SwiftUI
 import UserNotifications
 import UIKit
-import Multi-Casual
+import MultiCasual
 
 @main
-struct Multi-CasualMain: App {
+struct MultiCasualMain: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var authSession = AuthSession(keychain: KeychainStore(service: AppEnvironment.current.keychainService))
     @State private var apiClient = APIClient(baseURL: AppEnvironment.current.apiBaseURL)

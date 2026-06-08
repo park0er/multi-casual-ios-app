@@ -1,7 +1,7 @@
 import SwiftUI
 import UserNotifications
 import UIKit
-import Multi-Casual
+import MultiCasual
 
 struct RootView: View {
     @Environment(AuthSession.self) private var authSession
