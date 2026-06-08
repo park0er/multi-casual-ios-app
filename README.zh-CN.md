@@ -32,15 +32,6 @@ multi-casual 官方链接：
 
 仓库目前仍然是贡献提案，不是 multi-casual 官方发布版本。公开它的目的，是让 multi-casual maintainers 能审阅一个已经相当完整的 iOS 实现，然后决定它应该 upstream、成为官方 companion app，还是作为单独维护的客户端继续推进。
 
-## 演示视频
-
-交互演示视频通过 HyperFrames 生成，素材来自真实 simulator 操作录屏：
-
-- 英文版：https://github.com/park0er/multi-casual-ios-app/releases/download/demo-2026-05-08/multi-casual-ios-interactive-demo-en.mp4
-- 中文版：https://github.com/park0er/multi-casual-ios-app/releases/download/demo-2026-05-08/multi-casual-ios-interactive-demo-zh.mp4
-
-这些 walkthrough 已通过 `demo-2026-05-08` GitHub Release 发布。
-
 ## 目录结构
 
 ```text
@@ -51,8 +42,6 @@ Multi-Casual/
 Multi-CasualHost/         iOS app host target
 Multi-CasualTests/        SwiftPM/XCTest 测试
 Multi-CasualUITests/      Simulator UI 测试和 demo walkthrough
-docs/                   报告、walkthrough、联系上游草稿和发布清单
-artifacts/              生成的 demo/video artifacts
 ```
 
 ## 环境要求

@@ -67,15 +67,6 @@ The API surface currently spans:
 | Chat | Chat sessions, messages, session creation/archive, pending tasks, read state, and task cancellation. |
 | Settings tools | Uploads, attachments, labels, pins, subscribers, notification preferences, personal access tokens, feedback, and push-token registration. |
 
-## Demo Videos
-
-Interactive simulator walkthroughs are generated with HyperFrames from real app interaction recordings:
-
-- English: https://github.com/park0er/multi-casual-ios-app/releases/download/demo-2026-05-08/multi-casual-ios-interactive-demo-en.mp4
-- Chinese: https://github.com/park0er/multi-casual-ios-app/releases/download/demo-2026-05-08/multi-casual-ios-interactive-demo-zh.mp4
-
-The files are published through the `demo-2026-05-08` GitHub Release.
-
 ## Repository Layout
 
 ```text
@@ -86,8 +77,6 @@ Multi-Casual/
 Multi-CasualHost/         iOS app host target
 Multi-CasualTests/        SwiftPM/XCTest coverage
 Multi-CasualUITests/      Simulator UI coverage and demo walkthrough helpers
-docs/                   Reports, walkthroughs, contact drafts, and release notes
-artifacts/              Generated demo/video artifacts
 ```
 
 ## Requirements
