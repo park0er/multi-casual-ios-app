@@ -15,7 +15,7 @@ let package = Package(
     targets: [
         .target(
             name: "MultiCasual",
-            path: "MultiCasual",
+            path: "Multi-Casual",
             sources: ["Models", "Core", "Features"]
         ),
         .executableTarget(

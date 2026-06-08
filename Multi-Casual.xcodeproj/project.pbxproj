@@ -195,7 +195,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 1A0000000000000000000050 /* Build configuration list for PBXProject "MultiCasual" */;
+			buildConfigurationList = 1A0000000000000000000050 /* Build configuration list for PBXProject "Multi-Casual" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -425,15 +425,15 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				MULTICA_ALLOWED_EMAIL_DOMAIN_HINT = "";
-				MULTICA_API_BASE_URL = "https://api.multica.ai";
-				MULTICA_APP_URL = "https://app.multica.ai";
-				MULTICA_DISPLAY_NAME = Multica;
-				MULTICA_ENVIRONMENT = official;
-				MULTICA_KEYCHAIN_SERVICE = ai.multica.app;
-				MULTICA_URL_SCHEME = ai.multica.app;
-				MULTICA_WS_URL = "wss://api.multica.ai/ws";
-				PRODUCT_BUNDLE_IDENTIFIER = ai.multica.app;
+				MULTI_CASUAL_ALLOWED_EMAIL_DOMAIN_HINT = "";
+				MULTI_CASUAL_API_BASE_URL = "https://api.multi-casual.ai";
+				MULTI_CASUAL_APP_URL = "https://app.multi-casual.ai";
+				MULTI_CASUAL_DISPLAY_NAME = Multi-Casual;
+				MULTI_CASUAL_ENVIRONMENT = official;
+				MULTI_CASUAL_KEYCHAIN_SERVICE = ai.multi-casual.app;
+				MULTI_CASUAL_URL_SCHEME = ai.multi-casual.app;
+				MULTI_CASUAL_WS_URL = "wss://api.multi-casual.ai/ws";
+				PRODUCT_BUNDLE_IDENTIFIER = ai.multi-casual.app;
 				PRODUCT_MODULE_NAME = Multi-CasualHost;
 				PRODUCT_NAME = Multi-Casual;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -459,15 +459,15 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				MULTICA_ALLOWED_EMAIL_DOMAIN_HINT = "";
-				MULTICA_API_BASE_URL = "https://api.multica.ai";
-				MULTICA_APP_URL = "https://app.multica.ai";
-				MULTICA_DISPLAY_NAME = Multica;
-				MULTICA_ENVIRONMENT = official;
-				MULTICA_KEYCHAIN_SERVICE = ai.multica.app;
-				MULTICA_URL_SCHEME = ai.multica.app;
-				MULTICA_WS_URL = "wss://api.multica.ai/ws";
-				PRODUCT_BUNDLE_IDENTIFIER = ai.multica.app;
+				MULTI_CASUAL_ALLOWED_EMAIL_DOMAIN_HINT = "";
+				MULTI_CASUAL_API_BASE_URL = "https://api.multi-casual.ai";
+				MULTI_CASUAL_APP_URL = "https://app.multi-casual.ai";
+				MULTI_CASUAL_DISPLAY_NAME = Multi-Casual;
+				MULTI_CASUAL_ENVIRONMENT = official;
+				MULTI_CASUAL_KEYCHAIN_SERVICE = ai.multi-casual.app;
+				MULTI_CASUAL_URL_SCHEME = ai.multi-casual.app;
+				MULTI_CASUAL_WS_URL = "wss://api.multi-casual.ai/ws";
+				PRODUCT_BUNDLE_IDENTIFIER = ai.multi-casual.app;
 				PRODUCT_MODULE_NAME = Multi-CasualHost;
 				PRODUCT_NAME = Multi-Casual;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -488,7 +488,7 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ai.multica.appUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.multi-casual.appUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -508,7 +508,7 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ai.multica.appUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.multi-casual.appUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -533,15 +533,15 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				MULTICA_ALLOWED_EMAIL_DOMAIN_HINT = "@xiaomi.com";
-				MULTICA_API_BASE_URL = "http://staging-multica.ad.xiaomi.srv";
-				MULTICA_APP_URL = "http://staging-multica.ad.xiaomi.srv";
-				MULTICA_DISPLAY_NAME = "Multica Xiaomi";
-				MULTICA_ENVIRONMENT = xiaomi;
-				MULTICA_KEYCHAIN_SERVICE = ai.multica.app.xiaomi;
-				MULTICA_URL_SCHEME = ai.multica.app.xiaomi;
-				MULTICA_WS_URL = "ws://staging-multica.ad.xiaomi.srv/ws";
-				PRODUCT_BUNDLE_IDENTIFIER = ai.multica.app.xiaomi;
+				MULTI_CASUAL_ALLOWED_EMAIL_DOMAIN_HINT = "@xiaomi.com";
+				MULTI_CASUAL_API_BASE_URL = "http://staging-multica.ad.xiaomi.srv";
+				MULTI_CASUAL_APP_URL = "http://staging-multica.ad.xiaomi.srv";
+				MULTI_CASUAL_DISPLAY_NAME = "Multi-Casual Xiaomi";
+				MULTI_CASUAL_ENVIRONMENT = xiaomi;
+				MULTI_CASUAL_KEYCHAIN_SERVICE = ai.multi-casual.app.xiaomi;
+				MULTI_CASUAL_URL_SCHEME = ai.multi-casual.app.xiaomi;
+				MULTI_CASUAL_WS_URL = "ws://staging-multica.ad.xiaomi.srv/ws";
+				PRODUCT_BUNDLE_IDENTIFIER = ai.multi-casual.app.xiaomi;
 				PRODUCT_MODULE_NAME = Multi-CasualHost;
 				PRODUCT_NAME = Multi-CasualXiaomi;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -567,15 +567,15 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				MULTICA_ALLOWED_EMAIL_DOMAIN_HINT = "@xiaomi.com";
-				MULTICA_API_BASE_URL = "http://staging-multica.ad.xiaomi.srv";
-				MULTICA_APP_URL = "http://staging-multica.ad.xiaomi.srv";
-				MULTICA_DISPLAY_NAME = "Multica Xiaomi";
-				MULTICA_ENVIRONMENT = xiaomi;
-				MULTICA_KEYCHAIN_SERVICE = ai.multica.app.xiaomi;
-				MULTICA_URL_SCHEME = ai.multica.app.xiaomi;
-				MULTICA_WS_URL = "ws://staging-multica.ad.xiaomi.srv/ws";
-				PRODUCT_BUNDLE_IDENTIFIER = ai.multica.app.xiaomi;
+				MULTI_CASUAL_ALLOWED_EMAIL_DOMAIN_HINT = "@xiaomi.com";
+				MULTI_CASUAL_API_BASE_URL = "http://staging-multica.ad.xiaomi.srv";
+				MULTI_CASUAL_APP_URL = "http://staging-multica.ad.xiaomi.srv";
+				MULTI_CASUAL_DISPLAY_NAME = "Multi-Casual Xiaomi";
+				MULTI_CASUAL_ENVIRONMENT = xiaomi;
+				MULTI_CASUAL_KEYCHAIN_SERVICE = ai.multi-casual.app.xiaomi;
+				MULTI_CASUAL_URL_SCHEME = ai.multi-casual.app.xiaomi;
+				MULTI_CASUAL_WS_URL = "ws://staging-multica.ad.xiaomi.srv/ws";
+				PRODUCT_BUNDLE_IDENTIFIER = ai.multi-casual.app.xiaomi;
 				PRODUCT_MODULE_NAME = Multi-CasualHost;
 				PRODUCT_NAME = Multi-CasualXiaomi;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -587,7 +587,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		1A0000000000000000000050 /* Build configuration list for PBXProject "MultiCasual" */ = {
+		1A0000000000000000000050 /* Build configuration list for PBXProject "Multi-Casual" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1A0000000000000000000051 /* Debug */,

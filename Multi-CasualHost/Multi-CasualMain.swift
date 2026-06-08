@@ -1,7 +1,7 @@
 import SwiftUI
 import UserNotifications
 import UIKit
-import MultiCasual
+import Multi-Casual
 
 @main
 struct Multi-CasualMain: App {
@@ -22,11 +22,11 @@ struct Multi-CasualMain: App {
                     apiClient.configure(authSession: authSession)
                     #if DEBUG
                     let env = ProcessInfo.processInfo.environment
-                    if let rawLanguage = env["MULTICA_DEBUG_APP_LANGUAGE"],
+                    if let rawLanguage = env["MULTI_CASUAL_DEBUG_APP_LANGUAGE"],
                        let language = AppLanguage(rawValue: rawLanguage) {
                         languageSettings.language = language
                     }
-                    if env["MULTICA_DEBUG_AUTH_STUB"] == "1" {
+                    if env["MULTI_CASUAL_DEBUG_AUTH_STUB"] == "1" {
                         authSession.currentUser = User(
                             id: "debug-user",
                             email: "debug@example.com",
@@ -34,22 +34,22 @@ struct Multi-CasualMain: App {
                             avatarUrl: nil
                         )
                         let workspace = Workspace(
-                            id: env["MULTICA_DEBUG_WORKSPACE_ID"] ?? "debug-workspace",
-                            name: env["MULTICA_DEBUG_WORKSPACE_NAME"] ?? "Debug Workspace",
-                            slug: env["MULTICA_DEBUG_WORKSPACE_SLUG"] ?? "debug",
-                            issuePrefix: env["MULTICA_DEBUG_WORKSPACE_PREFIX"] ?? "DBG"
+                            id: env["MULTI_CASUAL_DEBUG_WORKSPACE_ID"] ?? "debug-workspace",
+                            name: env["MULTI_CASUAL_DEBUG_WORKSPACE_NAME"] ?? "Debug Workspace",
+                            slug: env["MULTI_CASUAL_DEBUG_WORKSPACE_SLUG"] ?? "debug",
+                            issuePrefix: env["MULTI_CASUAL_DEBUG_WORKSPACE_PREFIX"] ?? "DBG"
                         )
                         authSession.workspaces = [workspace]
                         authSession.currentWorkspace = workspace
                         authSession.isLoading = false
                         return
                     }
-                    if env["MULTICA_DEBUG_FORCE_LOGIN_SCREEN"] == "1" {
+                    if env["MULTI_CASUAL_DEBUG_FORCE_LOGIN_SCREEN"] == "1" {
                         authSession.isLoading = false
                         return
                     }
-                    try? authSession.installDebugToken(env["MULTICA_DEBUG_TOKEN"])
-                    let preferredWorkspaceId = env["MULTICA_DEBUG_WORKSPACE_ID"]
+                    try? authSession.installDebugToken(env["MULTI_CASUAL_DEBUG_TOKEN"])
+                    let preferredWorkspaceId = env["MULTI_CASUAL_DEBUG_WORKSPACE_ID"]
                     #else
                     let preferredWorkspaceId: String? = nil
                     #endif

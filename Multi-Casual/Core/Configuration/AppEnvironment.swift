@@ -21,23 +21,23 @@ public struct AppEnvironment: Equatable, Sendable {
 
     public static let official = AppEnvironment(
         kind: .official,
-        displayName: "Multica",
-        apiBaseURL: URL(string: "https://api.multica.ai")!,
-        appURL: URL(string: "https://app.multica.ai")!,
-        webSocketURL: URL(string: "wss://api.multica.ai/ws")!,
-        urlScheme: "ai.multica.app",
-        keychainService: "ai.multica.app",
+        displayName: "Multi-Casual",
+        apiBaseURL: URL(string: "https://api.multi-casual.ai")!,
+        appURL: URL(string: "https://app.multi-casual.ai")!,
+        webSocketURL: URL(string: "wss://api.multi-casual.ai/ws")!,
+        urlScheme: "ai.multi-casual.app",
+        keychainService: "ai.multi-casual.app",
         allowedEmailDomainHint: nil
     )
 
     public static let xiaomi = AppEnvironment(
         kind: .xiaomi,
-        displayName: "Multica Xiaomi",
+        displayName: "Multi-Casual Xiaomi",
         apiBaseURL: URL(string: "http://staging-multica.ad.xiaomi.srv")!,
         appURL: URL(string: "http://staging-multica.ad.xiaomi.srv")!,
         webSocketURL: URL(string: "ws://staging-multica.ad.xiaomi.srv/ws")!,
-        urlScheme: "ai.multica.app.xiaomi",
-        keychainService: "ai.multica.app.xiaomi",
+        urlScheme: "ai.multi-casual.app.xiaomi",
+        keychainService: "ai.multi-casual.app.xiaomi",
         allowedEmailDomainHint: "@xiaomi.com"
     )
 
@@ -70,17 +70,17 @@ public struct AppEnvironment: Equatable, Sendable {
     }
 
     public init(infoDictionary: [String: Any]) throws {
-        let kind = Kind(rawValue: Self.string("MULTICA_ENVIRONMENT", in: infoDictionary) ?? "") ?? .official
+        let kind = Kind(rawValue: Self.string("MULTI_CASUAL_ENVIRONMENT", in: infoDictionary) ?? "") ?? .official
         let defaults: AppEnvironment = kind == .xiaomi ? .xiaomi : .official
 
         self.kind = kind
-        displayName = Self.string("MULTICA_DISPLAY_NAME", in: infoDictionary) ?? defaults.displayName
-        apiBaseURL = try Self.url("MULTICA_API_BASE_URL", in: infoDictionary) ?? defaults.apiBaseURL
-        appURL = try Self.url("MULTICA_APP_URL", in: infoDictionary) ?? defaults.appURL
-        webSocketURL = try Self.url("MULTICA_WS_URL", in: infoDictionary) ?? defaults.webSocketURL
-        urlScheme = Self.string("MULTICA_URL_SCHEME", in: infoDictionary) ?? defaults.urlScheme
-        keychainService = Self.string("MULTICA_KEYCHAIN_SERVICE", in: infoDictionary) ?? defaults.keychainService
-        allowedEmailDomainHint = Self.string("MULTICA_ALLOWED_EMAIL_DOMAIN_HINT", in: infoDictionary) ?? defaults.allowedEmailDomainHint
+        displayName = Self.string("MULTI_CASUAL_DISPLAY_NAME", in: infoDictionary) ?? defaults.displayName
+        apiBaseURL = try Self.url("MULTI_CASUAL_API_BASE_URL", in: infoDictionary) ?? defaults.apiBaseURL
+        appURL = try Self.url("MULTI_CASUAL_APP_URL", in: infoDictionary) ?? defaults.appURL
+        webSocketURL = try Self.url("MULTI_CASUAL_WS_URL", in: infoDictionary) ?? defaults.webSocketURL
+        urlScheme = Self.string("MULTI_CASUAL_URL_SCHEME", in: infoDictionary) ?? defaults.urlScheme
+        keychainService = Self.string("MULTI_CASUAL_KEYCHAIN_SERVICE", in: infoDictionary) ?? defaults.keychainService
+        allowedEmailDomainHint = Self.string("MULTI_CASUAL_ALLOWED_EMAIL_DOMAIN_HINT", in: infoDictionary) ?? defaults.allowedEmailDomainHint
     }
 
     private static func string(_ key: String, in dictionary: [String: Any]) -> String? {

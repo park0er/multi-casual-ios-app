@@ -5,6 +5,9 @@ public struct TimelineItem: Identifiable, Sendable {
     public let id: Int
     public let type: TaskMessage.MessageType
     public let tool: String?
+    public let content: String?
+    public let input: [String: JSONValue]?
+    public let output: String?
     public let summary: String
 }
 
@@ -72,10 +75,13 @@ extension TimelineItem {
         id = msg.seq
         type = msg.type
         tool = msg.tool
+        content = msg.content
+        input = msg.input
+        output = msg.output
         switch msg.type {
         case .toolUse:
             let toolName = msg.tool ?? "tool"
-            let inputSummary = msg.input?.first(where: { ["file_path", "query", "command"].contains($0.key) })
+            let inputSummary = msg.input?.first(where: { ["file_path", "path", "query", "command", "pattern", "prompt"].contains($0.key) })
                 .map { Self.shortenPath($0.value.displayString) } ?? ""
             summary = "\(toolName) \(inputSummary)".trimmingCharacters(in: .whitespaces)
         case .toolResult:

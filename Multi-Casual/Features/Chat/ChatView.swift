@@ -115,7 +115,9 @@ private struct ChatSessionRow: View {
 private struct ChatSessionDetailView: View {
     @Bindable var viewModel: ChatViewModel
     let session: ChatSession
+    @Environment(AuthSession.self) private var authSession
     @State private var draft = ""
+    @State private var subscriptionTask: Task<Void, Never>?
 
     var body: some View {
         List {
@@ -139,7 +141,18 @@ private struct ChatSessionDetailView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(viewModel.messages) { message in
-                        ChatMessageRow(message: message)
+                        ChatMessageRow(
+                            message: message,
+                            timeline: viewModel.timelineItems(for: message)
+                        )
+                    }
+                    if viewModel.shouldShowLiveTimeline {
+                        ChatLiveTimelineRow(
+                            pendingTask: viewModel.pendingTask,
+                            timeline: viewModel.visibleTimelineItems,
+                            isLoading: viewModel.isSending || viewModel.isLoadingTimeline,
+                            errorMessage: viewModel.timelineError
+                        )
                     }
                 }
             }
@@ -182,12 +195,37 @@ private struct ChatSessionDetailView: View {
             }
         }
         .markdownNavigationTitle(session.title)
-        .task { await viewModel.selectSession(session) }
+        .task {
+            await viewModel.selectSession(session)
+            subscribeToWebSocket()
+        }
+        .onDisappear {
+            subscriptionTask?.cancel()
+            subscriptionTask = nil
+        }
+    }
+
+    private func subscribeToWebSocket() {
+        subscriptionTask?.cancel()
+        guard let token = authSession.token(),
+              let workspaceId = authSession.currentWorkspace?.id,
+              !workspaceId.isEmpty
+        else { return }
+        subscriptionTask = Task {
+            await WebSocketActor.shared.connect(token: token, workspaceId: workspaceId)
+            for await event in await WebSocketActor.shared.subscribe(to: "task:message") {
+                guard !Task.isCancelled else { break }
+                await MainActor.run {
+                    viewModel.applyRealtimeTaskMessage(taskId: event.taskId, payload: event.payload)
+                }
+            }
+        }
     }
 }
 
 private struct ChatMessageRow: View {
     let message: ChatMessage
+    let timeline: [TimelineItem]
 
     var body: some View {
         HStack {
@@ -204,8 +242,12 @@ private struct ChatMessageRow: View {
 
     private func bubble(alignment: HorizontalAlignment, color: Color) -> some View {
         VStack(alignment: alignment, spacing: 4) {
-            MarkdownText(message.content)
-                .font(.body)
+            if message.role == .assistant, !timeline.isEmpty {
+                ChatTimelineView(items: timeline)
+            } else {
+                MarkdownText(message.content)
+                    .font(.body)
+            }
             if let failureReason = message.failureReason, !failureReason.isEmpty {
                 MarkdownText(failureReason)
                     .font(.caption)
@@ -219,6 +261,152 @@ private struct ChatMessageRow: View {
         .padding(10)
         .background(color, in: RoundedRectangle(cornerRadius: 8))
         .frame(maxWidth: 320, alignment: message.role == .assistant ? .leading : .trailing)
+    }
+}
+
+private struct ChatLiveTimelineRow: View {
+    let pendingTask: ChatPendingTask?
+    let timeline: [TimelineItem]
+    let isLoading: Bool
+    let errorMessage: String?
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    MarkdownText(statusText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                if let errorMessage {
+                    MarkdownText(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                } else if timeline.isEmpty {
+                    MarkdownText(isLoading ? "Loading agent activity" : "Waiting for agent updates")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ChatTimelineView(items: timeline)
+                }
+            }
+            .padding(10)
+            .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+            .frame(maxWidth: 320, alignment: .leading)
+            Spacer(minLength: 32)
+        }
+        .listRowSeparator(.hidden)
+    }
+
+    private var statusText: String {
+        if let status = pendingTask?.status, !status.isEmpty {
+            switch status {
+            case "queued", "pending":
+                return "Agent queued"
+            case "running", "in_progress":
+                return "Agent running"
+            default:
+                return "Agent \(status.replacingOccurrences(of: "_", with: " "))"
+            }
+        }
+        return "Thinking"
+    }
+}
+
+private struct ChatTimelineView: View {
+    let items: [TimelineItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            ForEach(items) { item in
+                ChatTimelineItemRow(item: item)
+            }
+        }
+    }
+}
+
+private struct ChatTimelineItemRow: View {
+    let item: TimelineItem
+
+    var body: some View {
+        switch item.type {
+        case .text:
+            MarkdownText(item.content ?? item.summary)
+                .font(.body)
+        case .toolUse:
+            DisclosureGroup {
+                if let input = item.input, !input.isEmpty {
+                    TimelinePreformattedBlock(title: "Tool Input", text: formattedJSON(input))
+                }
+            } label: {
+                timelineLabel(icon: "wrench", title: item.tool ?? "Tool Use", subtitle: item.summary)
+            }
+            .font(.caption)
+        case .toolResult:
+            DisclosureGroup {
+                TimelinePreformattedBlock(title: "Tool Output", text: item.output ?? "")
+            } label: {
+                timelineLabel(icon: "checkmark.circle", title: item.tool ?? "Result", subtitle: item.summary)
+            }
+            .font(.caption)
+        case .thinking:
+            DisclosureGroup {
+                TimelinePreformattedBlock(title: "Thinking", text: item.content ?? "")
+            } label: {
+                timelineLabel(icon: "brain", title: "Thinking", subtitle: item.summary)
+            }
+            .font(.caption)
+        case .error:
+            timelineLabel(icon: "exclamationmark.triangle", title: "Error", subtitle: item.summary)
+                .font(.caption)
+                .foregroundStyle(.red)
+        }
+    }
+
+    private func timelineLabel(icon: String, title: String, subtitle: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: icon)
+                .frame(width: 16)
+            MarkdownText(title)
+                .font(.caption.weight(.semibold))
+            if !subtitle.isEmpty, subtitle != title {
+                MarkdownText(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private func formattedJSON(_ value: [String: JSONValue]) -> String {
+        guard let data = try? JSONEncoder().encode(value),
+              let text = String(data: data, encoding: .utf8)
+        else { return value.map { "\($0.key): \($0.value.displayString)" }.joined(separator: "\n") }
+        return text
+    }
+}
+
+private struct TimelinePreformattedBlock: View {
+    let title: String
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            MarkdownText(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            ScrollView(.horizontal, showsIndicators: true) {
+                Text(text)
+                    .font(.system(.caption2, design: .monospaced))
+                    .textSelection(.enabled)
+                    .padding(8)
+            }
+            .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+        .padding(.top, 4)
     }
 }
 

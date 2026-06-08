@@ -1258,7 +1258,7 @@ public struct IssueDetailView: View {
         if url.scheme == "mention" {
             return .handled
         }
-        guard url.scheme == "multica",
+        guard url.scheme == "multi-casual",
               url.host == "issue-reference",
               let rawIdentifier = url.pathComponents.dropFirst().first,
               let identifier = rawIdentifier.removingPercentEncoding

@@ -197,10 +197,10 @@ public final class APIClient: @unchecked Sendable {
         }
 
         #if DEBUG
-        let debugNetworkLog = ProcessInfo.processInfo.environment["MULTICA_DEBUG_NETWORK_LOG"] == "1"
+        let debugNetworkLog = ProcessInfo.processInfo.environment["MULTI_CASUAL_DEBUG_NETWORK_LOG"] == "1"
         if debugNetworkLog {
             let headerKeys = req.allHTTPHeaderFields?.keys.sorted().joined(separator: ",") ?? ""
-            NSLog("MulticaAPI request \(method) \(url.path) query=\(url.query ?? "") headers=\(headerKeys)")
+            NSLog("Multi-CasualAPI request \(method) \(url.path) query=\(url.query ?? "") headers=\(headerKeys)")
         }
         #endif
 
@@ -213,7 +213,7 @@ public final class APIClient: @unchecked Sendable {
             }
             #if DEBUG
             if debugNetworkLog {
-                NSLog("MulticaAPI network error \(method) \(url.path): \(error.localizedDescription)")
+                NSLog("Multi-CasualAPI network error \(method) \(url.path): \(error.localizedDescription)")
             }
             #endif
             throw APIError.networkError(error)
@@ -224,7 +224,7 @@ public final class APIClient: @unchecked Sendable {
         }
         #if DEBUG
         if debugNetworkLog {
-            NSLog("MulticaAPI response \(method) \(url.path) status=\(http.statusCode) bytes=\(data.count)")
+            NSLog("Multi-CasualAPI response \(method) \(url.path) status=\(http.statusCode) bytes=\(data.count)")
         }
         #endif
         switch http.statusCode {

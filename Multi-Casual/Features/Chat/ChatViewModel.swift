@@ -10,11 +10,14 @@ public final class ChatViewModel {
     public var selectedSession: ChatSession?
     public var pendingTasks = PendingChatTasksResponse(tasks: [])
     public var pendingTask: ChatPendingTask?
+    public var taskTimelines: [String: [TimelineItem]] = [:]
     public var errorMessage: String?
+    public var timelineError: String?
     public var isLoading = false
     public var isSending = false
     public var isCreating = false
     public var isCancellingTask = false
+    public var isLoadingTimeline = false
 
     private let api: APIClient
     private let authSession: AuthSession
@@ -66,6 +69,7 @@ public final class ChatViewModel {
             pendingTask = try await loadedPending
             try await api.markChatSessionRead(sessionId: session.id, workspaceId: workspaceId)
             markSessionRead(session.id)
+            await loadVisibleTaskTimelines(workspaceId: workspaceId)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -139,6 +143,7 @@ public final class ChatViewModel {
             )
             messages.append(optimistic)
             pendingTask = try await api.getPendingChatTask(sessionId: session.id, workspaceId: workspaceId)
+            await loadVisibleTaskTimelines(workspaceId: workspaceId)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -173,6 +178,60 @@ public final class ChatViewModel {
         pendingTasks.tasks.filter { $0.chatSessionId == session.id }.count
     }
 
+    public var visiblePendingTaskId: String? {
+        guard let taskId = pendingTask?.taskId, !taskId.isEmpty else { return nil }
+        let assistantMessageAlreadyPersisted = messages.contains {
+            $0.role == .assistant && $0.taskId == taskId
+        }
+        return assistantMessageAlreadyPersisted ? nil : taskId
+    }
+
+    public var visibleTimelineItems: [TimelineItem] {
+        guard let taskId = visiblePendingTaskId else { return [] }
+        return taskTimelines[taskId] ?? []
+    }
+
+    public var shouldShowLiveTimeline: Bool {
+        isSending || visiblePendingTaskId != nil
+    }
+
+    public func timelineItems(for message: ChatMessage) -> [TimelineItem] {
+        guard let taskId = message.taskId, !taskId.isEmpty else { return [] }
+        return taskTimelines[taskId] ?? []
+    }
+
+    public func loadTimeline(taskId: String, workspaceId: String? = nil) async {
+        guard !taskId.isEmpty else { return }
+        let resolvedWorkspaceId = workspaceId ?? authSession.currentWorkspace?.id
+        guard let resolvedWorkspaceId, !resolvedWorkspaceId.isEmpty else {
+            timelineError = "Pick a workspace before viewing agent progress."
+            return
+        }
+
+        isLoadingTimeline = true
+        timelineError = nil
+        defer { isLoadingTimeline = false }
+
+        do {
+            taskTimelines[taskId] = try await api.listRunMessages(taskId: taskId, workspaceId: resolvedWorkspaceId)
+                .map(TimelineItem.init(from:))
+                .sorted { $0.id < $1.id }
+        } catch {
+            timelineError = error.localizedDescription
+        }
+    }
+
+    public func applyRealtimeTaskMessage(taskId: String?, payload: Data) {
+        guard let taskId, !taskId.isEmpty else { return }
+        do {
+            let message = try JSONDecoder().decode(TaskMessage.self, from: payload)
+            timelineError = nil
+            upsertTimelineItem(TimelineItem(from: message), taskId: taskId)
+        } catch {
+            timelineError = "Could not decode live chat update: \(error.localizedDescription)"
+        }
+    }
+
     private func upsert(_ session: ChatSession) {
         if let index = sessions.firstIndex(where: { $0.id == session.id }) {
             sessions[index] = session
@@ -196,5 +255,27 @@ public final class ChatViewModel {
             updatedAt: session.updatedAt
         )
         upsert(read)
+    }
+
+    private func loadVisibleTaskTimelines(workspaceId: String) async {
+        let taskIds = Set(
+            messages.compactMap(\.taskId) +
+            [pendingTask?.taskId].compactMap { $0 }
+        ).filter { !$0.isEmpty }
+
+        for taskId in taskIds {
+            await loadTimeline(taskId: taskId, workspaceId: workspaceId)
+        }
+    }
+
+    private func upsertTimelineItem(_ item: TimelineItem, taskId: String) {
+        var timeline = taskTimelines[taskId] ?? []
+        if let index = timeline.firstIndex(where: { $0.id == item.id }) {
+            timeline[index] = item
+        } else {
+            timeline.append(item)
+        }
+        timeline.sort { $0.id < $1.id }
+        taskTimelines[taskId] = timeline
     }
 }

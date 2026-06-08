@@ -1,7 +1,7 @@
 import SwiftUI
 import UserNotifications
 import UIKit
-import MultiCasual
+import Multi-Casual
 
 struct RootView: View {
     @Environment(AuthSession.self) private var authSession
@@ -14,7 +14,7 @@ struct RootView: View {
 
         static var debugInitialTab: AppTab {
             #if DEBUG
-            switch ProcessInfo.processInfo.environment["MULTICA_DEBUG_INITIAL_TAB"] {
+            switch ProcessInfo.processInfo.environment["MULTI_CASUAL_DEBUG_INITIAL_TAB"] {
             case "issues": return .issues
             case "my-issues": return .myIssues
             case "projects": return .projects
@@ -30,7 +30,7 @@ struct RootView: View {
     var body: some View {
         Group {
             #if DEBUG
-            if ProcessInfo.processInfo.environment["MULTICA_DEBUG_FORCE_LOGIN_SCREEN"] == "1" {
+            if ProcessInfo.processInfo.environment["MULTI_CASUAL_DEBUG_FORCE_LOGIN_SCREEN"] == "1" {
                 LoginView()
             } else if authSession.isLoading {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -90,9 +90,9 @@ struct RootView: View {
     @ViewBuilder
     private var debugInitialIssueView: some View {
         #if DEBUG
-        if let taskId = ProcessInfo.processInfo.environment["MULTICA_DEBUG_INITIAL_TASK_ID"], !taskId.isEmpty {
+        if let taskId = ProcessInfo.processInfo.environment["MULTI_CASUAL_DEBUG_INITIAL_TASK_ID"], !taskId.isEmpty {
             AgentTranscriptView(taskId: taskId, workspaceId: authSession.currentWorkspace?.id)
-        } else if let issueId = ProcessInfo.processInfo.environment["MULTICA_DEBUG_INITIAL_ISSUE_ID"], !issueId.isEmpty {
+        } else if let issueId = ProcessInfo.processInfo.environment["MULTI_CASUAL_DEBUG_INITIAL_ISSUE_ID"], !issueId.isEmpty {
             IssueDetailView(issueId: issueId)
         } else {
             IssueListView()
@@ -105,7 +105,7 @@ struct RootView: View {
     @ViewBuilder
     private var debugInitialProjectView: some View {
         #if DEBUG
-        if let projectId = ProcessInfo.processInfo.environment["MULTICA_DEBUG_INITIAL_PROJECT_ID"], !projectId.isEmpty {
+        if let projectId = ProcessInfo.processInfo.environment["MULTI_CASUAL_DEBUG_INITIAL_PROJECT_ID"], !projectId.isEmpty {
             DebugProjectDetailRoute(projectId: projectId)
         } else {
             ProjectsView()
@@ -117,7 +117,7 @@ struct RootView: View {
 
     private func requestPushPermission() {
         #if DEBUG
-        if ProcessInfo.processInfo.environment["MULTICA_DEBUG_SKIP_PUSH_PROMPT"] == "1" {
+        if ProcessInfo.processInfo.environment["MULTI_CASUAL_DEBUG_SKIP_PUSH_PROMPT"] == "1" {
             return
         }
         #endif

@@ -50,7 +50,7 @@ public final class AppLanguageSettings {
     public init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         #if DEBUG
-        if let rawLanguage = ProcessInfo.processInfo.environment["MULTICA_DEBUG_APP_LANGUAGE"],
+        if let rawLanguage = ProcessInfo.processInfo.environment["MULTI_CASUAL_DEBUG_APP_LANGUAGE"],
            let language = AppLanguage(rawValue: rawLanguage) {
             self.language = language
             return

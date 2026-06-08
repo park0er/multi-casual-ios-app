@@ -30,7 +30,7 @@ public struct LoginView: View {
         VStack(spacing: 24) {
             Spacer()
             Image(systemName: "bolt.circle.fill").font(.system(size: 64))
-            Text("Sign in to Multica").font(.title.bold())
+            Text("Sign in to Multi-Casual").font(.title.bold())
             Text("Enter your email to get a login code").font(.subheadline).foregroundStyle(.secondary)
 
             VStack(spacing: 12) {

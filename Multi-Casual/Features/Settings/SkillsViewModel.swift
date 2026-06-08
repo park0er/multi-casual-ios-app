@@ -7,7 +7,9 @@ public final class SkillsViewModel {
     public var skills: [Skill] = []
     public var isLoading = false
     public var isMutating = false
+    public var isLoadingSkillDetail = false
     public var errorMessage: String?
+    public var skillDetailError: String?
 
     private let api: APIClient
     private let authSession: AuthSession
@@ -60,6 +62,29 @@ public final class SkillsViewModel {
         }
         return await mutate {
             try await api.importSkill(url: url, workspaceId: workspaceId)
+        }
+    }
+
+    public func loadSkillDetail(id: String) async -> Skill? {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            skillDetailError = "Pick a workspace before viewing skill details."
+            return nil
+        }
+        guard !isLoadingSkillDetail else {
+            return skills.first { $0.id == id }
+        }
+
+        isLoadingSkillDetail = true
+        skillDetailError = nil
+        defer { isLoadingSkillDetail = false }
+
+        do {
+            let skill = try await api.getSkill(id: id, workspaceId: workspaceId)
+            upsert(skill)
+            return skill
+        } catch {
+            skillDetailError = error.localizedDescription
+            return nil
         }
     }
 

@@ -1,16 +1,16 @@
 # Multi Casual iOS App
 
-这是一个已经在内部业务中使用的 SwiftUI iOS 客户端，用来对接 Multica 官方云服务，并把 Multica Web 端核心 workspace 和 Agent 管理工作流带到 iPhone 上。
+这是一个已经在内部业务中使用的 SwiftUI iOS 客户端，用来对接 multi-casual 官方云服务，并把 multi-casual Web 端核心 workspace 和 Agent 管理工作流带到 iPhone 上。
 
-> 当前状态：公开源码评审 / 上游贡献提案。这个仓库是对接 Multica 官方云服务的独立 iOS 客户端，不是 Multica 官方 App。代码仅按仓库的 source-review license 公开用于评审；未经书面许可，不得复制、改造、再发布、分发 build，也不得暗示这是 Multica 官方 App。
+> 当前状态：公开源码评审 / 上游贡献提案。这个仓库是对接 multi-casual 官方云服务的独立 iOS 客户端，不是 multi-casual 官方 App。代码仅按仓库的 source-review license 公开用于评审；未经书面许可，不得复制、改造、再发布、分发 build，也不得暗示这是 multi-casual 官方 App。
 
 ## 项目是什么
 
-Multi Casual iOS App 是一个原生 iOS 客户端，连接 Multica 官方云 API，把 Multica Web 产品里的 workspace 工作流带到手机上。它不是一个半吊子的 demo：这个 App 已经进入我们的企业内部业务流程，并且目标是成为 Web 端的完整移动端对标实现。
+Multi Casual iOS App 是一个原生 iOS 客户端，连接 multi-casual 官方云 API，把 multi-casual Web 产品里的 workspace 工作流带到手机上。它不是一个半吊子的 demo：这个 App 已经进入我们的企业内部业务流程，并且目标是成为 Web 端的完整移动端对标实现。
 
-这里改名只针对这个 iOS 客户端项目和 GitHub 仓库名；服务对接仍然是 Multica。部分源码路径、scheme、bundle ID 和 API 域名仍保留 Multica 标识，这样当前 App 代码和构建 target 可以暂时不动。
+这里改名只针对这个 iOS 客户端项目和 GitHub 仓库名；服务对接仍然是 multi-casual。部分源码路径、scheme、bundle ID 和 API 域名仍保留 multi-casual 标识，这样当前 App 代码和构建 target 可以暂时不动。
 
-Multica 官方链接：
+multi-casual 官方链接：
 
 - Multica 云服务：https://multica.ai/
 - Multica 官方开源项目：https://github.com/multica-ai/multica
@@ -30,14 +30,14 @@ Multica 官方链接：
 
 这个项目追求的是实际可用的 Web parity，而不是狭窄的演示项目。当前实现覆盖了我们内部日常使用的闭环：查看 Inbox 和 Chat、处理 Issues、进入 Issue 详情和 comments、创建/编辑/重新分配工作、查看 Projects，并在 Settings 里管理 Agents、Runtimes、Skills、Autopilots 等能力。
 
-仓库目前仍然是贡献提案，不是 Multica 官方发布版本。公开它的目的，是让 Multica maintainers 能审阅一个已经相当完整的 iOS 实现，然后决定它应该 upstream、成为官方 companion app，还是作为单独维护的客户端继续推进。
+仓库目前仍然是贡献提案，不是 multi-casual 官方发布版本。公开它的目的，是让 multi-casual maintainers 能审阅一个已经相当完整的 iOS 实现，然后决定它应该 upstream、成为官方 companion app，还是作为单独维护的客户端继续推进。
 
 ## 演示视频
 
 交互演示视频通过 HyperFrames 生成，素材来自真实 simulator 操作录屏：
 
-- 英文版：https://github.com/park0er/multi-casual-ios-app/releases/download/demo-2026-05-08/multica-ios-interactive-demo-en.mp4
-- 中文版：https://github.com/park0er/multi-casual-ios-app/releases/download/demo-2026-05-08/multica-ios-interactive-demo-zh.mp4
+- 英文版：https://github.com/park0er/multi-casual-ios-app/releases/download/demo-2026-05-08/multi-casual-ios-interactive-demo-en.mp4
+- 中文版：https://github.com/park0er/multi-casual-ios-app/releases/download/demo-2026-05-08/multi-casual-ios-interactive-demo-zh.mp4
 
 这些 walkthrough 已通过 `demo-2026-05-08` GitHub Release 发布。
 
@@ -60,16 +60,35 @@ artifacts/              生成的 demo/video artifacts
 - Xcode 17 或更新版本。
 - 与项目配置匹配的 iOS Simulator runtime。
 - Swift 5.9 package tools 或更新版本。
-- 用于手动验收的 Multica 账号和 API 访问权限。
+- 用于手动验收的 multi-casual 账号和 API 访问权限。
 
 ## 构建
 
+这个仓库用同一套 Swift 代码构建两个 iOS 包：
+
+| 包 | Scheme | Bundle ID | API |
+| --- | --- | --- | --- |
+| multi-casual 官方云服务 | `Multi-CasualHost` | `ai.multi-casual.app` | `https://api.multi-casual.ai` |
+| 小米自部署版 | `Multi-Casual-Xiaomi` | `ai.multi-casual.app.xiaomi` | `http://staging-multi-casual.ad.xiaomi.srv` |
+
+这两个包必须保持独立，因为它们对应不同服务身份、登录 token、WebSocket 地址、URL Scheme、Keychain service、APNs topic 和分发渠道。
+
 ```bash
-swift test --scratch-path /tmp/multicaapp-swift-test
+swift test --scratch-path /tmp/multi-casualapp-swift-test
 
 xcodebuild build \
   -project Multi-Casual.xcodeproj \
   -scheme Multi-CasualHost \
+  -configuration Debug \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+```
+
+构建小米自部署版：
+
+```bash
+xcodebuild build \
+  -project Multi-Casual.xcodeproj \
+  -scheme Multi-Casual-Xiaomi \
   -configuration Debug \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
@@ -85,7 +104,7 @@ xcrun simctl list devices available
 当前测试覆盖：
 
 - API request shape 和 workspace scope。
-- Multica desktop/web API response 的 model decoding。
+- multi-casual desktop/web API response 的 model decoding。
 - Issue list/detail/create/edit view models。
 - Project、Inbox、Chat、Agent、Runtime、Skill、Autopilot、Label、Token、Notification、Workspace settings 等 view models。
 - Markdown block/inline 渲染，包括 pipe table。
@@ -94,7 +113,7 @@ xcrun simctl list devices available
 最近一次本地验证：
 
 ```text
-swift test --scratch-path /tmp/multicaapp-swift-test-20260508
+swift test --scratch-path /tmp/multi-casualapp-swift-test-20260508
 316 tests, 0 failures
 ```
 

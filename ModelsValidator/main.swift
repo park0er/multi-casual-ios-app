@@ -111,7 +111,7 @@ do {
 }
 
 // MARK: - KeychainStore validation (mirrors KeychainStoreTests)
-let testStore = KeychainStore(service: "ai.multica.app.validator.test")
+let testStore = KeychainStore(service: "ai.multi-casual.app.validator.test")
 try? testStore.delete() // clean slate
 
 // test_saveAndLoad_roundTrips

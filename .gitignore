@@ -13,3 +13,4 @@ artifacts/**/.render/
 artifacts/**/*.sparse.mp4
 artifacts/**/assets/*.mp4
 artifacts/videos/*.mp4
+node_modules

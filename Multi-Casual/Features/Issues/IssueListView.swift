@@ -165,7 +165,7 @@ public struct IssueListView: View {
                 viewModel = IssueListViewModel(api: api, authSession: authSession, scope: initialScope)
                 Task { await viewModel?.loadNext() }
                 #if DEBUG
-                if ProcessInfo.processInfo.environment["MULTICA_DEBUG_OPEN_CREATE_SHEET"] == "1" {
+                if ProcessInfo.processInfo.environment["MULTI_CASUAL_DEBUG_OPEN_CREATE_SHEET"] == "1" {
                     viewModel?.showCreateSheet = true
                 }
                 #endif

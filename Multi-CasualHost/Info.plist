@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>$(MULTICA_DISPLAY_NAME)</string>
+	<string>$(MULTI_CASUAL_DISPLAY_NAME)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,31 +26,31 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>ai.multica.app.oauth</string>
+			<string>ai.multi-casual.app.oauth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>$(MULTICA_URL_SCHEME)</string>
+				<string>$(MULTI_CASUAL_URL_SCHEME)</string>
 			</array>
 		</dict>
 	</array>
 	<key>GOOGLE_CLIENT_ID</key>
 	<string></string>
-	<key>MULTICA_ENVIRONMENT</key>
-	<string>$(MULTICA_ENVIRONMENT)</string>
-	<key>MULTICA_DISPLAY_NAME</key>
-	<string>$(MULTICA_DISPLAY_NAME)</string>
-	<key>MULTICA_API_BASE_URL</key>
-	<string>$(MULTICA_API_BASE_URL)</string>
-	<key>MULTICA_APP_URL</key>
-	<string>$(MULTICA_APP_URL)</string>
-	<key>MULTICA_WS_URL</key>
-	<string>$(MULTICA_WS_URL)</string>
-	<key>MULTICA_URL_SCHEME</key>
-	<string>$(MULTICA_URL_SCHEME)</string>
-	<key>MULTICA_KEYCHAIN_SERVICE</key>
-	<string>$(MULTICA_KEYCHAIN_SERVICE)</string>
-	<key>MULTICA_ALLOWED_EMAIL_DOMAIN_HINT</key>
-	<string>$(MULTICA_ALLOWED_EMAIL_DOMAIN_HINT)</string>
+	<key>MULTI_CASUAL_ENVIRONMENT</key>
+	<string>$(MULTI_CASUAL_ENVIRONMENT)</string>
+	<key>MULTI_CASUAL_DISPLAY_NAME</key>
+	<string>$(MULTI_CASUAL_DISPLAY_NAME)</string>
+	<key>MULTI_CASUAL_API_BASE_URL</key>
+	<string>$(MULTI_CASUAL_API_BASE_URL)</string>
+	<key>MULTI_CASUAL_APP_URL</key>
+	<string>$(MULTI_CASUAL_APP_URL)</string>
+	<key>MULTI_CASUAL_WS_URL</key>
+	<string>$(MULTI_CASUAL_WS_URL)</string>
+	<key>MULTI_CASUAL_URL_SCHEME</key>
+	<string>$(MULTI_CASUAL_URL_SCHEME)</string>
+	<key>MULTI_CASUAL_KEYCHAIN_SERVICE</key>
+	<string>$(MULTI_CASUAL_KEYCHAIN_SERVICE)</string>
+	<key>MULTI_CASUAL_ALLOWED_EMAIL_DOMAIN_HINT</key>
+	<string>$(MULTI_CASUAL_ALLOWED_EMAIL_DOMAIN_HINT)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchScreen</key>
@@ -78,6 +78,6 @@
 		<false/>
 	</dict>
 	<key>NSUserNotificationsUsageDescription</key>
-	<string>Multica sends you notifications when agents finish work or need your input.</string>
+	<string>Multi-Casual sends you notifications when agents finish work or need your input.</string>
 </dict>
 </plist>

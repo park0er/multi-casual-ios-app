@@ -123,7 +123,7 @@ public enum MarkdownRenderer {
             guard !protectedRanges.contains(where: { NSIntersectionRange($0, match.range(at: 0)).length > 0 }) else { continue }
             let identifier = String(rendered[range])
             let encoded = identifier.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? identifier
-            rendered.replaceSubrange(range, with: "[\(identifier)](multica://issue-reference/\(encoded))")
+            rendered.replaceSubrange(range, with: "[\(identifier)](multi-casual://issue-reference/\(encoded))")
         }
         return rendered
     }
