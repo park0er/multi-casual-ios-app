@@ -129,10 +129,11 @@ private struct ChatSessionDetailView: View {
     let session: ChatSession
     @Environment(AuthSession.self) private var authSession
     @State private var draft = ""
+    @State private var didStartDraftSession = false
     @State private var subscriptionTask: Task<Void, Never>?
 
     private var isDraftSessionView: Bool {
-        session.id == ChatViewModel.draftSessionId
+        session.id == ChatViewModel.draftSessionId && (didStartDraftSession || viewModel.isDraftSession)
     }
 
     var body: some View {
@@ -248,6 +249,7 @@ private struct ChatSessionDetailView: View {
         .markdownNavigationTitle(isDraftSessionView ? "New Chat" : session.title)
         .task {
             if session.id == ChatViewModel.draftSessionId {
+                didStartDraftSession = true
                 viewModel.startDraftSession(agentId: session.agentId)
             } else {
                 await viewModel.selectSession(session)
@@ -285,7 +287,10 @@ private struct ChatSessionDetailView: View {
         }
         Task {
             let sent = await viewModel.sendMessage(outgoing)
-            if sent, draft == content { draft = "" }
+            if sent {
+                didStartDraftSession = false
+                if draft == content { draft = "" }
+            }
             if !sent, draft.isEmpty { draft = outgoing }
         }
     }
