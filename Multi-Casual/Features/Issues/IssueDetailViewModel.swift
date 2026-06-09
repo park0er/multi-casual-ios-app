@@ -143,7 +143,12 @@ public final class IssueDetailViewModel {
         return sortedRoots.map { root in
             let replies = commentLoader.items
                 .filter { $0.id != root.id && rootIdsByCommentId[$0.id] == root.id }
-                .sorted(by: sortCommentsAscending)
+                .sorted { lhs, rhs in
+                    if lhs.createdAt == rhs.createdAt { return lhs.id < rhs.id }
+                    return commentSortOrder == .ascending
+                        ? lhs.createdAt < rhs.createdAt
+                        : lhs.createdAt > rhs.createdAt
+                }
             return CommentThread(root: root, replies: replies)
         }
     }
