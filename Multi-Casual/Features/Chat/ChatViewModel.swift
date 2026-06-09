@@ -4,6 +4,8 @@ import Observation
 @Observable
 @MainActor
 public final class ChatViewModel {
+    public static let draftSessionId = "__draft_chat_session__"
+
     public var sessions: [ChatSession] = []
     public var agents: [Agent] = []
     public var messages: [ChatMessage] = []
@@ -18,6 +20,10 @@ public final class ChatViewModel {
     public var isCreating = false
     public var isCancellingTask = false
     public var isLoadingTimeline = false
+
+    public var isDraftSession: Bool {
+        selectedSession?.id == Self.draftSessionId
+    }
 
     private let api: APIClient
     private let authSession: AuthSession
@@ -51,7 +57,41 @@ public final class ChatViewModel {
 
     public func selectSession(_ session: ChatSession) async {
         selectedSession = session
+        if session.id == Self.draftSessionId {
+            messages = []
+            pendingTask = nil
+            taskTimelines = [:]
+            errorMessage = nil
+            return
+        }
         await loadMessages()
+    }
+
+    public func startDraftSession(agentId: String? = nil) {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before opening Chat."
+            return
+        }
+        let resolvedAgentId = agentId ?? selectedSession?.agentId ?? agents.first?.id
+        guard let resolvedAgentId, !resolvedAgentId.isEmpty else {
+            errorMessage = "Add an agent before starting a chat."
+            return
+        }
+        selectedSession = ChatSession(
+            id: Self.draftSessionId,
+            workspaceId: workspaceId,
+            agentId: resolvedAgentId,
+            creatorId: authSession.currentUser?.id ?? "",
+            title: "New Chat",
+            status: .active,
+            hasUnread: false,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        messages = []
+        pendingTask = nil
+        timelineError = nil
+        errorMessage = nil
     }
 
     public func loadMessages() async {
@@ -60,13 +100,17 @@ public final class ChatViewModel {
             return
         }
         guard let session = selectedSession else { return }
+        guard session.id != Self.draftSessionId else { return }
         errorMessage = nil
 
         do {
             async let loadedMessages = api.listChatMessages(sessionId: session.id, workspaceId: workspaceId)
             async let loadedPending = api.getPendingChatTask(sessionId: session.id, workspaceId: workspaceId)
-            messages = try await loadedMessages.sorted { $0.createdAt < $1.createdAt }
-            pendingTask = try await loadedPending
+            let sortedMessages = try await loadedMessages.sorted { $0.createdAt < $1.createdAt }
+            let loadedPendingTask = try await loadedPending
+            guard selectedSession?.id == session.id else { return }
+            messages = sortedMessages
+            pendingTask = loadedPendingTask
             try await api.markChatSessionRead(sessionId: session.id, workspaceId: workspaceId)
             markSessionRead(session.id)
             await loadVisibleTaskTimelines(workspaceId: workspaceId)
@@ -118,20 +162,31 @@ public final class ChatViewModel {
         }
     }
 
-    public func sendMessage(_ content: String) async {
+    @discardableResult
+    public func sendMessage(_ content: String) async -> Bool {
         guard let workspaceId = authSession.currentWorkspace?.id else {
             errorMessage = "Pick a workspace before opening Chat."
-            return
+            return false
         }
-        guard let session = selectedSession else { return }
+        guard let initialSession = selectedSession else { return false }
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else { return false }
 
         isSending = true
         errorMessage = nil
         defer { isSending = false }
 
         do {
+            let session: ChatSession
+            if initialSession.id == Self.draftSessionId {
+                isCreating = true
+                defer { isCreating = false }
+                session = try await api.createChatSession(agentId: initialSession.agentId, title: nil, workspaceId: workspaceId)
+                upsert(session)
+                selectedSession = session
+            } else {
+                session = initialSession
+            }
             let response = try await api.sendChatMessage(sessionId: session.id, content: trimmed, workspaceId: workspaceId)
             let optimistic = ChatMessage(
                 id: response.messageId,
@@ -141,11 +196,15 @@ public final class ChatViewModel {
                 taskId: response.taskId,
                 createdAt: response.createdAt
             )
-            messages.append(optimistic)
+            if !messages.contains(where: { $0.id == optimistic.id }) {
+                messages.append(optimistic)
+            }
             pendingTask = try await api.getPendingChatTask(sessionId: session.id, workspaceId: workspaceId)
             await loadVisibleTaskTimelines(workspaceId: workspaceId)
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 

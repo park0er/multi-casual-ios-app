@@ -866,6 +866,19 @@ public struct IssueDetailView: View {
             }
 
             HStack(spacing: 12) {
+                if vm.canSubmitComment, !vm.isSubmittingComment {
+                    Button {
+                        vm.cancelCommentDraft()
+                        composerFocus = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityLabel(AppStrings.localized("Cancel", language: appLanguage))
+                    .accessibilityIdentifier("IssueDetailCancelCommentButton")
+                }
+
                 PhotosPicker(
                     selection: $selectedCommentImageItem,
                     matching: .images
@@ -900,13 +913,15 @@ public struct IssueDetailView: View {
                 .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
                 .accessibilityIdentifier("IssueDetailAgentMentionButton")
 
-                TextField(AppStrings.localized("Add a comment…", language: appLanguage), text: Binding(
-                    get: { vm.commentDraft }, set: { vm.commentDraft = $0 }
-                ), axis: .vertical)
-                .lineLimit(1...4).padding(.horizontal, 12).padding(.vertical, 8)
-                .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 20))
+                GrowingComposerTextField(
+                    placeholder: AppStrings.localized("Add a comment…", language: appLanguage),
+                    text: Binding(get: { vm.commentDraft }, set: { vm.commentDraft = $0 }),
+                    minLines: 3,
+                    maxLines: 8,
+                    background: .secondary.opacity(0.10),
+                    accessibilityIdentifier: "IssueDetailCommentInput"
+                )
                 .focused($composerFocus, equals: .comment)
-                .accessibilityIdentifier("IssueDetailCommentInput")
 
                 if composerFocus == .comment {
                     Button {
@@ -922,8 +937,9 @@ public struct IssueDetailView: View {
 
                 Button {
                     Task {
-                        await vm.submitComment()
-                        composerFocus = nil
+                        if await vm.submitComment() {
+                            composerFocus = nil
+                        }
                     }
                 } label: {
                     if vm.isSubmittingComment { ProgressView() }
@@ -1038,13 +1054,15 @@ public struct IssueDetailView: View {
                 .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
                 .accessibilityIdentifier("CommentReplyAgentMentionButton")
 
-                TextField(AppStrings.localized("Reply…", language: appLanguage), text: $replyDraft, axis: .vertical)
-                    .lineLimit(1...4)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 20))
+                GrowingComposerTextField(
+                    placeholder: AppStrings.localized("Reply…", language: appLanguage),
+                    text: $replyDraft,
+                    minLines: 3,
+                    maxLines: 8,
+                    background: Color.accentColor.opacity(0.08),
+                    accessibilityIdentifier: "IssueDetailReplyInput"
+                )
                     .focused($composerFocus, equals: .reply)
-                    .accessibilityIdentifier("IssueDetailReplyInput")
 
                 if composerFocus == .reply {
                     Button {
