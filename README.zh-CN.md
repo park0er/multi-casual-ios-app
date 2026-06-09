@@ -59,7 +59,7 @@ Multi-CasualUITests/      Simulator UI 测试和 demo walkthrough
 
 | 包 | Scheme | Bundle ID | API |
 | --- | --- | --- | --- |
-| Multica 官方云服务 | `Multi-CasualHost` | `ai.multi-casual.app` | `https://api.multi-casual.ai` |
+| Multica 官方云服务 | `Multi-CasualHost` | `ai.multi-casual.app` | `https://api.multica.ai` |
 | 小米自部署版 | `Multi-Casual-Xiaomi` | `ai.multi-casual.app.xiaomi` | `http://staging-multica.ad.xiaomi.srv` |
 
 这两个包必须保持独立，因为它们对应不同服务身份、登录 token、WebSocket 地址、URL Scheme、Keychain service、APNs topic 和分发渠道。

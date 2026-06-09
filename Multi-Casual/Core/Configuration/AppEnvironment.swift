@@ -22,9 +22,9 @@ public struct AppEnvironment: Equatable, Sendable {
     public static let official = AppEnvironment(
         kind: .official,
         displayName: "Multi-Casual",
-        apiBaseURL: URL(string: "https://api.multi-casual.ai")!,
-        appURL: URL(string: "https://app.multi-casual.ai")!,
-        webSocketURL: URL(string: "wss://api.multi-casual.ai/ws")!,
+        apiBaseURL: URL(string: "https://api.multica.ai")!,
+        appURL: URL(string: "https://app.multica.ai")!,
+        webSocketURL: URL(string: "wss://api.multica.ai/ws")!,
         urlScheme: "ai.multi-casual.app",
         keychainService: "ai.multi-casual.app",
         allowedEmailDomainHint: nil

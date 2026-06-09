@@ -27,7 +27,7 @@ final class FeedbackViewModelTests: XCTestCase {
         }
         let vm = FeedbackViewModel(api: client, authSession: makeSession(workspace: workspace))
 
-        await vm.submit(message: "   \n ", url: "https://app.multi-casual.ai")
+        await vm.submit(message: "   \n ", url: "https://app.multica.ai")
 
         XCTAssertEqual(vm.errorMessage, "Feedback message is required.")
         XCTAssertNil(vm.successMessage)
@@ -47,10 +47,10 @@ final class FeedbackViewModelTests: XCTestCase {
         }
         let vm = FeedbackViewModel(api: client, authSession: makeSession(workspace: workspace))
 
-        await vm.submit(message: "  **Bug** report  ", url: "  https://app.multi-casual.ai/issues/1  ")
+        await vm.submit(message: "  **Bug** report  ", url: "  https://app.multica.ai/issues/1  ")
 
         XCTAssertEqual(capturedBody?["message"] as? String, "**Bug** report")
-        XCTAssertEqual(capturedBody?["url"] as? String, "https://app.multi-casual.ai/issues/1")
+        XCTAssertEqual(capturedBody?["url"] as? String, "https://app.multica.ai/issues/1")
         XCTAssertEqual(capturedBody?["workspace_id"] as? String, "w1")
         XCTAssertEqual(vm.successMessage, "Feedback sent.")
         XCTAssertEqual(vm.lastFeedbackId, "fb1")

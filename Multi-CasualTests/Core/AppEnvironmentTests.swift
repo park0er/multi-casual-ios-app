@@ -7,9 +7,9 @@ final class AppEnvironmentTests: XCTestCase {
 
         XCTAssertEqual(env.kind, .official)
         XCTAssertEqual(env.displayName, "Multi-Casual")
-        XCTAssertEqual(env.apiBaseURL.absoluteString, "https://api.multi-casual.ai")
-        XCTAssertEqual(env.appURL.absoluteString, "https://app.multi-casual.ai")
-        XCTAssertEqual(env.webSocketURL.absoluteString, "wss://api.multi-casual.ai/ws")
+        XCTAssertEqual(env.apiBaseURL.absoluteString, "https://api.multica.ai")
+        XCTAssertEqual(env.appURL.absoluteString, "https://app.multica.ai")
+        XCTAssertEqual(env.webSocketURL.absoluteString, "wss://api.multica.ai/ws")
         XCTAssertEqual(env.urlScheme, "ai.multi-casual.app")
         XCTAssertEqual(env.keychainService, "ai.multi-casual.app")
         XCTAssertNil(env.allowedEmailDomainHint)

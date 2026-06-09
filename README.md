@@ -94,7 +94,7 @@ The repository can build two iOS app packages from the same Swift codebase:
 
 | Package | Scheme | Bundle ID | API |
 | --- | --- | --- | --- |
-| Multica official cloud | `Multi-CasualHost` | `ai.multi-casual.app` | `https://api.multi-casual.ai` |
+| Multica official cloud | `Multi-CasualHost` | `ai.multi-casual.app` | `https://api.multica.ai` |
 | Xiaomi self-hosted | `Multi-Casual-Xiaomi` | `ai.multi-casual.app.xiaomi` | `http://staging-multica.ad.xiaomi.srv` |
 
 The packages stay separate because they use different server identities, auth tokens, WebSocket endpoints, URL schemes, Keychain services, APNs topics, and release channels.

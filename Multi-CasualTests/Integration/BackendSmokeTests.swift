@@ -13,7 +13,7 @@ import XCTest
 // Tests skip (not fail) when the network is unreachable so offline
 // `swift test` stays green.
 final class BackendSmokeTests: XCTestCase {
-    private let baseURL = URL(string: "https://api.multi-casual.ai")!
+    private let baseURL = URL(string: "https://api.multica.ai")!
 
     private func assertEndpointExists(
         method: String,

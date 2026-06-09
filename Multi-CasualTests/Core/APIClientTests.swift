@@ -134,7 +134,7 @@ final class APIClientTests: XCTestCase {
                 body = #"{"token":"cli-token"}"#.data(using: .utf8)!
             case ("GET", "/api/config"):
                 body = """
-                {"cdn_domain":"cdn.multi-casual.ai","allow_signup":true,"google_client_id":"google","posthog_key":"ph","posthog_host":"https://ph.example"}
+                {"cdn_domain":"cdn.multica.ai","allow_signup":true,"google_client_id":"google","posthog_key":"ph","posthog_host":"https://ph.example"}
                 """.data(using: .utf8)!
             default:
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
@@ -155,7 +155,7 @@ final class APIClientTests: XCTestCase {
         ])
         XCTAssertTrue(requests.allSatisfy { $0.query == nil })
         XCTAssertEqual(token.token, "cli-token")
-        XCTAssertEqual(config.cdnDomain, "cdn.multi-casual.ai")
+        XCTAssertEqual(config.cdnDomain, "cdn.multica.ai")
         XCTAssertTrue(config.allowSignup)
         XCTAssertEqual(config.googleClientId, "google")
         XCTAssertEqual(config.posthogKey, "ph")
@@ -1029,14 +1029,14 @@ final class APIClientTests: XCTestCase {
 
         let response = try await client.createFeedback(
             message: "Issue detail needs Markdown",
-            url: "https://app.multi-casual.ai/issues/1",
+            url: "https://app.multica.ai/issues/1",
             workspaceId: "w1"
         )
 
         XCTAssertEqual(response.id, "fb1")
         XCTAssertEqual(capturedURL?.query, "workspace_id=w1")
         XCTAssertEqual(capturedBody?["message"] as? String, "Issue detail needs Markdown")
-        XCTAssertEqual(capturedBody?["url"] as? String, "https://app.multi-casual.ai/issues/1")
+        XCTAssertEqual(capturedBody?["url"] as? String, "https://app.multica.ai/issues/1")
         XCTAssertEqual(capturedBody?["workspace_id"] as? String, "w1")
     }
 

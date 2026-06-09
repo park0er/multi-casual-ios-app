@@ -9,14 +9,14 @@ final class AvatarViewTests: XCTestCase {
     }
 
     func test_avatarURLResolverBuildsRelativeURLsAgainstAPIBase() throws {
-        let baseURL = try XCTUnwrap(URL(string: "https://api.multi-casual.ai"))
+        let baseURL = try XCTUnwrap(URL(string: "https://api.multica.ai"))
         let url = try XCTUnwrap(AvatarURLResolver.url(from: "/uploads/avatar.png", baseURL: baseURL))
 
-        XCTAssertEqual(url.absoluteString, "https://api.multi-casual.ai/uploads/avatar.png")
+        XCTAssertEqual(url.absoluteString, "https://api.multica.ai/uploads/avatar.png")
     }
 
     func test_avatarURLResolverSupportsProtocolRelativeURLs() throws {
-        let baseURL = try XCTUnwrap(URL(string: "https://api.multi-casual.ai"))
+        let baseURL = try XCTUnwrap(URL(string: "https://api.multica.ai"))
         let url = try XCTUnwrap(AvatarURLResolver.url(from: "//cdn.example/avatar.png", baseURL: baseURL))
 
         XCTAssertEqual(url.absoluteString, "https://cdn.example/avatar.png")
