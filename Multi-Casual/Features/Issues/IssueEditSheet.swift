@@ -9,6 +9,7 @@ public struct IssueEditSheet: View {
     @Environment(APIClient.self) private var api
     @Environment(AuthSession.self) private var authSession
     @State private var viewModel: IssueEditViewModel?
+    @State private var descriptionMentionQuery: String?
 
     public init(issue: Issue, onSave: @escaping (Issue) -> Void) {
         self.issue = issue
@@ -33,6 +34,16 @@ public struct IssueEditSheet: View {
                             ))
                             .frame(minHeight: 120)
                             .accessibilityIdentifier("IssueEditDescriptionEditor")
+                            .onChange(of: vm.description) { _, newValue in
+                                descriptionMentionQuery = IssueDetailViewModel.activeMentionQuery(in: newValue)
+                            }
+
+                            Button {
+                                descriptionMentionQuery = ""
+                            } label: {
+                                Label("Mention", systemImage: "at")
+                            }
+                            .disabled(vm.mentionCandidates.isEmpty)
                         }
 
                         Section("Properties") {
@@ -154,9 +165,29 @@ public struct IssueEditSheet: View {
                     }
                     .disabled(viewModel?.canSubmit != true)
                     .accessibilityIdentifier("IssueEditSaveButton")
-                }
             }
-            .task {
+        }
+        .sheet(isPresented: Binding(
+            get: { descriptionMentionQuery != nil && viewModel?.mentionCandidates.isEmpty == false },
+            set: { if !$0 { descriptionMentionQuery = nil } }
+        )) {
+            if let vm = viewModel {
+                IssueFormMentionPicker(candidates: vm.mentionCandidates, query: Binding(
+                    get: { descriptionMentionQuery ?? "" },
+                    set: { descriptionMentionQuery = $0 }
+                )) { candidate in
+                    IssueDetailViewModel.appendMention(
+                        candidate,
+                        to: &vm.description,
+                        mentions: &vm.descriptionMentions
+                    )
+                    descriptionMentionQuery = nil
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+        }
+        .task {
                 if viewModel == nil {
                     let vm = IssueEditViewModel(issue: issue, api: api, authSession: authSession)
                     viewModel = vm

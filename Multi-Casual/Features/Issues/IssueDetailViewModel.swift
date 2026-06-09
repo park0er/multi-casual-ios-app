@@ -4,7 +4,7 @@ import Observation
 @Observable
 @MainActor
 public final class IssueDetailViewModel {
-    public struct AgentMentionDraftToken: Equatable, Sendable {
+    public struct MentionDraftToken: Equatable, Sendable {
         public let visibleText: String
         public let markdown: String
 
@@ -48,10 +48,11 @@ public final class IssueDetailViewModel {
     public var subscribers: [IssueSubscriber] = []
     public var subscriberMembers: [WorkspaceMember] = []
     public var subscriberAgents: [Agent] = []
+    public var subscriberSquads: [Squad] = []
     public let commentLoader = PaginatedLoader<Comment>()
     public private(set) var commentSortOrder: CommentSortOrder = .descending
     public var commentDraft = ""
-    public var commentDraftAgentMentions: [AgentMentionDraftToken] = []
+    public var commentDraftMentions: [MentionDraftToken] = []
     public var commentAttachments: [Attachment] = []
     public var replyAttachments: [String: [Attachment]] = [:]
     public var isSubmittingComment = false
@@ -161,10 +162,41 @@ public final class IssueDetailViewModel {
         return "\(formatTokenCount(usage.totalTokens)) tokens across \(usage.taskCount) \(taskUnit)"
     }
 
-    public var mentionableAgents: [Agent] {
-        subscriberAgents
+    public var mentionCandidates: [MentionCandidate] {
+        let people = subscriberMembers.map {
+            MentionCandidate(
+                type: .person,
+                entityId: $0.userId,
+                displayName: $0.name,
+                subtitle: $0.email,
+                avatarUrl: $0.avatarUrl
+            )
+        }
+        let agents = subscriberAgents
             .filter { $0.archivedAt == nil }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .map {
+                MentionCandidate(
+                    type: .agent,
+                    entityId: $0.id,
+                    displayName: $0.name,
+                    subtitle: "Agent",
+                    avatarUrl: $0.avatarUrl
+                )
+            }
+        let squads = subscriberSquads
+            .filter { $0.archivedAt == nil }
+            .map {
+                MentionCandidate(
+                    type: .squad,
+                    entityId: $0.id,
+                    displayName: $0.name,
+                    subtitle: $0.description.isEmpty ? "Squad" : "Squad · \($0.description)",
+                    avatarUrl: $0.avatarUrl
+                )
+            }
+        return (people + agents + squads).sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
     }
 
     public func commentMarkdownContext(issuePrefix: String?) -> MarkdownRenderContext {
@@ -178,6 +210,9 @@ public final class IssueDetailViewModel {
         for agent in subscriberAgents {
             mentionDisplayNames["mention://agent/\(agent.id)"] = agent.name
         }
+        for squad in subscriberSquads {
+            mentionDisplayNames["mention://squad/\(squad.id)"] = squad.name
+        }
 
         let resolvedPrefix = issuePrefix?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? issuePrefix
@@ -189,20 +224,23 @@ public final class IssueDetailViewModel {
         )
     }
 
-    public func appendAgentMention(_ agent: Agent) {
-        Self.appendAgentMention(agent, to: &commentDraft, mentions: &commentDraftAgentMentions)
+    public func appendMention(_ candidate: MentionCandidate) {
+        Self.appendMention(candidate, to: &commentDraft, mentions: &commentDraftMentions)
     }
 
     public func serializedCommentDraft() -> String {
-        Self.serializeMentionDraft(commentDraft, mentions: commentDraftAgentMentions)
+        Self.serializeMentionDraft(commentDraft, mentions: commentDraftMentions)
     }
 
-    public static func appendAgentMention(
-        _ agent: Agent,
+    public static func appendMention(
+        _ candidate: MentionCandidate,
         to draft: inout String,
-        mentions: inout [AgentMentionDraftToken]
+        mentions: inout [MentionDraftToken]
     ) {
-        let visible = visibleAgentMention(agent)
+        if replaceActiveMentionTrigger(with: candidate, in: &draft, mentions: &mentions) {
+            return
+        }
+        let visible = candidate.visibleText
         let trimmedDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedDraft.isEmpty {
             draft = "\(visible) "
@@ -211,13 +249,48 @@ public final class IssueDetailViewModel {
         } else {
             draft += " \(visible) "
         }
-        let token = AgentMentionDraftToken(visibleText: visible, markdown: agentMentionMarkdown(agent))
+        let token = MentionDraftToken(visibleText: visible, markdown: mentionMarkdown(candidate))
         if !mentions.contains(token) {
             mentions.append(token)
         }
     }
 
-    public static func serializeMentionDraft(_ draft: String, mentions: [AgentMentionDraftToken]) -> String {
+    @discardableResult
+    public static func replaceActiveMentionTrigger(
+        with candidate: MentionCandidate,
+        in draft: inout String,
+        mentions: inout [MentionDraftToken]
+    ) -> Bool {
+        guard let range = activeMentionTriggerRange(in: draft) else { return false }
+        let insertion = candidate.visibleText + " "
+        draft.replaceSubrange(range, with: insertion)
+        let token = MentionDraftToken(visibleText: candidate.visibleText, markdown: mentionMarkdown(candidate))
+        if !mentions.contains(token) {
+            mentions.append(token)
+        }
+        return true
+    }
+
+    public static func activeMentionQuery(in draft: String) -> String? {
+        guard let range = activeMentionTriggerRange(in: draft) else { return nil }
+        return String(draft[range].dropFirst())
+    }
+
+    private static func activeMentionTriggerRange(in draft: String) -> Range<String.Index>? {
+        guard let atIndex = draft.lastIndex(of: "@") else { return nil }
+        let afterAt = draft.index(after: atIndex)
+        let query = draft[afterAt...]
+        guard !query.contains(where: { $0.isWhitespace || $0 == "[" || $0 == "]" || $0 == "(" || $0 == ")" }) else {
+            return nil
+        }
+        if atIndex > draft.startIndex {
+            let beforeAt = draft[draft.index(before: atIndex)]
+            guard beforeAt.isWhitespace || beforeAt == "(" || beforeAt == "[" else { return nil }
+        }
+        return atIndex..<draft.endIndex
+    }
+
+    public static func serializeMentionDraft(_ draft: String, mentions: [MentionDraftToken]) -> String {
         mentions
             .sorted { $0.visibleText.count > $1.visibleText.count }
             .reduce(draft) { rendered, mention in
@@ -225,19 +298,19 @@ public final class IssueDetailViewModel {
             }
     }
 
-    public static func visibleAgentMention(_ agent: Agent) -> String {
-        "@\(agent.name)"
-    }
-
-    public static func agentMentionMarkdown(_ agent: Agent) -> String {
-        agentMentionMarkdown(agentId: agent.id, label: agent.name)
+    public static func mentionMarkdown(_ candidate: MentionCandidate) -> String {
+        mentionMarkdown(type: candidate.type.payloadType, entityId: candidate.entityId, label: candidate.displayName)
     }
 
     private static func agentMentionMarkdown(agentId: String, label: String) -> String {
+        mentionMarkdown(type: MentionEntityType.agent.payloadType, entityId: agentId, label: label)
+    }
+
+    private static func mentionMarkdown(type: String, entityId: String, label: String) -> String {
         let escapedLabel = label
             .replacingOccurrences(of: "[", with: "\\[")
             .replacingOccurrences(of: "]", with: "\\]")
-        return "[@\(escapedLabel)](mention://agent/\(agentId))"
+        return "[@\(escapedLabel)](mention://\(type)/\(entityId))"
     }
 
     public func loadInitialData() async {
@@ -345,13 +418,20 @@ public final class IssueDetailViewModel {
                 includeArchived: true,
                 api: api
             )
+            async let squads = WorkspaceMetadataCache.shared.squads(
+                workspaceId: workspaceId,
+                includeArchived: true,
+                api: api
+            )
             async let projects = WorkspaceMetadataCache.shared.projects(workspaceId: workspaceId, api: api)
 
             let loadedMembers = try await members
             let loadedAgents = try await agents
+            let loadedSquads = try await squads
             let loadedProjects = try await projects
             subscriberMembers = loadedMembers
             subscriberAgents = loadedAgents
+            subscriberSquads = loadedSquads
 
             if let assigneeId = issue.assigneeId, let assigneeType = issue.assigneeType {
                 switch assigneeType {
@@ -359,6 +439,8 @@ public final class IssueDetailViewModel {
                     assigneeDisplayName = loadedMembers.first { $0.userId == assigneeId || $0.id == assigneeId }?.name
                 case "agent":
                     assigneeDisplayName = loadedAgents.first { $0.id == assigneeId }?.name
+                case "squad":
+                    assigneeDisplayName = loadedSquads.first { $0.id == assigneeId }?.name
                 default:
                     assigneeDisplayName = nil
                 }
@@ -424,6 +506,9 @@ public final class IssueDetailViewModel {
         case "agent":
             return subscriberAgents.first { $0.id == subscriber.userId }?.name
                 ?? "Agent \(subscriber.userId.prefix(8))"
+        case "squad":
+            return subscriberSquads.first { $0.id == subscriber.userId }?.name
+                ?? "Squad \(subscriber.userId.prefix(8))"
         default:
             return "\(subscriber.userType.capitalized) \(subscriber.userId.prefix(8))"
         }
@@ -435,6 +520,8 @@ public final class IssueDetailViewModel {
             return subscriberMembers.first { $0.userId == subscriber.userId || $0.id == subscriber.userId }?.avatarUrl
         case "agent":
             return subscriberAgents.first { $0.id == subscriber.userId }?.avatarUrl
+        case "squad":
+            return subscriberSquads.first { $0.id == subscriber.userId }?.avatarUrl
         default:
             return nil
         }
@@ -452,6 +539,9 @@ public final class IssueDetailViewModel {
         case "agent":
             return subscriberAgents.first { $0.id == comment.authorId }?.name
                 ?? "Agent \(comment.authorId.prefix(8))"
+        case "squad":
+            return subscriberSquads.first { $0.id == comment.authorId }?.name
+                ?? "Squad \(comment.authorId.prefix(8))"
         default:
             return "\(comment.authorType.capitalized) \(comment.authorId.prefix(8))"
         }
@@ -463,6 +553,8 @@ public final class IssueDetailViewModel {
             return subscriberMembers.first { $0.userId == comment.authorId || $0.id == comment.authorId }?.avatarUrl
         case "agent":
             return subscriberAgents.first { $0.id == comment.authorId }?.avatarUrl
+        case "squad":
+            return subscriberSquads.first { $0.id == comment.authorId }?.avatarUrl
         default:
             return nil
         }
@@ -753,6 +845,9 @@ public final class IssueDetailViewModel {
         case "agent":
             return subscriberAgents.first { $0.id == entry.actorId }?.name
                 ?? "Agent \(entry.actorId.prefix(8))"
+        case "squad":
+            return subscriberSquads.first { $0.id == entry.actorId }?.name
+                ?? "Squad \(entry.actorId.prefix(8))"
         default:
             return "\(entry.actorType.capitalized) \(entry.actorId.prefix(8))"
         }
@@ -763,7 +858,7 @@ public final class IssueDetailViewModel {
         guard !content.isEmpty || !commentAttachments.isEmpty else { return }
         guard await submitComment(content: content, parentId: nil) else { return }
         commentDraft = ""
-        commentDraftAgentMentions = []
+        commentDraftMentions = []
         commentAttachments = []
     }
 

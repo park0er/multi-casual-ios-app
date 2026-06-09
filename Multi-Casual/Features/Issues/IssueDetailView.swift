@@ -27,7 +27,9 @@ public struct IssueDetailView: View {
     @State private var isAgentWorkExpanded = false
     @State private var activeReplyTarget: IssueReplyTarget?
     @State private var replyDraft = ""
-    @State private var replyDraftAgentMentions: [IssueDetailViewModel.AgentMentionDraftToken] = []
+    @State private var replyDraftMentions: [IssueDetailViewModel.MentionDraftToken] = []
+    @State private var commentMentionQuery: String?
+    @State private var replyMentionQuery: String?
     @State private var replyAttachmentError: String?
     @State private var showReplyAttachmentImporter = false
     @State private var selectedReplyImageItem: PhotosPickerItem?
@@ -79,6 +81,40 @@ public struct IssueDetailView: View {
             if let vm = viewModel {
                 SubscriberManagementView(vm: vm)
                     .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { commentMentionQuery != nil && viewModel?.mentionCandidates.isEmpty == false },
+            set: { if !$0 { commentMentionQuery = nil } }
+        )) {
+            if let vm = viewModel {
+                MentionPickerSheet(candidates: vm.mentionCandidates, query: Binding(
+                    get: { commentMentionQuery ?? "" },
+                    set: { commentMentionQuery = $0 }
+                )) { candidate in
+                    vm.appendMention(candidate)
+                    commentMentionQuery = nil
+                    focusComposer(.comment)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { replyMentionQuery != nil && viewModel?.mentionCandidates.isEmpty == false },
+            set: { if !$0 { replyMentionQuery = nil } }
+        )) {
+            if let vm = viewModel {
+                MentionPickerSheet(candidates: vm.mentionCandidates, query: Binding(
+                    get: { replyMentionQuery ?? "" },
+                    set: { replyMentionQuery = $0 }
+                )) { candidate in
+                    IssueDetailViewModel.appendMention(candidate, to: &replyDraft, mentions: &replyDraftMentions)
+                    replyMentionQuery = nil
+                    focusComposer(.reply)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
         }
         .sheet(isPresented: $showCreateSubIssue) {
@@ -893,11 +929,11 @@ public struct IssueDetailView: View {
                 .disabled(vm.isUploadingCommentAttachment || vm.isSubmittingComment)
                 .accessibilityIdentifier("IssueDetailAddCommentAttachmentButton")
 
-                AgentMentionPicker(agents: vm.mentionableAgents) { agent in
-                    vm.appendAgentMention(agent)
+                MentionPicker(candidates: vm.mentionCandidates) { candidate in
+                    vm.appendMention(candidate)
                     focusComposer(.comment)
                 }
-                .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
+                .disabled(vm.mentionCandidates.isEmpty || vm.isSubmittingComment)
                 .accessibilityIdentifier("IssueDetailAgentMentionButton")
 
                 TextField(AppStrings.localized("Add a comment…", language: appLanguage), text: Binding(
@@ -907,6 +943,9 @@ public struct IssueDetailView: View {
                 .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 20))
                 .focused($composerFocus, equals: .comment)
                 .accessibilityIdentifier("IssueDetailCommentInput")
+                .onChange(of: vm.commentDraft) { _, newValue in
+                    commentMentionQuery = IssueDetailViewModel.activeMentionQuery(in: newValue)
+                }
 
                 if composerFocus == .comment {
                     Button {
@@ -1027,24 +1066,27 @@ public struct IssueDetailView: View {
                 .disabled(isUploadingReplyAttachment || vm.isSubmittingComment)
                 .accessibilityIdentifier("CommentReplyAddAttachmentButton")
 
-                AgentMentionPicker(agents: vm.mentionableAgents) { agent in
-                    IssueDetailViewModel.appendAgentMention(
-                        agent,
+                MentionPicker(candidates: vm.mentionCandidates) { candidate in
+                    IssueDetailViewModel.appendMention(
+                        candidate,
                         to: &replyDraft,
-                        mentions: &replyDraftAgentMentions
+                        mentions: &replyDraftMentions
                     )
                     focusComposer(.reply)
                 }
-                .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
+                .disabled(vm.mentionCandidates.isEmpty || vm.isSubmittingComment)
                 .accessibilityIdentifier("CommentReplyAgentMentionButton")
 
                 TextField(AppStrings.localized("Reply…", language: appLanguage), text: $replyDraft, axis: .vertical)
                     .lineLimit(1...4)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 20))
-                    .focused($composerFocus, equals: .reply)
-                    .accessibilityIdentifier("IssueDetailReplyInput")
+                .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 20))
+                .focused($composerFocus, equals: .reply)
+                .accessibilityIdentifier("IssueDetailReplyInput")
+                .onChange(of: replyDraft) { _, newValue in
+                    replyMentionQuery = IssueDetailViewModel.activeMentionQuery(in: newValue)
+                }
 
                 if composerFocus == .reply {
                     Button {
@@ -1095,7 +1137,8 @@ public struct IssueDetailView: View {
     private func startReply(to comment: Comment, authorDisplayName: String) {
         activeReplyTarget = IssueReplyTarget(commentId: comment.id, authorDisplayName: authorDisplayName)
         replyDraft = ""
-        replyDraftAgentMentions = []
+        replyDraftMentions = []
+        replyMentionQuery = nil
         replyAttachmentError = nil
         focusComposer(.reply)
     }
@@ -1106,7 +1149,8 @@ public struct IssueDetailView: View {
         }
         activeReplyTarget = nil
         replyDraft = ""
-        replyDraftAgentMentions = []
+        replyDraftMentions = []
+        replyMentionQuery = nil
         replyAttachmentError = nil
         selectedReplyImageItem = nil
         composerFocus = nil
@@ -1125,13 +1169,14 @@ public struct IssueDetailView: View {
     private func submitActiveReply(vm: IssueDetailViewModel, target: IssueReplyTarget) async {
         let content = IssueDetailViewModel.serializeMentionDraft(
             replyDraft,
-            mentions: replyDraftAgentMentions
+            mentions: replyDraftMentions
         )
         let submitted = await vm.submitReply(parentId: target.commentId, content: content)
         if submitted {
             activeReplyTarget = nil
             replyDraft = ""
-            replyDraftAgentMentions = []
+            replyDraftMentions = []
+            replyMentionQuery = nil
             replyAttachmentError = nil
             selectedReplyImageItem = nil
             composerFocus = nil
@@ -1524,11 +1569,12 @@ public struct CommentRowView: View {
     }
 }
 
-private struct AgentMentionPicker: View {
-    let agents: [Agent]
-    let onSelect: (Agent) -> Void
+private struct MentionPicker: View {
+    let candidates: [MentionCandidate]
+    let onSelect: (MentionCandidate) -> Void
     @Environment(\.appLanguage) private var appLanguage
     @State private var isPickerPresented = false
+    @State private var query = ""
 
     var body: some View {
         Button {
@@ -1536,13 +1582,14 @@ private struct AgentMentionPicker: View {
         } label: {
             Image(systemName: "at")
                 .font(.title3)
-                .foregroundStyle(agents.isEmpty ? Color.secondary : Color.accentColor)
+                .foregroundStyle(candidates.isEmpty ? Color.secondary : Color.accentColor)
         }
-        .disabled(agents.isEmpty)
-        .accessibilityLabel(AppStrings.localized("Mention Agent", language: appLanguage))
+        .disabled(candidates.isEmpty)
+        .accessibilityLabel(AppStrings.localized("Mention", language: appLanguage))
         .sheet(isPresented: $isPickerPresented) {
-            AgentMentionPickerSheet(agents: agents) { agent in
-                onSelect(agent)
+            MentionPickerSheet(candidates: candidates, query: $query) { candidate in
+                onSelect(candidate)
+                query = ""
                 isPickerPresented = false
             }
             .presentationDetents([.medium, .large])
@@ -1551,42 +1598,44 @@ private struct AgentMentionPicker: View {
     }
 }
 
-private struct AgentMentionPickerSheet: View {
-    let agents: [Agent]
-    let onSelect: (Agent) -> Void
+private struct MentionPickerSheet: View {
+    let candidates: [MentionCandidate]
+    @Binding var query: String
+    let onSelect: (MentionCandidate) -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLanguage) private var appLanguage
 
+    private var filteredCandidates: [MentionCandidate] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return candidates }
+        return candidates.filter {
+            $0.displayName.localizedCaseInsensitiveContains(trimmed) ||
+            $0.subtitle.localizedCaseInsensitiveContains(trimmed) ||
+            $0.type.displayName.localizedCaseInsensitiveContains(trimmed)
+        }
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(agents) { agent in
-                        Button {
-                            onSelect(agent)
-                        } label: {
-                            HStack(spacing: 12) {
-                                AvatarView(name: agent.name, avatarUrl: agent.avatarUrl, kind: .agent, size: 32)
-                                Text(agent.name)
-                                    .font(.body)
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                Image(systemName: "at")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                            .contentShape(Rectangle())
+            VStack(spacing: 0) {
+                TextField(AppStrings.localized("Search", language: appLanguage), text: $query)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                    .padding()
+
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredCandidates) { candidate in
+                            mentionCandidateButton(candidate)
+                            Divider().padding(.leading, 64)
                         }
-                        .buttonStyle(.plain)
-                        Divider().padding(.leading, 64)
                     }
                 }
             }
-            .navigationTitle(AppStrings.localized("Mention Agent", language: appLanguage))
+            .navigationTitle(AppStrings.localized("Mention", language: appLanguage))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1595,6 +1644,59 @@ private struct AgentMentionPickerSheet: View {
                     }
                 }
             }
+        }
+    }
+
+    private func mentionCandidateButton(_ candidate: MentionCandidate) -> some View {
+        Button {
+            onSelect(candidate)
+        } label: {
+            HStack(spacing: 12) {
+                AvatarView(name: candidate.displayName, avatarUrl: candidate.avatarUrl, kind: avatarKind(for: candidate), size: 32)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(candidate.displayName)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(candidate.type.displayName)
+                            .font(.caption2.weight(.bold))
+                            .textCase(.uppercase)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(typeColor(candidate.type).opacity(0.15), in: Capsule())
+                            .foregroundStyle(typeColor(candidate.type))
+                        Text(candidate.subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "at")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func avatarKind(for candidate: MentionCandidate) -> AvatarView.Kind {
+        switch candidate.type {
+        case .person: .user
+        case .agent: .agent
+        case .squad: .user
+        }
+    }
+
+    private func typeColor(_ type: MentionEntityType) -> Color {
+        switch type {
+        case .person: .blue
+        case .agent: .purple
+        case .squad: .orange
         }
     }
 }

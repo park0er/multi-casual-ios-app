@@ -320,3 +320,4 @@
 "This removes the issue and its activity from the workspace. This action cannot be undone." = "这会从工作区中删除此 Issue 及其活动记录，且无法撤销。";
 "This removes the project from the workspace. Linked issues stay available." = "这会从工作区中删除此项目，关联 Issues 会保留。";
 "You will need to sign in again to use this workspace." = "你需要重新登录才能使用此工作区。";
+"Mention" = "提及";

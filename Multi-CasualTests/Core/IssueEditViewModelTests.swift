@@ -44,6 +44,8 @@ final class IssueEditViewModelTests: XCTestCase {
                 }],"total":1}
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -96,6 +98,8 @@ final class IssueEditViewModelTests: XCTestCase {
                 return Self.response(for: req, body: json)
             case "/api/projects", "/api/labels":
                 return Self.response(for: req, body: Data(#"{"error":"temporary failure"}"#.utf8), status: 500)
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -293,6 +297,8 @@ final class IssueEditViewModelTests: XCTestCase {
                  "updated_at":"2026-01-02T00:00:00Z"}
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)

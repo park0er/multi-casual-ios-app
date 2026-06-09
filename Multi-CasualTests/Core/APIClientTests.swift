@@ -1938,6 +1938,23 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(agents.isEmpty)
     }
 
+    func test_listSquads_decodesWorkspaceSquads() async throws {
+        let json = #"{"squads":[{"id":"s1","workspace_id":"w1","name":"Design Squad","description":"Design","avatar_url":null,"agent_ids":["a1"],"member_ids":["u1"],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","archived_at":null}]}"#.data(using: .utf8)!
+        MockURLProtocol.handler = { req in
+            XCTAssertEqual(req.url?.path, "/api/squads")
+            XCTAssertTrue(req.url?.absoluteString.contains("workspace_id=w1") ?? false)
+            XCTAssertTrue(req.url?.absoluteString.contains("include_archived=true") ?? false)
+            return (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, json)
+        }
+
+        let squads = try await client.listSquads(workspaceId: "w1", includeArchived: true)
+
+        XCTAssertEqual(squads.map(\.id), ["s1"])
+        XCTAssertEqual(squads.first?.name, "Design Squad")
+        XCTAssertEqual(squads.first?.agentIds, ["a1"])
+        XCTAssertEqual(squads.first?.memberIds, ["u1"])
+    }
+
     func test_getAgentUsesDesktopEndpointAndWorkspaceScope() async throws {
         var capturedRequest: URLRequest?
         MockURLProtocol.handler = { req in

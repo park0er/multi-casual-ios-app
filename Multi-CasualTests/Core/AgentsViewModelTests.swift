@@ -533,9 +533,9 @@ final class AgentsViewModelTests: XCTestCase {
         """
         [
           {"id":"t1","agent_id":"a1","issue_id":"i1","status":"completed",
-           "started_at":"2026-05-06T00:00:00Z","completed_at":"2026-05-06T00:05:00Z","error":null},
+           "started_at":"2026-06-06T00:00:00Z","completed_at":"2026-06-06T00:05:00Z","error":null},
           {"id":"t2","agent_id":"a1","issue_id":"i2","status":"running",
-           "started_at":"2026-05-06T01:00:00Z","completed_at":null,"error":null}
+           "started_at":"2026-06-06T01:00:00Z","completed_at":null,"error":null}
         ]
         """.data(using: .utf8)!
     }

@@ -19,6 +19,10 @@ final class ChatViewModelTests: XCTestCase {
                 return Self.response(req, body: Self.pendingChatTasksJSON())
             case ("GET", "/api/agents"):
                 return Self.response(req, body: "[\(String(data: Self.agentJSON(id: "a1", name: "Codex"), encoding: .utf8)!)]".data(using: .utf8)!)
+            case ("GET", "/api/workspaces/w1/members"):
+                return Self.response(req, body: Data(#"[{"id":"m1","workspace_id":"w1","user_id":"u1","role":"owner","name":"Parker","email":"p@example.com","avatar_url":null}]"#.utf8))
+            case ("GET", "/api/squads"):
+                return Self.response(req, body: Data(#"{"squads":[{"id":"s1","workspace_id":"w1","name":"Design Squad","description":"Design","avatar_url":null,"agent_ids":[],"member_ids":[],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","archived_at":null}]}"#.utf8))
             default:
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
                 return Self.response(req, body: Data("{}".utf8), status: 404)

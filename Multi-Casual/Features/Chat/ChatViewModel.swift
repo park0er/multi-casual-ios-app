@@ -5,7 +5,9 @@ import Observation
 @MainActor
 public final class ChatViewModel {
     public var sessions: [ChatSession] = []
+    public var members: [WorkspaceMember] = []
     public var agents: [Agent] = []
+    public var squads: [Squad] = []
     public var messages: [ChatMessage] = []
     public var selectedSession: ChatSession?
     public var pendingTasks = PendingChatTasksResponse(tasks: [])
@@ -38,15 +40,58 @@ public final class ChatViewModel {
 
         do {
             async let loadedSessions = api.listChatSessions(workspaceId: workspaceId)
+            async let loadedMembers = WorkspaceMetadataCache.shared.members(workspaceId: workspaceId, api: api)
             async let loadedAgents = api.listAgents(workspaceId: workspaceId)
+            async let loadedSquads = WorkspaceMetadataCache.shared.squads(workspaceId: workspaceId, api: api)
             async let loadedPending = api.listPendingChatTasks(workspaceId: workspaceId)
             sessions = try await loadedSessions.sorted { $0.updatedAt > $1.updatedAt }
+            members = try await loadedMembers
             agents = try await loadedAgents.filter { $0.archivedAt == nil }
+                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            squads = try await loadedSquads.filter { $0.archivedAt == nil }
                 .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             pendingTasks = try await loadedPending
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    public var mentionCandidates: [MentionCandidate] {
+        let people = members.map {
+            MentionCandidate(type: .person, entityId: $0.userId, displayName: $0.name, subtitle: $0.email, avatarUrl: $0.avatarUrl)
+        }
+        let agentCandidates = agents.map {
+            MentionCandidate(type: .agent, entityId: $0.id, displayName: $0.name, subtitle: "Agent", avatarUrl: $0.avatarUrl)
+        }
+        let squadCandidates = squads.map {
+            MentionCandidate(
+                type: .squad,
+                entityId: $0.id,
+                displayName: $0.name,
+                subtitle: $0.description.isEmpty ? "Squad" : "Squad · \($0.description)",
+                avatarUrl: $0.avatarUrl
+            )
+        }
+        return (people + agentCandidates + squadCandidates).sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+    }
+
+    public var messageMarkdownContext: MarkdownRenderContext {
+        var displayNames: [String: String] = [:]
+        for member in members {
+            displayNames["mention://member/\(member.userId)"] = member.name
+            displayNames["mention://member/\(member.id)"] = member.name
+            displayNames["mention://user/\(member.userId)"] = member.name
+            displayNames["mention://user/\(member.id)"] = member.name
+        }
+        for agent in agents {
+            displayNames["mention://agent/\(agent.id)"] = agent.name
+        }
+        for squad in squads {
+            displayNames["mention://squad/\(squad.id)"] = squad.name
+        }
+        return MarkdownRenderContext(mentionDisplayNamesByURL: displayNames)
     }
 
     public func selectSession(_ session: ChatSession) async {

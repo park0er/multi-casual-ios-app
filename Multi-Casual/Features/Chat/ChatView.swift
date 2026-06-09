@@ -117,6 +117,8 @@ private struct ChatSessionDetailView: View {
     let session: ChatSession
     @Environment(AuthSession.self) private var authSession
     @State private var draft = ""
+    @State private var draftMentions: [IssueDetailViewModel.MentionDraftToken] = []
+    @State private var mentionQuery: String?
     @State private var subscriptionTask: Task<Void, Never>?
 
     var body: some View {
@@ -143,7 +145,8 @@ private struct ChatSessionDetailView: View {
                     ForEach(viewModel.messages) { message in
                         ChatMessageRow(
                             message: message,
-                            timeline: viewModel.timelineItems(for: message)
+                            timeline: viewModel.timelineItems(for: message),
+                            context: viewModel.messageMarkdownContext
                         )
                     }
                     if viewModel.shouldShowLiveTimeline {
@@ -171,9 +174,19 @@ private struct ChatSessionDetailView: View {
                     .lineLimit(1...5)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityIdentifier("ChatMessageField")
+                    .onChange(of: draft) { _, newValue in
+                        mentionQuery = IssueDetailViewModel.activeMentionQuery(in: newValue)
+                    }
+                ChatMentionPicker(candidates: viewModel.mentionCandidates) { candidate in
+                    IssueDetailViewModel.appendMention(candidate, to: &draft, mentions: &draftMentions)
+                }
+                .disabled(viewModel.mentionCandidates.isEmpty || viewModel.isSending)
+                .accessibilityIdentifier("ChatMentionButton")
                 Button {
-                    let content = draft
+                    let content = IssueDetailViewModel.serializeMentionDraft(draft, mentions: draftMentions)
                     draft = ""
+                    draftMentions = []
+                    mentionQuery = nil
                     Task { await viewModel.sendMessage(content) }
                 } label: {
                     Image(systemName: viewModel.isSending ? "hourglass" : "paperplane.fill")
@@ -193,6 +206,20 @@ private struct ChatSessionDetailView: View {
                 }
                 .accessibilityIdentifier("ChatArchiveButton")
             }
+        }
+        .sheet(isPresented: Binding(
+            get: { mentionQuery != nil && !viewModel.mentionCandidates.isEmpty },
+            set: { if !$0 { mentionQuery = nil } }
+        )) {
+            ChatMentionPickerSheet(candidates: viewModel.mentionCandidates, query: Binding(
+                get: { mentionQuery ?? "" },
+                set: { mentionQuery = $0 }
+            )) { candidate in
+                IssueDetailViewModel.appendMention(candidate, to: &draft, mentions: &draftMentions)
+                mentionQuery = nil
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .markdownNavigationTitle(session.title)
         .task {
@@ -226,6 +253,7 @@ private struct ChatSessionDetailView: View {
 private struct ChatMessageRow: View {
     let message: ChatMessage
     let timeline: [TimelineItem]
+    let context: MarkdownRenderContext
 
     var body: some View {
         HStack {
@@ -245,7 +273,7 @@ private struct ChatMessageRow: View {
             if message.role == .assistant, !timeline.isEmpty {
                 ChatTimelineView(items: timeline)
             } else {
-                MarkdownText(message.content)
+                MarkdownText(message.content, context: context)
                     .font(.body)
             }
             if let failureReason = message.failureReason, !failureReason.isEmpty {
@@ -261,6 +289,120 @@ private struct ChatMessageRow: View {
         .padding(10)
         .background(color, in: RoundedRectangle(cornerRadius: 8))
         .frame(maxWidth: 320, alignment: message.role == .assistant ? .leading : .trailing)
+    }
+}
+
+private struct ChatMentionPicker: View {
+    let candidates: [MentionCandidate]
+    let onSelect: (MentionCandidate) -> Void
+    @State private var isPickerPresented = false
+    @State private var query = ""
+
+    var body: some View {
+        Button {
+            isPickerPresented = true
+        } label: {
+            Image(systemName: "at")
+                .font(.title3)
+        }
+        .disabled(candidates.isEmpty)
+        .accessibilityLabel("Mention")
+        .sheet(isPresented: $isPickerPresented) {
+            ChatMentionPickerSheet(candidates: candidates, query: $query) { candidate in
+                onSelect(candidate)
+                query = ""
+                isPickerPresented = false
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+private struct ChatMentionPickerSheet: View {
+    let candidates: [MentionCandidate]
+    @Binding var query: String
+    let onSelect: (MentionCandidate) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private var filteredCandidates: [MentionCandidate] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return candidates }
+        return candidates.filter {
+            $0.displayName.localizedCaseInsensitiveContains(trimmed) ||
+            $0.subtitle.localizedCaseInsensitiveContains(trimmed) ||
+            $0.type.displayName.localizedCaseInsensitiveContains(trimmed)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                TextField("Search", text: $query)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                    .padding()
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredCandidates) { candidate in
+                            Button {
+                                onSelect(candidate)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    AvatarView(name: candidate.displayName, avatarUrl: candidate.avatarUrl, kind: candidate.type == .agent ? .agent : .user, size: 32)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(candidate.displayName)
+                                            .font(.body)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        HStack(spacing: 6) {
+                                            Text(candidate.type.displayName)
+                                                .font(.caption2.weight(.bold))
+                                                .textCase(.uppercase)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(typeColor(candidate.type).opacity(0.15), in: Capsule())
+                                                .foregroundStyle(typeColor(candidate.type))
+                                            Text(candidate.subtitle)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    Image(systemName: "at")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            Divider().padding(.leading, 64)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Mention")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func typeColor(_ type: MentionEntityType) -> Color {
+        switch type {
+        case .person: .blue
+        case .agent: .purple
+        case .squad: .orange
+        }
     }
 }
 

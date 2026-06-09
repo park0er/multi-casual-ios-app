@@ -56,6 +56,7 @@ private struct IssueCreateForm: View {
     @Environment(\.appLanguage) private var appLanguage
     @State private var isShowingAttachmentImporter = false
     @State private var selectedImageItem: PhotosPickerItem?
+    @State private var descriptionMentionQuery: String?
 
     var body: some View {
         NavigationStack {
@@ -73,6 +74,15 @@ private struct IssueCreateForm: View {
                 Section("Description") {
                     TextEditor(text: $viewModel.description)
                         .frame(minHeight: 120)
+                        .onChange(of: viewModel.description) { _, newValue in
+                            descriptionMentionQuery = IssueDetailViewModel.activeMentionQuery(in: newValue)
+                        }
+                    Button {
+                        descriptionMentionQuery = ""
+                    } label: {
+                        Label("Mention", systemImage: "at")
+                    }
+                    .disabled(viewModel.mentionCandidates.isEmpty)
                 }
 
                 Section {
@@ -279,6 +289,24 @@ private struct IssueCreateForm: View {
                 }
             }
         }
+        .sheet(isPresented: Binding(
+            get: { descriptionMentionQuery != nil && !viewModel.mentionCandidates.isEmpty },
+            set: { if !$0 { descriptionMentionQuery = nil } }
+        )) {
+            IssueFormMentionPicker(candidates: viewModel.mentionCandidates, query: Binding(
+                get: { descriptionMentionQuery ?? "" },
+                set: { descriptionMentionQuery = $0 }
+            )) { candidate in
+                IssueDetailViewModel.appendMention(
+                    candidate,
+                    to: &viewModel.description,
+                    mentions: &viewModel.descriptionMentions
+                )
+                descriptionMentionQuery = nil
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     private func handleAttachmentImport(_ result: Result<[URL], Error>) {
@@ -317,6 +345,64 @@ private struct IssueCreateForm: View {
                 )
             } catch {
                 viewModel.errorMessage = error.localizedDescription
+            }
+        }
+    }
+}
+
+struct IssueFormMentionPicker: View {
+    let candidates: [MentionCandidate]
+    @Binding var query: String
+    let onSelect: (MentionCandidate) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private var filteredCandidates: [MentionCandidate] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return candidates }
+        return candidates.filter {
+            $0.displayName.localizedCaseInsensitiveContains(trimmed) ||
+            $0.subtitle.localizedCaseInsensitiveContains(trimmed) ||
+            $0.type.displayName.localizedCaseInsensitiveContains(trimmed)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    TextField("Search", text: $query)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+                ForEach(filteredCandidates) { candidate in
+                    Button {
+                        onSelect(candidate)
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 10) {
+                            AvatarView(name: candidate.displayName, avatarUrl: candidate.avatarUrl, kind: candidate.type == .agent ? .agent : .user, size: 28)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(candidate.displayName).foregroundStyle(.primary)
+                                HStack(spacing: 6) {
+                                    Text(candidate.type.displayName)
+                                        .font(.caption2.weight(.bold))
+                                        .textCase(.uppercase)
+                                        .foregroundStyle(.secondary)
+                                    Text(candidate.subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Mention")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
             }
         }
     }
