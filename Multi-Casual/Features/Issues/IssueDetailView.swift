@@ -598,15 +598,6 @@ public struct IssueDetailView: View {
             },
             onDelete: { commentId in
                 await vm.deleteComment(commentId: commentId)
-            },
-            onToggleReaction: { emoji in
-                Task {
-                    await vm.toggleCommentReaction(
-                        commentId: comment.id,
-                        emoji: emoji,
-                        currentUserId: currentUserId
-                    )
-                }
             }
         )
     }
@@ -1409,7 +1400,6 @@ public struct CommentRowView: View {
     let onStartReply: (Comment) -> Void
     let onEdit: (String, String) async -> Bool
     let onDelete: (String) async -> Bool
-    let onToggleReaction: (String) -> Void
 
     @State private var isEditing = false
     @State private var editDraft = ""
@@ -1426,8 +1416,7 @@ public struct CommentRowView: View {
         markdownContext: MarkdownRenderContext = .empty,
         onStartReply: @escaping (Comment) -> Void = { _ in },
         onEdit: @escaping (String, String) async -> Bool = { _, _ in false },
-        onDelete: @escaping (String) async -> Bool = { _ in false },
-        onToggleReaction: @escaping (String) -> Void = { _ in }
+        onDelete: @escaping (String) async -> Bool = { _ in false }
     ) {
         self.comment = comment
         self.authorDisplayName = authorDisplayName ?? (comment.authorType == "agent" ? "Agent" : "Member")
@@ -1437,7 +1426,6 @@ public struct CommentRowView: View {
         self.onStartReply = onStartReply
         self.onEdit = onEdit
         self.onDelete = onDelete
-        self.onToggleReaction = onToggleReaction
     }
 
     public var body: some View {
@@ -1451,7 +1439,7 @@ public struct CommentRowView: View {
                 )
                 MarkdownText(authorDisplayName).font(.caption.bold())
                 Spacer()
-                MarkdownText(iso8601DateOnlyFormatter.string(from: comment.createdAt)).font(.caption2).foregroundStyle(.secondary)
+                MarkdownText(iso8601DateTimeFormatter.string(from: comment.createdAt)).font(.caption2).foregroundStyle(.secondary)
                 if currentUserId != nil {
                     Button {
                         onStartReply(comment)
@@ -1531,7 +1519,6 @@ public struct CommentRowView: View {
             if !comment.attachments.isEmpty {
                 AttachmentListView(attachments: comment.attachments)
             }
-            ReactionBarView(badges: commentReactionBadges(comment.reactions), onToggle: onToggleReaction)
         }.padding(.horizontal).padding(.vertical, 6)
             .alert(AppStrings.localized("Delete Comment", language: appLanguage), isPresented: $showDeleteConfirmation) {
                 Button(AppStrings.localized("Delete", language: appLanguage), role: .destructive) {
@@ -1573,17 +1560,6 @@ public struct CommentRowView: View {
         }
     }
 
-    private func commentReactionBadges(_ reactions: [Reaction]) -> [ReactionBadge] {
-        let emojis = Array(Set(reactions.map(\.emoji))).sorted()
-        return emojis.map { emoji in
-            let matching = reactions.filter { $0.emoji == emoji }
-            return ReactionBadge(
-                emoji: emoji,
-                count: matching.count,
-                isSelected: matching.contains { $0.actorType == "member" && $0.actorId == currentUserId }
-            )
-        }
-    }
 }
 
 private let quickReactionEmojis = ["👍", "👀", "🚀", "❤️", "🎉"]

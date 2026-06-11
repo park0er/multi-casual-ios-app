@@ -30,11 +30,13 @@ final class IssueDetailViewModelTests: XCTestCase {
 
         vm.setCommentSortOrder(.ascending)
         XCTAssertEqual(vm.displayedCommentThreads.map(\.root.id), ["c1", "c2"])
+        // With ascending sort, replies within c1 (the first root) should be oldest-first.
         XCTAssertEqual(vm.displayedCommentThreads.first?.replies.map(\.id), ["r1", "r2"])
 
         vm.setCommentSortOrder(.descending)
         XCTAssertEqual(vm.displayedCommentThreads.map(\.root.id), ["c2", "c1"])
-        XCTAssertEqual(vm.displayedCommentThreads.last?.replies.map(\.id), ["r1", "r2"])
+        // With descending sort, replies within c1 (the last root) should be newest-first.
+        XCTAssertEqual(vm.displayedCommentThreads.last?.replies.map(\.id), ["r2", "r1"])
     }
 
     func test_displayedCommentsCanSwitchBetweenAscendingAndDescendingOrder() {
