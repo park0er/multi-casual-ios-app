@@ -1276,6 +1276,15 @@ public let iso8601DateOnlyFormatter: DateFormatter = {
     return f
 }()
 
+/// Shared ISO8601 date-time formatter for UI display with hour and minute.
+public let iso8601DateTimeFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd HH:mm"
+    f.timeZone = .current
+    f.locale = Locale(identifier: "en_US_POSIX")
+    return f
+}()
+
 // MARK: - Issues
 
 public enum IssueStatus: String, Codable, CaseIterable, Sendable, Comparable {
