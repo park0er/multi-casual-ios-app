@@ -73,10 +73,12 @@ final class ChatViewModelTests: XCTestCase {
 
     func test_startDraftSessionDoesNotCreateRemoteSessionUntilFirstMessage() async throws {
         var requests: [String] = []
+        var createdSessionBody: [String: Any]?
         let client = makeClient { req in
             requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
             switch (req.httpMethod, req.url?.path) {
             case ("POST", "/api/chat/sessions"):
+                createdSessionBody = try? JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any]
                 return Self.response(req, body: Self.chatSessionJSON(id: "c2", title: "Generated title"))
             case ("POST", "/api/chat/sessions/c2/messages"):
                 return Self.response(req, body: Self.sendChatMessageJSON())
@@ -104,6 +106,7 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(vm.selectedSession?.id, "c2")
         XCTAssertEqual(vm.sessions.map(\.id), ["c2"])
         XCTAssertEqual(vm.messages.map(\.content), ["First prompt"])
+        XCTAssertEqual(createdSessionBody?["title"] as? String, "First prompt")
         XCTAssertEqual(requests, [
             "POST /api/chat/sessions",
             "POST /api/chat/sessions/c2/messages",

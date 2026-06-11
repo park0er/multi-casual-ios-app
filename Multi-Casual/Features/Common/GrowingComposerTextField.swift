@@ -4,6 +4,8 @@ import SwiftUI
 struct GrowingComposerTextField: View {
     let placeholder: String
     @Binding var text: String
+    var isExpanded = false
+    var collapsedLines = 1
     var minLines = 3
     var maxLines = 8
     var background: Color = Color.secondary.opacity(0.10)
@@ -11,16 +13,21 @@ struct GrowingComposerTextField: View {
 
     var body: some View {
         TextField(placeholder, text: $text, axis: .vertical)
-            .lineLimit(minLines...maxLines)
+            .lineLimit(activeLineRange)
             .font(.body)
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(.vertical, isExpanded ? 10 : 7)
+            .background(background, in: RoundedRectangle(cornerRadius: isExpanded ? 18 : 16, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: isExpanded ? 18 : 16, style: .continuous)
                     .strokeBorder(Color.secondary.opacity(0.16))
             }
+            .animation(.snappy(duration: 0.18), value: isExpanded)
             .accessibilityIdentifier(accessibilityIdentifier ?? "GrowingComposerTextField")
+    }
+
+    private var activeLineRange: ClosedRange<Int> {
+        isExpanded ? minLines...maxLines : collapsedLines...collapsedLines
     }
 }
 #endif

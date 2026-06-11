@@ -25,6 +25,21 @@ public final class ChatViewModel {
         selectedSession?.id == Self.draftSessionId
     }
 
+    public static func titleFromFirstMessage(_ content: String) -> String {
+        let firstLine = content
+            .split(whereSeparator: { $0.isNewline })
+            .first
+            .map(String.init) ?? content
+        let collapsed = firstLine
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !collapsed.isEmpty else { return "New Chat" }
+        let maxLength = 80
+        if collapsed.count <= maxLength { return collapsed }
+        return String(collapsed.prefix(maxLength)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private let api: APIClient
     private let authSession: AuthSession
 
@@ -181,7 +196,7 @@ public final class ChatViewModel {
             if initialSession.id == Self.draftSessionId {
                 isCreating = true
                 defer { isCreating = false }
-                session = try await api.createChatSession(agentId: initialSession.agentId, title: nil, workspaceId: workspaceId)
+                session = try await api.createChatSession(agentId: initialSession.agentId, title: Self.titleFromFirstMessage(trimmed), workspaceId: workspaceId)
                 upsert(session)
                 selectedSession = session
             } else {

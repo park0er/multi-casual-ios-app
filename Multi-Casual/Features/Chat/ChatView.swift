@@ -1,5 +1,6 @@
 #if canImport(SwiftUI) && canImport(UIKit)
 import SwiftUI
+import UIKit
 
 public struct ChatView: View {
     @Environment(APIClient.self) private var api
@@ -131,15 +132,37 @@ private struct ChatSessionDetailView: View {
     @State private var draft = ""
     @State private var didStartDraftSession = false
     @State private var subscriptionTask: Task<Void, Never>?
+    @State private var selectedDraftAgentId: String?
+    @FocusState private var isComposerFocused: Bool
 
     private var isDraftSessionView: Bool {
         session.id == ChatViewModel.draftSessionId && (didStartDraftSession || viewModel.isDraftSession)
     }
 
+    private var activeDraftAgentId: String {
+        selectedDraftAgentId ?? viewModel.selectedSession?.agentId ?? session.agentId
+    }
+
     var body: some View {
         List {
             Section {
-                MarkdownLabeledContent("Agent", value: viewModel.agentName(for: session.agentId))
+                if isDraftSessionView {
+                    Picker("Agent", selection: Binding(
+                        get: { activeDraftAgentId },
+                        set: { newValue in
+                            selectedDraftAgentId = newValue
+                            viewModel.startDraftSession(agentId: newValue)
+                        }
+                    )) {
+                        ForEach(viewModel.agents) { agent in
+                            MarkdownText(agent.name).tag(agent.id)
+                        }
+                    }
+                    .disabled(viewModel.agents.isEmpty || viewModel.isCreating || viewModel.isSending)
+                    .accessibilityIdentifier("ChatAgentPicker")
+                } else {
+                    MarkdownLabeledContent("Agent", value: viewModel.agentName(for: session.agentId))
+                }
                 if !isDraftSessionView, let pending = viewModel.pendingTask, let status = pending.status {
                     MarkdownLabeledContent("Task", value: status.capitalized)
                     Button(role: .destructive) {
@@ -154,7 +177,7 @@ private struct ChatSessionDetailView: View {
 
             Section("Messages") {
                 if isDraftSessionView && viewModel.messages.isEmpty {
-                    ChatWelcomeView(agentName: viewModel.agentName(for: session.agentId)) { prompt in
+                    ChatWelcomeView(agentName: viewModel.agentName(for: activeDraftAgentId)) { prompt in
                         send(prompt)
                     }
                 } else if viewModel.messages.isEmpty && viewModel.errorMessage == nil {
@@ -206,24 +229,26 @@ private struct ChatSessionDetailView: View {
                     }
                 }
                 HStack(alignment: .bottom, spacing: 8) {
-                    if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !viewModel.isSending, !viewModel.isCreating {
-                        Button {
-                            draft = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title3)
-                                .foregroundStyle(.secondary)
-                        }
-                        .accessibilityLabel("Cancel")
-                        .accessibilityIdentifier("ChatComposerClearDraftButton")
-                    }
                     GrowingComposerTextField(
                         placeholder: "Message",
                         text: $draft,
+                        isExpanded: isComposerFocused,
                         minLines: 3,
                         maxLines: 8,
                         accessibilityIdentifier: "ChatMessageField"
                     )
+                    .focused($isComposerFocused)
+                    if isComposerFocused {
+                        Button {
+                            isComposerFocused = false
+                            dismissChatKeyboard()
+                        } label: {
+                            Image(systemName: "keyboard.chevron.compact.down")
+                                .font(.title3)
+                        }
+                        .accessibilityLabel("Dismiss Keyboard")
+                        .accessibilityIdentifier("ChatDismissKeyboardButton")
+                    }
                     Button { send(draft) } label: {
                         Image(systemName: viewModel.isSending ? "hourglass" : "paperplane.fill")
                     }
@@ -250,6 +275,7 @@ private struct ChatSessionDetailView: View {
         .task {
             if session.id == ChatViewModel.draftSessionId {
                 didStartDraftSession = true
+                selectedDraftAgentId = selectedDraftAgentId ?? session.agentId
                 viewModel.startDraftSession(agentId: session.agentId)
             } else {
                 await viewModel.selectSession(session)
@@ -283,17 +309,22 @@ private struct ChatSessionDetailView: View {
         let outgoing = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !outgoing.isEmpty else { return }
         if session.id == ChatViewModel.draftSessionId, !viewModel.isDraftSession {
-            viewModel.startDraftSession(agentId: session.agentId)
+            viewModel.startDraftSession(agentId: selectedDraftAgentId ?? session.agentId)
         }
         Task {
             let sent = await viewModel.sendMessage(outgoing)
             if sent {
                 didStartDraftSession = false
+                isComposerFocused = false
                 if draft == content { draft = "" }
             }
             if !sent, draft.isEmpty { draft = outgoing }
         }
     }
+}
+
+private func dismissChatKeyboard() {
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
 }
 
 private struct ChatWelcomeView: View {

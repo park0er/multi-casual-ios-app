@@ -865,57 +865,47 @@ public struct IssueDetailView: View {
                 }
             }
 
-            HStack(spacing: 12) {
-                if vm.canSubmitComment, !vm.isSubmittingComment {
+            HStack(spacing: composerFocus == .comment ? 12 : 8) {
+                if composerFocus == .comment {
+                    PhotosPicker(
+                        selection: $selectedCommentImageItem,
+                        matching: .images
+                    ) {
+                        if vm.isUploadingCommentAttachment {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "photo.circle")
+                                .font(.title3)
+                        }
+                    }
+                    .disabled(vm.isUploadingCommentAttachment || vm.isSubmittingComment)
+                    .accessibilityIdentifier("IssueDetailAddCommentImageButton")
+
                     Button {
-                        vm.cancelCommentDraft()
-                        composerFocus = nil
+                        showCommentAttachmentImporter = true
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
+                        if vm.isUploadingCommentAttachment {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "paperclip.circle")
+                                .font(.title3)
+                        }
                     }
-                    .accessibilityLabel(AppStrings.localized("Cancel", language: appLanguage))
-                    .accessibilityIdentifier("IssueDetailCancelCommentButton")
-                }
+                    .disabled(vm.isUploadingCommentAttachment || vm.isSubmittingComment)
+                    .accessibilityIdentifier("IssueDetailAddCommentAttachmentButton")
 
-                PhotosPicker(
-                    selection: $selectedCommentImageItem,
-                    matching: .images
-                ) {
-                    if vm.isUploadingCommentAttachment {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "photo.circle")
-                            .font(.title3)
+                    AgentMentionPicker(agents: vm.mentionableAgents) { agent in
+                        vm.appendAgentMention(agent)
+                        focusComposer(.comment)
                     }
+                    .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
+                    .accessibilityIdentifier("IssueDetailAgentMentionButton")
                 }
-                .disabled(vm.isUploadingCommentAttachment || vm.isSubmittingComment)
-                .accessibilityIdentifier("IssueDetailAddCommentImageButton")
-
-                Button {
-                    showCommentAttachmentImporter = true
-                } label: {
-                    if vm.isUploadingCommentAttachment {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "paperclip.circle")
-                            .font(.title3)
-                    }
-                }
-                .disabled(vm.isUploadingCommentAttachment || vm.isSubmittingComment)
-                .accessibilityIdentifier("IssueDetailAddCommentAttachmentButton")
-
-                AgentMentionPicker(agents: vm.mentionableAgents) { agent in
-                    vm.appendAgentMention(agent)
-                    focusComposer(.comment)
-                }
-                .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
-                .accessibilityIdentifier("IssueDetailAgentMentionButton")
 
                 GrowingComposerTextField(
                     placeholder: AppStrings.localized("Add a comment…", language: appLanguage),
                     text: Binding(get: { vm.commentDraft }, set: { vm.commentDraft = $0 }),
+                    isExpanded: composerFocus == .comment,
                     minLines: 3,
                     maxLines: 8,
                     background: .secondary.opacity(0.10),
@@ -980,15 +970,6 @@ public struct IssueDetailView: View {
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
                 Spacer()
-                Button {
-                    cancelActiveReply(vm: vm)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                }
-                .accessibilityLabel(AppStrings.localized("Cancel", language: appLanguage))
-                .accessibilityIdentifier("IssueDetailCancelReplyButton")
             }
 
             if !replyAttachments.isEmpty {
@@ -1015,48 +996,51 @@ public struct IssueDetailView: View {
                     .foregroundStyle(.red)
             }
 
-            HStack(spacing: 12) {
-                PhotosPicker(
-                    selection: $selectedReplyImageItem,
-                    matching: .images
-                ) {
-                    if isUploadingReplyAttachment {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "photo.circle")
-                            .font(.title3)
+            HStack(spacing: composerFocus == .reply ? 12 : 8) {
+                if composerFocus == .reply {
+                    PhotosPicker(
+                        selection: $selectedReplyImageItem,
+                        matching: .images
+                    ) {
+                        if isUploadingReplyAttachment {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "photo.circle")
+                                .font(.title3)
+                        }
                     }
-                }
-                .disabled(isUploadingReplyAttachment || vm.isSubmittingComment)
-                .accessibilityIdentifier("CommentReplyAddImageButton")
+                    .disabled(isUploadingReplyAttachment || vm.isSubmittingComment)
+                    .accessibilityIdentifier("CommentReplyAddImageButton")
 
-                Button {
-                    showReplyAttachmentImporter = true
-                } label: {
-                    if isUploadingReplyAttachment {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "paperclip.circle")
-                            .font(.title3)
+                    Button {
+                        showReplyAttachmentImporter = true
+                    } label: {
+                        if isUploadingReplyAttachment {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "paperclip.circle")
+                                .font(.title3)
+                        }
                     }
-                }
-                .disabled(isUploadingReplyAttachment || vm.isSubmittingComment)
-                .accessibilityIdentifier("CommentReplyAddAttachmentButton")
+                    .disabled(isUploadingReplyAttachment || vm.isSubmittingComment)
+                    .accessibilityIdentifier("CommentReplyAddAttachmentButton")
 
-                AgentMentionPicker(agents: vm.mentionableAgents) { agent in
-                    IssueDetailViewModel.appendAgentMention(
-                        agent,
-                        to: &replyDraft,
-                        mentions: &replyDraftAgentMentions
-                    )
-                    focusComposer(.reply)
+                    AgentMentionPicker(agents: vm.mentionableAgents) { agent in
+                        IssueDetailViewModel.appendAgentMention(
+                            agent,
+                            to: &replyDraft,
+                            mentions: &replyDraftAgentMentions
+                        )
+                        focusComposer(.reply)
+                    }
+                    .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
+                    .accessibilityIdentifier("CommentReplyAgentMentionButton")
                 }
-                .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
-                .accessibilityIdentifier("CommentReplyAgentMentionButton")
 
                 GrowingComposerTextField(
                     placeholder: AppStrings.localized("Reply…", language: appLanguage),
                     text: $replyDraft,
+                    isExpanded: composerFocus == .reply,
                     minLines: 3,
                     maxLines: 8,
                     background: Color.accentColor.opacity(0.08),
@@ -1104,9 +1088,6 @@ public struct IssueDetailView: View {
         }
         .onChange(of: selectedReplyImageItem) { _, item in
             handleReplyImageSelection(item, vm: vm, target: target)
-        }
-        .onAppear {
-            focusComposer(.reply)
         }
     }
 
