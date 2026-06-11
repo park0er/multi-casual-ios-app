@@ -27,7 +27,11 @@ public struct IssueDetailView: View {
     @State private var isAgentWorkExpanded = false
     @State private var activeReplyTarget: IssueReplyTarget?
     @State private var replyDraft = ""
-    @State private var replyDraftAgentMentions: [IssueDetailViewModel.AgentMentionDraftToken] = []
+    @State private var replyDraftMentions: [IssueDetailViewModel.MentionDraftToken] = []
+    @State private var commentMentionQuery: String?
+    @State private var replyMentionQuery: String?
+    @State private var commentMentionTrigger = MentionTriggerSession()
+    @State private var replyMentionTrigger = MentionTriggerSession()
     @State private var replyAttachmentError: String?
     @State private var showReplyAttachmentImporter = false
     @State private var selectedReplyImageItem: PhotosPickerItem?
@@ -894,11 +898,12 @@ public struct IssueDetailView: View {
                     .disabled(vm.isUploadingCommentAttachment || vm.isSubmittingComment)
                     .accessibilityIdentifier("IssueDetailAddCommentAttachmentButton")
 
-                    AgentMentionPicker(agents: vm.mentionableAgents) { agent in
-                        vm.appendAgentMention(agent)
+                    MentionPicker(candidates: vm.mentionCandidates) { candidate in
+                        vm.appendMention(candidate)
+                        commentMentionTrigger.reset()
                         focusComposer(.comment)
                     }
-                    .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
+                    .disabled(vm.mentionCandidates.isEmpty || vm.isSubmittingComment)
                     .accessibilityIdentifier("IssueDetailAgentMentionButton")
                 }
 
@@ -912,6 +917,12 @@ public struct IssueDetailView: View {
                     accessibilityIdentifier: "IssueDetailCommentInput"
                 )
                 .focused($composerFocus, equals: .comment)
+                .onChange(of: vm.commentDraft) { _, newValue in
+                    commentMentionQuery = commentMentionTrigger.update(
+                        draft: newValue,
+                        candidatesAvailable: !vm.mentionCandidates.isEmpty
+                    )
+                }
 
                 if composerFocus == .comment {
                     Button {
@@ -954,6 +965,29 @@ public struct IssueDetailView: View {
         }
         .onChange(of: selectedCommentImageItem) { _, item in
             handleCommentImageSelection(item, vm: vm)
+        }
+        .sheet(isPresented: Binding(
+            get: { commentMentionQuery != nil && !vm.mentionCandidates.isEmpty },
+            set: { isPresented in
+                if !isPresented {
+                    commentMentionTrigger.dismissCurrentTrigger()
+                    commentMentionQuery = nil
+                }
+            }
+        )) {
+            MentionCandidatePickerSheet(candidates: vm.mentionCandidates, query: Binding(
+                get: { commentMentionQuery ?? "" },
+                set: { commentMentionQuery = $0 }
+            )) { candidate in
+                vm.appendMention(candidate)
+                commentMentionTrigger.reset()
+                commentMentionQuery = nil
+            } onCancel: {
+                commentMentionTrigger.dismissCurrentTrigger()
+                commentMentionQuery = nil
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -1025,15 +1059,12 @@ public struct IssueDetailView: View {
                     .disabled(isUploadingReplyAttachment || vm.isSubmittingComment)
                     .accessibilityIdentifier("CommentReplyAddAttachmentButton")
 
-                    AgentMentionPicker(agents: vm.mentionableAgents) { agent in
-                        IssueDetailViewModel.appendAgentMention(
-                            agent,
-                            to: &replyDraft,
-                            mentions: &replyDraftAgentMentions
-                        )
+                    MentionPicker(candidates: vm.mentionCandidates) { candidate in
+                        IssueDetailViewModel.appendMention(candidate, to: &replyDraft, mentions: &replyDraftMentions)
+                        replyMentionTrigger.reset()
                         focusComposer(.reply)
                     }
-                    .disabled(vm.mentionableAgents.isEmpty || vm.isSubmittingComment)
+                    .disabled(vm.mentionCandidates.isEmpty || vm.isSubmittingComment)
                     .accessibilityIdentifier("CommentReplyAgentMentionButton")
                 }
 
@@ -1047,6 +1078,12 @@ public struct IssueDetailView: View {
                     accessibilityIdentifier: "IssueDetailReplyInput"
                 )
                     .focused($composerFocus, equals: .reply)
+                    .onChange(of: replyDraft) { _, newValue in
+                        replyMentionQuery = replyMentionTrigger.update(
+                            draft: newValue,
+                            candidatesAvailable: !vm.mentionCandidates.isEmpty
+                        )
+                    }
 
                 if composerFocus == .reply {
                     Button {
@@ -1089,12 +1126,36 @@ public struct IssueDetailView: View {
         .onChange(of: selectedReplyImageItem) { _, item in
             handleReplyImageSelection(item, vm: vm, target: target)
         }
+        .sheet(isPresented: Binding(
+            get: { replyMentionQuery != nil && !vm.mentionCandidates.isEmpty },
+            set: { isPresented in
+                if !isPresented {
+                    replyMentionTrigger.dismissCurrentTrigger()
+                    replyMentionQuery = nil
+                }
+            }
+        )) {
+            MentionCandidatePickerSheet(candidates: vm.mentionCandidates, query: Binding(
+                get: { replyMentionQuery ?? "" },
+                set: { replyMentionQuery = $0 }
+            )) { candidate in
+                IssueDetailViewModel.appendMention(candidate, to: &replyDraft, mentions: &replyDraftMentions)
+                replyMentionTrigger.reset()
+                replyMentionQuery = nil
+            } onCancel: {
+                replyMentionTrigger.dismissCurrentTrigger()
+                replyMentionQuery = nil
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     private func startReply(to comment: Comment, authorDisplayName: String) {
         activeReplyTarget = IssueReplyTarget(commentId: comment.id, authorDisplayName: authorDisplayName)
         replyDraft = ""
-        replyDraftAgentMentions = []
+        replyDraftMentions = []
+        replyMentionQuery = nil
         replyAttachmentError = nil
         focusComposer(.reply)
     }
@@ -1105,7 +1166,8 @@ public struct IssueDetailView: View {
         }
         activeReplyTarget = nil
         replyDraft = ""
-        replyDraftAgentMentions = []
+        replyDraftMentions = []
+        replyMentionQuery = nil
         replyAttachmentError = nil
         selectedReplyImageItem = nil
         composerFocus = nil
@@ -1124,13 +1186,14 @@ public struct IssueDetailView: View {
     private func submitActiveReply(vm: IssueDetailViewModel, target: IssueReplyTarget) async {
         let content = IssueDetailViewModel.serializeMentionDraft(
             replyDraft,
-            mentions: replyDraftAgentMentions
+            mentions: replyDraftMentions
         )
         let submitted = await vm.submitReply(parentId: target.commentId, content: content)
         if submitted {
             activeReplyTarget = nil
             replyDraft = ""
-            replyDraftAgentMentions = []
+            replyDraftMentions = []
+            replyMentionQuery = nil
             replyAttachmentError = nil
             selectedReplyImageItem = nil
             composerFocus = nil
@@ -1519,81 +1582,6 @@ public struct CommentRowView: View {
                 count: matching.count,
                 isSelected: matching.contains { $0.actorType == "member" && $0.actorId == currentUserId }
             )
-        }
-    }
-}
-
-private struct AgentMentionPicker: View {
-    let agents: [Agent]
-    let onSelect: (Agent) -> Void
-    @Environment(\.appLanguage) private var appLanguage
-    @State private var isPickerPresented = false
-
-    var body: some View {
-        Button {
-            isPickerPresented = true
-        } label: {
-            Image(systemName: "at")
-                .font(.title3)
-                .foregroundStyle(agents.isEmpty ? Color.secondary : Color.accentColor)
-        }
-        .disabled(agents.isEmpty)
-        .accessibilityLabel(AppStrings.localized("Mention Agent", language: appLanguage))
-        .sheet(isPresented: $isPickerPresented) {
-            AgentMentionPickerSheet(agents: agents) { agent in
-                onSelect(agent)
-                isPickerPresented = false
-            }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
-    }
-}
-
-private struct AgentMentionPickerSheet: View {
-    let agents: [Agent]
-    let onSelect: (Agent) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.appLanguage) private var appLanguage
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(agents) { agent in
-                        Button {
-                            onSelect(agent)
-                        } label: {
-                            HStack(spacing: 12) {
-                                AvatarView(name: agent.name, avatarUrl: agent.avatarUrl, kind: .agent, size: 32)
-                                Text(agent.name)
-                                    .font(.body)
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                Image(systemName: "at")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        Divider().padding(.leading, 64)
-                    }
-                }
-            }
-            .navigationTitle(AppStrings.localized("Mention Agent", language: appLanguage))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(AppStrings.localized("Cancel", language: appLanguage)) {
-                        dismiss()
-                    }
-                }
-            }
         }
     }
 }

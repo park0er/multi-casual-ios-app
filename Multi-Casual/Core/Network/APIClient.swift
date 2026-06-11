@@ -306,6 +306,7 @@ public final class APIClient: @unchecked Sendable {
             "api/upload-file",
             "api/comments",
             "api/agents",
+            "api/squads",
             "api/skills",
             "api/usage",
             "api/runtimes",
@@ -1546,12 +1547,38 @@ public final class APIClient: @unchecked Sendable {
         }
     }
 
+    private struct ListSquadsResponse: Decodable {
+        let squads: [Squad]
+
+        enum CodingKeys: String, CodingKey {
+            case squads
+        }
+
+        init(from decoder: Decoder) throws {
+            if let array = try? [Squad](from: decoder) {
+                squads = array
+                return
+            }
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            squads = try container.decodeIfPresent([Squad].self, forKey: .squads) ?? []
+        }
+    }
+
     public func listAgents(workspaceId: String, includeArchived: Bool = false) async throws -> [Agent] {
         var queryItems = workspaceQuery(workspaceId)
         if includeArchived {
             queryItems.append(.init(name: "include_archived", value: "true"))
         }
         return try await request("GET", path: "api/agents", queryItems: queryItems)
+    }
+
+    public func listSquads(workspaceId: String, includeArchived: Bool = false) async throws -> [Squad] {
+        var queryItems = workspaceQuery(workspaceId)
+        if includeArchived {
+            queryItems.append(.init(name: "include_archived", value: "true"))
+        }
+        let response: ListSquadsResponse = try await request("GET", path: "api/squads", queryItems: queryItems)
+        return response.squads
     }
 
     public func getAgent(id: String, workspaceId: String? = nil) async throws -> Agent {

@@ -16,18 +16,19 @@ final class MarkdownRendererTests: XCTestCase {
             mentionDisplayNamesByURL: [
                 "mention://agent/a1": "Codex Worker",
                 "mention://member/u1": "Parker Zhang",
+                "mention://squad/s1": "Design Squad",
             ],
             issueReferencePrefixes: ["PAR"]
         )
 
         let rendered = MarkdownRenderer.interactiveMarkdown(
-            from: "Ping [@Agent](mention://agent/a1), [@member](mention://member/u1), see PAR-73.",
+            from: "Ping [@Agent](mention://agent/a1), [@member](mention://member/u1), [@squad](mention://squad/s1), see PAR-73.",
             context: context
         )
 
         XCTAssertEqual(
             rendered,
-            "Ping [@Codex Worker](mention://agent/a1), [@Parker Zhang](mention://member/u1), see [PAR-73](multi-casual://issue-reference/PAR-73)."
+            "Ping [@Codex Worker](mention://agent/a1), [@Parker Zhang](mention://member/u1), [@Design Squad](mention://squad/s1), see [PAR-73](multi-casual://issue-reference/PAR-73)."
         )
     }
 

@@ -9,6 +9,8 @@ public struct IssueEditSheet: View {
     @Environment(APIClient.self) private var api
     @Environment(AuthSession.self) private var authSession
     @State private var viewModel: IssueEditViewModel?
+    @State private var descriptionMentionQuery: String?
+    @State private var descriptionMentionTrigger = MentionTriggerSession()
 
     public init(issue: Issue, onSave: @escaping (Issue) -> Void) {
         self.issue = issue
@@ -33,6 +35,19 @@ public struct IssueEditSheet: View {
                             ))
                             .frame(minHeight: 120)
                             .accessibilityIdentifier("IssueEditDescriptionEditor")
+                            .onChange(of: vm.description) { _, newValue in
+                                descriptionMentionQuery = descriptionMentionTrigger.update(
+                                    draft: newValue,
+                                    candidatesAvailable: !vm.mentionCandidates.isEmpty
+                                )
+                            }
+
+                            Button {
+                                descriptionMentionQuery = ""
+                            } label: {
+                                Label("Mention", systemImage: "at")
+                            }
+                            .disabled(vm.mentionCandidates.isEmpty)
                         }
 
                         Section("Properties") {
@@ -154,9 +169,38 @@ public struct IssueEditSheet: View {
                     }
                     .disabled(viewModel?.canSubmit != true)
                     .accessibilityIdentifier("IssueEditSaveButton")
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { descriptionMentionQuery != nil && viewModel?.mentionCandidates.isEmpty == false },
+            set: {
+                if !$0 {
+                    descriptionMentionTrigger.dismissCurrentTrigger()
+                    descriptionMentionQuery = nil
                 }
             }
-            .task {
+        )) {
+            if let vm = viewModel {
+                MentionCandidatePickerSheet(candidates: vm.mentionCandidates, query: Binding(
+                    get: { descriptionMentionQuery ?? "" },
+                    set: { descriptionMentionQuery = $0 }
+                )) { candidate in
+                    IssueDetailViewModel.appendMention(
+                        candidate,
+                        to: &vm.description,
+                        mentions: &vm.descriptionMentions
+                    )
+                    descriptionMentionTrigger.reset()
+                    descriptionMentionQuery = nil
+                } onCancel: {
+                    descriptionMentionTrigger.dismissCurrentTrigger()
+                    descriptionMentionQuery = nil
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+        }
+        .task {
                 if viewModel == nil {
                     let vm = IssueEditViewModel(issue: issue, api: api, authSession: authSession)
                     viewModel = vm

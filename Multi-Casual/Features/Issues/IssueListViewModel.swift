@@ -289,9 +289,11 @@ public final class IssueListViewModel {
         do {
             async let members = WorkspaceMetadataCache.shared.members(workspaceId: workspaceId, api: api)
             async let agents = WorkspaceMetadataCache.shared.agents(workspaceId: workspaceId, api: api)
+            async let squads = WorkspaceMetadataCache.shared.squads(workspaceId: workspaceId, api: api)
 
             let loadedMembers = try await members
             let loadedAgents = try await agents
+            let loadedSquads = try await squads
             batchAssigneeOptions = loadedMembers.map {
                 IssueAssigneeOption(
                     id: "member:\($0.userId)",
@@ -307,6 +309,14 @@ public final class IssueListViewModel {
                     assigneeId: $0.id,
                     displayName: $0.name,
                     subtitle: "Agent"
+                )
+            } + loadedSquads.map {
+                IssueAssigneeOption(
+                    id: "squad:\($0.id)",
+                    type: "squad",
+                    assigneeId: $0.id,
+                    displayName: $0.name,
+                    subtitle: $0.description.isEmpty ? "Squad" : "Squad · \($0.description)"
                 )
             }
             lastError = nil

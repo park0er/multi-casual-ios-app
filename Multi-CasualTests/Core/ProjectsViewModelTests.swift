@@ -111,6 +111,8 @@ final class ProjectsViewModelTests: XCTestCase {
                   "updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}]
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -140,6 +142,8 @@ final class ProjectsViewModelTests: XCTestCase {
                  "has_more":false,"total":1}
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             default:
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)

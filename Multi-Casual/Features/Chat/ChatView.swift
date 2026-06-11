@@ -132,6 +132,9 @@ private struct ChatSessionDetailView: View {
     let session: ChatSession
     @Environment(AuthSession.self) private var authSession
     @State private var draft = ""
+    @State private var draftMentions: [IssueDetailViewModel.MentionDraftToken] = []
+    @State private var mentionQuery: String?
+    @State private var mentionTrigger = MentionTriggerSession()
     @State private var didStartDraftSession = false
     @State private var subscriptionTask: Task<Void, Never>?
     @State private var selectedDraftAgentId: String?
@@ -297,7 +300,20 @@ private struct ChatSessionDetailView: View {
                         accessibilityIdentifier: "ChatMessageField"
                     )
                     .focused($isComposerFocused)
+                    .onChange(of: draft) { _, newValue in
+                        mentionQuery = mentionTrigger.update(
+                            draft: newValue,
+                            candidatesAvailable: !viewModel.mentionCandidates.isEmpty
+                        )
+                    }
                     if isComposerFocused {
+                        ChatMentionPicker(candidates: viewModel.mentionCandidates) { candidate in
+                            IssueDetailViewModel.appendMention(candidate, to: &draft, mentions: &draftMentions)
+                            mentionTrigger.reset()
+                        }
+                        .disabled(viewModel.mentionCandidates.isEmpty || viewModel.isSending || viewModel.isCreating)
+                        .accessibilityIdentifier("ChatMentionButton")
+
                         Button {
                             isComposerFocused = false
                             dismissChatKeyboard()
@@ -327,6 +343,29 @@ private struct ChatSessionDetailView: View {
             .onChange(of: selectedImageItem) { _, item in
                 handleImageSelection(item)
             }
+        }
+        .sheet(isPresented: Binding(
+            get: { mentionQuery != nil && !viewModel.mentionCandidates.isEmpty },
+            set: { isPresented in
+                if !isPresented {
+                    mentionTrigger.dismissCurrentTrigger()
+                    mentionQuery = nil
+                }
+            }
+        )) {
+            MentionCandidatePickerSheet(candidates: viewModel.mentionCandidates, query: Binding(
+                get: { mentionQuery ?? "" },
+                set: { mentionQuery = $0 }
+            )) { candidate in
+                IssueDetailViewModel.appendMention(candidate, to: &draft, mentions: &draftMentions)
+                mentionTrigger.reset()
+                mentionQuery = nil
+            } onCancel: {
+                mentionTrigger.dismissCurrentTrigger()
+                mentionQuery = nil
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -379,7 +418,8 @@ private struct ChatSessionDetailView: View {
     }
 
     private func send(_ content: String) {
-        let outgoing = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let outgoing = IssueDetailViewModel.serializeMentionDraft(content, mentions: draftMentions)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !outgoing.isEmpty || !viewModel.draftAttachments.isEmpty else { return }
         if session.id == ChatViewModel.draftSessionId, !viewModel.isDraftSession {
             viewModel.startDraftSession(agentId: selectedDraftAgentId ?? session.agentId)
@@ -390,6 +430,9 @@ private struct ChatSessionDetailView: View {
                 didStartDraftSession = false
                 isComposerFocused = false
                 if draft == content { draft = "" }
+                draftMentions = []
+                mentionQuery = nil
+                mentionTrigger.reset()
             }
             if !sent, draft.isEmpty { draft = outgoing }
         }
@@ -570,6 +613,33 @@ private struct ChatAttachmentRowView: View {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(attachment.sizeBytes))
+    }
+}
+
+private struct ChatMentionPicker: View {
+    let candidates: [MentionCandidate]
+    let onSelect: (MentionCandidate) -> Void
+    @State private var isPickerPresented = false
+    @State private var query = ""
+
+    var body: some View {
+        Button {
+            isPickerPresented = true
+        } label: {
+            Image(systemName: "at")
+                .font(.title3)
+        }
+        .disabled(candidates.isEmpty)
+        .accessibilityLabel("Mention")
+        .sheet(isPresented: $isPickerPresented) {
+            MentionCandidatePickerSheet(candidates: candidates, query: $query) { candidate in
+                onSelect(candidate)
+                query = ""
+                isPickerPresented = false
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 }
 

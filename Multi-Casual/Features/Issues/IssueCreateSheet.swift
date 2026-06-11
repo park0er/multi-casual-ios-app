@@ -56,6 +56,8 @@ private struct IssueCreateForm: View {
     @Environment(\.appLanguage) private var appLanguage
     @State private var isShowingAttachmentImporter = false
     @State private var selectedImageItem: PhotosPickerItem?
+    @State private var descriptionMentionQuery: String?
+    @State private var descriptionMentionTrigger = MentionTriggerSession()
 
     var body: some View {
         NavigationStack {
@@ -73,6 +75,18 @@ private struct IssueCreateForm: View {
                 Section("Description") {
                     TextEditor(text: $viewModel.description)
                         .frame(minHeight: 120)
+                        .onChange(of: viewModel.description) { _, newValue in
+                            descriptionMentionQuery = descriptionMentionTrigger.update(
+                                draft: newValue,
+                                candidatesAvailable: !viewModel.mentionCandidates.isEmpty
+                            )
+                        }
+                    Button {
+                        descriptionMentionQuery = ""
+                    } label: {
+                        Label("Mention", systemImage: "at")
+                    }
+                    .disabled(viewModel.mentionCandidates.isEmpty)
                 }
 
                 Section {
@@ -279,6 +293,33 @@ private struct IssueCreateForm: View {
                 }
             }
         }
+        .sheet(isPresented: Binding(
+            get: { descriptionMentionQuery != nil && !viewModel.mentionCandidates.isEmpty },
+            set: {
+                if !$0 {
+                    descriptionMentionTrigger.dismissCurrentTrigger()
+                    descriptionMentionQuery = nil
+                }
+            }
+        )) {
+            MentionCandidatePickerSheet(candidates: viewModel.mentionCandidates, query: Binding(
+                get: { descriptionMentionQuery ?? "" },
+                set: { descriptionMentionQuery = $0 }
+            )) { candidate in
+                IssueDetailViewModel.appendMention(
+                    candidate,
+                    to: &viewModel.description,
+                    mentions: &viewModel.descriptionMentions
+                )
+                descriptionMentionTrigger.reset()
+                descriptionMentionQuery = nil
+            } onCancel: {
+                descriptionMentionTrigger.dismissCurrentTrigger()
+                descriptionMentionQuery = nil
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     private func handleAttachmentImport(_ result: Result<[URL], Error>) {
@@ -321,4 +362,5 @@ private struct IssueCreateForm: View {
         }
     }
 }
+
 #endif

@@ -487,6 +487,110 @@ public struct Agent: Codable, Identifiable, Sendable {
     }
 }
 
+public struct Squad: Codable, Identifiable, Sendable, Hashable {
+    public let id: String
+    public let workspaceId: String?
+    public let name: String
+    public let description: String
+    public let avatarUrl: String?
+    public let agentIds: [String]
+    public let memberIds: [String]
+    public let createdAt: Date?
+    public let updatedAt: Date?
+    public let archivedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, description
+        case workspaceId = "workspace_id"
+        case avatarUrl = "avatar_url"
+        case agentIds = "agent_ids"
+        case memberIds = "member_ids"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case archivedAt = "archived_at"
+    }
+
+    public init(
+        id: String,
+        workspaceId: String? = nil,
+        name: String,
+        description: String = "",
+        avatarUrl: String? = nil,
+        agentIds: [String] = [],
+        memberIds: [String] = [],
+        createdAt: Date? = nil,
+        updatedAt: Date? = nil,
+        archivedAt: String? = nil
+    ) {
+        self.id = id
+        self.workspaceId = workspaceId
+        self.name = name
+        self.description = description
+        self.avatarUrl = avatarUrl
+        self.agentIds = agentIds
+        self.memberIds = memberIds
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.archivedAt = archivedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        workspaceId = try container.decodeIfPresent(String.self, forKey: .workspaceId)
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? id
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+        avatarUrl = try container.decodeIfPresent(String.self, forKey: .avatarUrl)
+        agentIds = try container.decodeIfPresent([String].self, forKey: .agentIds) ?? []
+        memberIds = try container.decodeIfPresent([String].self, forKey: .memberIds) ?? []
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+        archivedAt = try container.decodeIfPresent(String.self, forKey: .archivedAt)
+    }
+}
+
+public enum MentionEntityType: String, Codable, CaseIterable, Sendable, Hashable {
+    case person
+    case agent
+    case squad
+
+    public var payloadType: String {
+        switch self {
+        case .person: "member"
+        case .agent: "agent"
+        case .squad: "squad"
+        }
+    }
+
+    public var displayName: String {
+        switch self {
+        case .person: "person"
+        case .agent: "agent"
+        case .squad: "squad"
+        }
+    }
+}
+
+public struct MentionCandidate: Identifiable, Hashable, Sendable {
+    public let type: MentionEntityType
+    public let entityId: String
+    public let displayName: String
+    public let subtitle: String
+    public let avatarUrl: String?
+
+    public var id: String { "\(type.rawValue):\(entityId)" }
+    public var mentionURL: String { "mention://\(type.payloadType)/\(entityId)" }
+    public var visibleText: String { "@\(displayName)" }
+
+    public init(type: MentionEntityType, entityId: String, displayName: String, subtitle: String, avatarUrl: String? = nil) {
+        self.type = type
+        self.entityId = entityId
+        self.displayName = displayName
+        self.subtitle = subtitle
+        self.avatarUrl = avatarUrl
+    }
+}
+
 public struct AgentRuntime: Codable, Identifiable, Sendable {
     public let id: String
     public let workspaceId: String

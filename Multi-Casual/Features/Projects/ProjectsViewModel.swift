@@ -60,8 +60,10 @@ public final class ProjectsViewModel {
             workspaceRepoURLs = authSession.currentWorkspace?.repos.map(\.url) ?? []
             async let members = WorkspaceMetadataCache.shared.members(workspaceId: workspaceId, api: api)
             async let agents = WorkspaceMetadataCache.shared.agents(workspaceId: workspaceId, api: api)
+            async let squads = WorkspaceMetadataCache.shared.squads(workspaceId: workspaceId, api: api)
             let loadedMembers = try await members
             let loadedAgents = try await agents
+            let loadedSquads = try await squads
             projectLeadOptions = loadedMembers.map {
                 IssueAssigneeOption(
                     id: "member:\($0.userId)",
@@ -77,6 +79,14 @@ public final class ProjectsViewModel {
                     assigneeId: $0.id,
                     displayName: $0.name,
                     subtitle: "Agent"
+                )
+            } + loadedSquads.filter { $0.archivedAt == nil }.map {
+                IssueAssigneeOption(
+                    id: "squad:\($0.id)",
+                    type: "squad",
+                    assigneeId: $0.id,
+                    displayName: $0.name,
+                    subtitle: $0.description.isEmpty ? "Squad" : "Squad · \($0.description)"
                 )
             }
         } catch {

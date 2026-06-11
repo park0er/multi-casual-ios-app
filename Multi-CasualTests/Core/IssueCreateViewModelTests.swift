@@ -25,6 +25,9 @@ final class IssueCreateViewModelTests: XCTestCase {
                   "updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}]
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
+            case "/api/squads":
+                let json = #"{"squads":[{"id":"s1","workspace_id":"w1","name":"Design Squad","description":"Design","avatar_url":null,"agent_ids":[],"member_ids":[],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","archived_at":null}]}"#.data(using: .utf8)!
+                return Self.response(for: req, body: json)
             case "/api/projects":
                 let json = """
                 {"projects":[{
@@ -45,8 +48,8 @@ final class IssueCreateViewModelTests: XCTestCase {
 
         await vm.loadOptions()
 
-        XCTAssertEqual(vm.assigneeOptions.map(\.id), ["member:u1", "agent:a1"])
-        XCTAssertEqual(vm.assigneeOptions.map(\.displayName), ["Parker", "Codex"])
+        XCTAssertEqual(vm.assigneeOptions.map(\.id), ["member:u1", "agent:a1", "squad:s1"])
+        XCTAssertEqual(vm.assigneeOptions.map(\.displayName), ["Parker", "Codex", "Design Squad"])
         XCTAssertEqual(vm.quickCreateAgentOptions.map(\.assigneeId), ["a1"])
         XCTAssertEqual(vm.selectedQuickCreateAgentId, "a1")
         XCTAssertEqual(vm.projects.map(\.id), ["p1"])
@@ -112,6 +115,8 @@ final class IssueCreateViewModelTests: XCTestCase {
                 return Self.response(for: req, body: Data("[]".utf8))
             case "/api/agents":
                 return Self.response(for: req, body: Data("[]".utf8))
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             case "/api/projects":
                 let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
                 let offset = components?.queryItems?.first(where: { $0.name == "offset" })?.value ?? "0"

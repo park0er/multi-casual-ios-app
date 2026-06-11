@@ -25,6 +25,7 @@ public final class IssueCreateViewModel {
 
     public var title = ""
     public var description = ""
+    public var descriptionMentions: [IssueDetailViewModel.MentionDraftToken] = []
     public var status: IssueStatus = .todo
     public var priority: IssuePriority = .noPriority
     public var selectedAssigneeOptionId = IssueCreateViewModel.noAssigneeId
@@ -92,6 +93,17 @@ public final class IssueCreateViewModel {
         assigneeOptions.first { $0.id == selectedAssigneeOptionId }
     }
 
+    public var mentionCandidates: [MentionCandidate] {
+        assigneeOptions.map {
+            MentionCandidate(
+                type: $0.type == "agent" ? .agent : ($0.type == "squad" ? .squad : .person),
+                entityId: $0.assigneeId,
+                displayName: $0.displayName,
+                subtitle: $0.subtitle
+            )
+        }
+    }
+
     public var selectedProject: Project? {
         projects.first { $0.id == selectedProjectId }
     }
@@ -113,10 +125,12 @@ public final class IssueCreateViewModel {
         do {
             async let members = WorkspaceMetadataCache.shared.members(workspaceId: workspaceId, api: api)
             async let agents = WorkspaceMetadataCache.shared.agents(workspaceId: workspaceId, api: api)
+            async let squads = WorkspaceMetadataCache.shared.squads(workspaceId: workspaceId, api: api)
             async let projectOptions = WorkspaceMetadataCache.shared.projects(workspaceId: workspaceId, api: api)
 
             let loadedMembers = try await members
             let loadedAgents = try await agents
+            let loadedSquads = try await squads
             let loadedProjects = try await projectOptions
 
             assigneeOptions = loadedMembers.map {
@@ -134,6 +148,14 @@ public final class IssueCreateViewModel {
                     assigneeId: $0.id,
                     displayName: $0.name,
                     subtitle: "Agent"
+                )
+            } + loadedSquads.map {
+                IssueAssigneeOption(
+                    id: "squad:\($0.id)",
+                    type: "squad",
+                    assigneeId: $0.id,
+                    displayName: $0.name,
+                    subtitle: $0.description.isEmpty ? "Squad" : "Squad · \($0.description)"
                 )
             }
             self.projects = loadedProjects
@@ -167,7 +189,10 @@ public final class IssueCreateViewModel {
         errorMessage = nil
         defer { isSubmitting = false }
 
-        let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDescription = IssueDetailViewModel.serializeMentionDraft(
+            description,
+            mentions: descriptionMentions
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
         let assignee = selectedAssignee
         let projectId = selectedProject?.id
 

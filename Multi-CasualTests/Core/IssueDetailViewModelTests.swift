@@ -3,6 +3,19 @@ import XCTest
 
 @MainActor
 final class IssueDetailViewModelTests: XCTestCase {
+    func testMentionTriggerSessionDoesNotReactivateAfterDismissUntilTriggerChanges() {
+        var tracker = MentionTriggerSession()
+
+        XCTAssertEqual(tracker.update(draft: "Email me @", candidatesAvailable: true), "")
+        tracker.dismissCurrentTrigger()
+
+        XCTAssertNil(tracker.update(draft: "Email me @p", candidatesAvailable: true))
+        XCTAssertNil(tracker.update(draft: "Email me @parker", candidatesAvailable: true))
+        XCTAssertNil(tracker.update(draft: "Email me parker", candidatesAvailable: true))
+
+        XCTAssertEqual(tracker.update(draft: "Email me parker @", candidatesAvailable: true), "")
+    }
+
     func test_displayedCommentThreadsGroupRepliesUnderRootPosts() {
         let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: makeClient { req in
             XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
@@ -75,6 +88,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                 }],"total":1}
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             case "/api/issues/i1/children":
                 return Self.response(for: req, body: #"{"issues":[]}"#.data(using: .utf8)!)
             default:
@@ -119,6 +134,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                  "updated_at":"2026-01-01T00:00:00Z","issue_count":1,"done_count":0}
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -173,6 +190,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                 }],"total":1}
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             case "/api/issues/i1/children":
                 return Self.response(for: req, body: #"{"issues":[]}"#.data(using: .utf8)!)
             default:
@@ -246,6 +265,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                  "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}]}
                 """.data(using: .utf8)!
                 return Self.response(for: req, body: json)
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             default:
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -312,6 +333,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                 return Self.response(for: req, body: json)
             case "/api/issues/i1/children":
                 return Self.response(for: req, body: #"{"issues":[]}"#.data(using: .utf8)!)
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             default:
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -1021,6 +1044,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                 return Self.response(for: req, body: json)
             case "/api/issues/i1/children":
                 return Self.response(for: req, body: #"{"issues":[]}"#.data(using: .utf8)!)
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)
@@ -1188,18 +1213,22 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.error)
     }
 
-    func test_appendAgentMentionKeepsComposerReadableAndSerializesMarkdown() throws {
-        let agent = try Self.decodeAgent(id: "a1", name: "David[TF]")
+    func test_appendMentionKeepsComposerReadableAndSerializesTypedMarkdown() throws {
         let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: makeClient { req in
             XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
             return Self.response(for: req, body: Data("{}".utf8), status: 500)
         })
 
         vm.commentDraft = "Please check"
-        vm.appendAgentMention(agent)
+        vm.appendMention(MentionCandidate(type: .agent, entityId: "a1", displayName: "David[TF]", subtitle: "Agent"))
+        vm.appendMention(MentionCandidate(type: .person, entityId: "u1", displayName: "Parker", subtitle: "p@example.com"))
+        vm.appendMention(MentionCandidate(type: .squad, entityId: "s1", displayName: "Design Squad", subtitle: "Squad"))
 
-        XCTAssertEqual(vm.commentDraft, "Please check @David[TF] ")
-        XCTAssertEqual(vm.serializedCommentDraft(), #"Please check [@David\[TF\]](mention://agent/a1) "#)
+        XCTAssertEqual(vm.commentDraft, "Please check @David[TF] @Parker @Design Squad ")
+        XCTAssertEqual(
+            vm.serializedCommentDraft(),
+            #"Please check [@David\[TF\]](mention://agent/a1) [@Parker](mention://member/u1) [@Design Squad](mention://squad/s1) "#
+        )
     }
 
     func test_commentComposerUsesCompactKeyboardDismissControl() throws {
@@ -1217,14 +1246,14 @@ final class IssueDetailViewModelTests: XCTestCase {
         )
     }
 
-    func test_agentMentionPickerDoesNotUseSystemMenuWithCustomRows() throws {
+    func test_mentionPickerDoesNotUseSystemMenuWithCustomRows() throws {
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let sourceURL = root.appendingPathComponent("Multi-Casual/Features/Issues/IssueDetailView.swift")
         let source = try String(contentsOf: sourceURL)
 
         XCTAssertTrue(
-            source.contains("AgentMentionPickerSheet"),
-            "Agent mention choices should use a stable picker presentation so long names are not clipped by the system Menu near the keyboard."
+            source.contains("MentionCandidatePickerSheet"),
+            "Mention choices should use a stable picker presentation so long names are not clipped by the system Menu near the keyboard."
         )
         XCTAssertFalse(
             source.contains("private struct AgentMentionMenu"),
@@ -1297,6 +1326,9 @@ final class IssueDetailViewModelTests: XCTestCase {
         vm.subscriberAgents = [
             try Self.decodeAgent(id: "a1", name: "Codex Worker")
         ]
+        vm.subscriberSquads = [
+            Squad(id: "s1", workspaceId: "w1", name: "Design Squad")
+        ]
 
         let context = vm.commentMarkdownContext(issuePrefix: "PAR")
 
@@ -1305,6 +1337,7 @@ final class IssueDetailViewModelTests: XCTestCase {
         XCTAssertEqual(context.mentionDisplayNamesByURL["mention://user/u1"], "Parker Zhang")
         XCTAssertEqual(context.mentionDisplayNamesByURL["mention://user/m1"], "Parker Zhang")
         XCTAssertEqual(context.mentionDisplayNamesByURL["mention://agent/a1"], "Codex Worker")
+        XCTAssertEqual(context.mentionDisplayNamesByURL["mention://squad/s1"], "Design Squad")
         XCTAssertEqual(context.issueReferencePrefixes, ["PAR"])
     }
 
@@ -1363,7 +1396,7 @@ final class IssueDetailViewModelTests: XCTestCase {
         let agent = try Self.decodeAgent(id: "a1", name: "Codex")
 
         vm.commentDraft = "Take a look"
-        vm.appendAgentMention(agent)
+        vm.appendMention(MentionCandidate(type: .agent, entityId: agent.id, displayName: agent.name, subtitle: "Agent"))
         XCTAssertEqual(vm.commentDraft, "Take a look @Codex ")
         await vm.submitComment()
 
@@ -1600,6 +1633,8 @@ final class IssueDetailViewModelTests: XCTestCase {
                 return Self.response(for: req, body: json)
             case "/api/projects":
                 return Self.response(for: req, body: #"{"projects":[],"total":0}"#.data(using: .utf8)!)
+            case "/api/squads":
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             default:
                 XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
                 return Self.response(for: req, body: Data("{}".utf8), status: 404)

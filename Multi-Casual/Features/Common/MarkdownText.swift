@@ -85,7 +85,7 @@ public enum MarkdownRenderer {
 
     private static func resolveMentionLabels(in markdown: String, context: MarkdownRenderContext) -> String {
         guard !context.mentionDisplayNamesByURL.isEmpty else { return markdown }
-        let pattern = #"\[((?:\\.|[^\]\\])*)\]\((mention://(?:agent|member|user)/[^\s\)]+)\)"#
+        let pattern = #"\[((?:\\.|[^\]\\])*)\]\((mention://(?:agent|member|user|squad)/[^\s\)]+)\)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return markdown }
         let nsRange = NSRange(markdown.startIndex..<markdown.endIndex, in: markdown)
         let matches = regex.matches(in: markdown, range: nsRange)

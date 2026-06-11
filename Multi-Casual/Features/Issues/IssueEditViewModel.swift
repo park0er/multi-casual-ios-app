@@ -10,6 +10,7 @@ public final class IssueEditViewModel {
     public let issueId: String
     public var title: String
     public var description: String
+    public var descriptionMentions: [IssueDetailViewModel.MentionDraftToken] = []
     public var status: IssueStatus
     public var priority: IssuePriority
     public var selectedAssigneeOptionId: String
@@ -79,6 +80,17 @@ public final class IssueEditViewModel {
         assigneeOptions.first { $0.id == selectedAssigneeOptionId }
     }
 
+    public var mentionCandidates: [MentionCandidate] {
+        assigneeOptions.map {
+            MentionCandidate(
+                type: $0.type == "agent" ? .agent : ($0.type == "squad" ? .squad : .person),
+                entityId: $0.assigneeId,
+                displayName: $0.displayName,
+                subtitle: $0.subtitle
+            )
+        }
+    }
+
     public var selectedProject: Project? {
         projects.first { $0.id == selectedProjectId }
     }
@@ -99,6 +111,9 @@ public final class IssueEditViewModel {
         async let agentsResult = optionResult {
             try await WorkspaceMetadataCache.shared.agents(workspaceId: workspaceId, api: api)
         }
+        async let squadsResult = optionResult {
+            try await WorkspaceMetadataCache.shared.squads(workspaceId: workspaceId, api: api)
+        }
         async let projectsResult = optionResult {
             try await WorkspaceMetadataCache.shared.projects(workspaceId: workspaceId, api: api)
         }
@@ -109,6 +124,7 @@ public final class IssueEditViewModel {
 
         let members = await membersResult
         let agents = await agentsResult
+        let squads = await squadsResult
         let loadedProjects = await projectsResult
         let loadedLabels = await labelsResult
 
@@ -144,6 +160,21 @@ public final class IssueEditViewModel {
             didFail = true
         }
 
+        switch squads {
+        case .success(let loadedSquads):
+            assigneeOptions += loadedSquads.map {
+                IssueAssigneeOption(
+                    id: "squad:\($0.id)",
+                    type: "squad",
+                    assigneeId: $0.id,
+                    displayName: $0.name,
+                    subtitle: $0.description.isEmpty ? "Squad" : "Squad · \($0.description)"
+                )
+            }
+        case .failure:
+            didFail = true
+        }
+
         switch loadedProjects {
         case .success(let loadedProjects):
             projects = loadedProjects
@@ -159,7 +190,7 @@ public final class IssueEditViewModel {
             didFail = true
         }
 
-        if case .success = members, case .success = agents,
+        if case .success = members, case .success = agents, case .success = squads,
            selectedAssigneeOptionId != Self.noAssigneeId && selectedAssignee == nil {
             selectedAssigneeOptionId = Self.noAssigneeId
         }
@@ -186,7 +217,10 @@ public final class IssueEditViewModel {
         errorMessage = nil
         defer { isSubmitting = false }
 
-        let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDescription = IssueDetailViewModel.serializeMentionDraft(
+            description,
+            mentions: descriptionMentions
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
         let assignee = resolvedAssignee()
 
         do {

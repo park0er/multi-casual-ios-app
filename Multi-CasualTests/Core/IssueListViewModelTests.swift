@@ -720,6 +720,8 @@ final class IssueListViewModelTests: XCTestCase {
                     for: req,
                     body: Data(#"[{"id":"a1","workspace_id":"w1","runtime_id":"r1","name":"Codex","description":"","instructions":"","avatar_url":null,"runtime_mode":"cloud","runtime_config":{},"custom_env":{},"custom_args":[],"custom_env_redacted":false,"visibility":"workspace","status":"active","max_concurrent_tasks":1,"model":"gpt","owner_id":null,"skills":[],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","archived_at":null,"archived_by":null}]"#.utf8)
                 )
+            case ("GET", "/api/squads"):
+                return Self.response(for: req, body: Data(#"{"squads":[{"id":"s1","workspace_id":"w1","name":"Design Squad","description":"Design","avatar_url":null,"agent_ids":[],"member_ids":[],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","archived_at":null}]}"#.utf8))
             default:
                 XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
                 return Self.emptyIssuesResponse(for: req)
@@ -729,8 +731,8 @@ final class IssueListViewModelTests: XCTestCase {
 
         await vm.loadBatchAssigneeOptions()
 
-        XCTAssertEqual(vm.batchAssigneeOptions.map(\.id), ["member:u1", "agent:a1"])
-        XCTAssertEqual(vm.batchAssigneeOptions.map(\.displayName), ["Parker", "Codex"])
+        XCTAssertEqual(vm.batchAssigneeOptions.map(\.id), ["member:u1", "agent:a1", "squad:s1"])
+        XCTAssertEqual(vm.batchAssigneeOptions.map(\.displayName), ["Parker", "Codex", "Design Squad"])
         XCTAssertEqual(vm.batchAssigneeOptions.first?.assigneeId, "u1")
         XCTAssertNil(vm.lastError)
     }
@@ -755,6 +757,8 @@ final class IssueListViewModelTests: XCTestCase {
                 )
             case ("GET", "/api/agents"):
                 return Self.response(for: req, body: Data("[]".utf8))
+            case ("GET", "/api/squads"):
+                return Self.response(for: req, body: Data(#"{"squads":[]}"#.utf8))
             case ("POST", "/api/issues/batch-update"):
                 updateRequestBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
                 return Self.response(for: req, body: Data(#"{"updated":1}"#.utf8))
