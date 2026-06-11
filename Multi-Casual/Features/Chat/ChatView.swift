@@ -1,11 +1,13 @@
 #if canImport(SwiftUI) && canImport(UIKit)
+import PhotosUI
 import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
 
 public struct ChatView: View {
     @Environment(APIClient.self) private var api
     @Environment(AuthSession.self) private var authSession
     @State private var viewModel: ChatViewModel?
-    @State private var showCreateSheet = false
 
     public init() {}
 
@@ -43,17 +45,13 @@ public struct ChatView: View {
                 .refreshable { await vm.load() }
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showCreateSheet = true
+                        NavigationLink {
+                            ChatSessionDetailView(viewModel: vm, session: vm.draftSessionPreview)
                         } label: {
                             Label("New Chat", systemImage: "plus")
                         }
                         .accessibilityIdentifier("ChatNewButton")
                     }
-                }
-                .sheet(isPresented: $showCreateSheet) {
-                    ChatCreateSheet(viewModel: vm) { showCreateSheet = false }
-                        .presentationDragIndicator(.visible)
                 }
             } else {
                 ProgressView()
@@ -112,18 +110,64 @@ private struct ChatSessionRow: View {
     }
 }
 
+private extension ChatViewModel {
+    var draftSessionPreview: ChatSession {
+        let agentId = selectedSession?.agentId ?? agents.first?.id ?? ""
+        return ChatSession(
+            id: Self.draftSessionId,
+            workspaceId: "",
+            agentId: agentId,
+            creatorId: "",
+            title: "New Chat",
+            status: .active,
+            hasUnread: false,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+    }
+}
+
 private struct ChatSessionDetailView: View {
     @Bindable var viewModel: ChatViewModel
     let session: ChatSession
     @Environment(AuthSession.self) private var authSession
     @State private var draft = ""
+    @State private var didStartDraftSession = false
     @State private var subscriptionTask: Task<Void, Never>?
+    @State private var selectedDraftAgentId: String?
+    @State private var showAttachmentImporter = false
+    @State private var selectedImageItem: PhotosPickerItem?
+    @FocusState private var isComposerFocused: Bool
+
+    private var isDraftSessionView: Bool {
+        session.id == ChatViewModel.draftSessionId && (didStartDraftSession || viewModel.isDraftSession)
+    }
+
+    private var activeDraftAgentId: String {
+        selectedDraftAgentId ?? viewModel.selectedSession?.agentId ?? session.agentId
+    }
 
     var body: some View {
         List {
             Section {
-                MarkdownLabeledContent("Agent", value: viewModel.agentName(for: session.agentId))
-                if let pending = viewModel.pendingTask, let status = pending.status {
+                if isDraftSessionView {
+                    Picker("Agent", selection: Binding(
+                        get: { activeDraftAgentId },
+                        set: { newValue in
+                            selectedDraftAgentId = newValue
+                            viewModel.startDraftSession(agentId: newValue)
+                        }
+                    )) {
+                        ForEach(viewModel.agents) { agent in
+                            MarkdownText(agent.name).tag(agent.id)
+                        }
+                    }
+                    .disabled(viewModel.agents.isEmpty || viewModel.isCreating || viewModel.isSending)
+                    .accessibilityIdentifier("ChatAgentPicker")
+                } else {
+                    MarkdownLabeledContent("Agent", value: viewModel.agentName(for: session.agentId))
+                }
+                if !isDraftSessionView, let pending = viewModel.pendingTask, let status = pending.status {
                     MarkdownLabeledContent("Task", value: status.capitalized)
                     Button(role: .destructive) {
                         Task { await viewModel.cancelPendingTask() }
@@ -136,7 +180,11 @@ private struct ChatSessionDetailView: View {
             }
 
             Section("Messages") {
-                if viewModel.messages.isEmpty && viewModel.errorMessage == nil {
+                if isDraftSessionView && viewModel.messages.isEmpty {
+                    ChatWelcomeView(agentName: viewModel.agentName(for: activeDraftAgentId)) { prompt in
+                        send(prompt)
+                    }
+                } else if viewModel.messages.isEmpty && viewModel.errorMessage == nil {
                     MarkdownText("No messages yet.")
                         .foregroundStyle(.secondary)
                 } else {
@@ -166,37 +214,141 @@ private struct ChatSessionDetailView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            HStack(alignment: .bottom, spacing: 8) {
-                TextField("Message", text: $draft, axis: .vertical)
-                    .lineLimit(1...5)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("ChatMessageField")
-                Button {
-                    let content = draft
-                    draft = ""
-                    Task { await viewModel.sendMessage(content) }
-                } label: {
-                    Image(systemName: viewModel.isSending ? "hourglass" : "paperplane.fill")
+            VStack(alignment: .leading, spacing: 8) {
+                if viewModel.isCreating || viewModel.isSending || (!isDraftSessionView && viewModel.visiblePendingTaskId != nil) {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        MarkdownText(viewModel.isCreating ? "Creating chat" : viewModel.isSending ? "Sending message" : "Agent is responding")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if !isDraftSessionView && viewModel.visiblePendingTaskId != nil {
+                            Button("Cancel") {
+                                Task { await viewModel.cancelPendingTask() }
+                            }
+                            .font(.caption.weight(.semibold))
+                            .disabled(viewModel.isCancellingTask)
+                            .accessibilityIdentifier("ChatComposerCancelTaskButton")
+                        }
+                    }
                 }
-                .disabled(viewModel.isSending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityIdentifier("ChatSendButton")
+                if !viewModel.draftAttachments.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(viewModel.draftAttachments) { attachment in
+                                Label {
+                                    MarkdownText(attachment.filename)
+                                        .font(.caption)
+                                } icon: {
+                                    Image(systemName: "paperclip")
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.secondary.opacity(0.1), in: Capsule())
+
+                                Button {
+                                    viewModel.removeDraftAttachment(id: attachment.id)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .accessibilityLabel("Remove \(attachment.filename)")
+                                .accessibilityIdentifier("ChatDraftAttachmentRemoveButton-\(attachment.id)")
+                            }
+                        }
+                    }
+                }
+                HStack(alignment: .bottom, spacing: 8) {
+                    if isComposerFocused {
+                        PhotosPicker(
+                            selection: $selectedImageItem,
+                            matching: .images
+                        ) {
+                            if viewModel.isUploadingAttachment {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "photo.circle")
+                                    .font(.title3)
+                            }
+                        }
+                        .disabled(viewModel.isUploadingAttachment || viewModel.isSending || viewModel.isCreating)
+                        .accessibilityIdentifier("ChatAddImageButton")
+
+                        Button {
+                            showAttachmentImporter = true
+                        } label: {
+                            if viewModel.isUploadingAttachment {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "paperclip.circle")
+                                    .font(.title3)
+                            }
+                        }
+                        .disabled(viewModel.isUploadingAttachment || viewModel.isSending || viewModel.isCreating)
+                        .accessibilityIdentifier("ChatAddAttachmentButton")
+                    }
+
+                    GrowingComposerTextField(
+                        placeholder: "Message",
+                        text: $draft,
+                        isExpanded: isComposerFocused,
+                        minLines: 3,
+                        maxLines: 8,
+                        accessibilityIdentifier: "ChatMessageField"
+                    )
+                    .focused($isComposerFocused)
+                    if isComposerFocused {
+                        Button {
+                            isComposerFocused = false
+                            dismissChatKeyboard()
+                        } label: {
+                            Image(systemName: "keyboard.chevron.compact.down")
+                                .font(.title3)
+                        }
+                        .accessibilityLabel("Dismiss Keyboard")
+                        .accessibilityIdentifier("ChatDismissKeyboardButton")
+                    }
+                    Button { send(draft) } label: {
+                        Image(systemName: viewModel.isSending ? "hourglass" : "paperplane.fill")
+                    }
+                    .disabled(viewModel.isSending || viewModel.isCreating || viewModel.isUploadingAttachment || !canSend)
+                    .accessibilityIdentifier("ChatSendButton")
+                }
             }
             .padding()
             .background(.bar)
+            .fileImporter(
+                isPresented: $showAttachmentImporter,
+                allowedContentTypes: [.item],
+                allowsMultipleSelection: false
+            ) { result in
+                handleAttachmentImport(result)
+            }
+            .onChange(of: selectedImageItem) { _, item in
+                handleImageSelection(item)
+            }
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) {
-                    Task { await viewModel.archiveSelectedSession() }
-                } label: {
-                    Image(systemName: "archivebox")
+                if !isDraftSessionView {
+                    Button(role: .destructive) {
+                        Task { await viewModel.archiveSelectedSession() }
+                    } label: {
+                        Image(systemName: "archivebox")
+                    }
+                    .accessibilityIdentifier("ChatArchiveButton")
                 }
-                .accessibilityIdentifier("ChatArchiveButton")
             }
         }
-        .markdownNavigationTitle(session.title)
+        .markdownNavigationTitle(isDraftSessionView ? "New Chat" : session.title)
         .task {
-            await viewModel.selectSession(session)
+            if session.id == ChatViewModel.draftSessionId {
+                didStartDraftSession = true
+                selectedDraftAgentId = selectedDraftAgentId ?? session.agentId
+                viewModel.startDraftSession(agentId: session.agentId)
+            } else {
+                await viewModel.selectSession(session)
+            }
             subscribeToWebSocket()
         }
         .onDisappear {
@@ -220,6 +372,105 @@ private struct ChatSessionDetailView: View {
                 }
             }
         }
+    }
+
+    private var canSend: Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !viewModel.draftAttachments.isEmpty
+    }
+
+    private func send(_ content: String) {
+        let outgoing = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !outgoing.isEmpty || !viewModel.draftAttachments.isEmpty else { return }
+        if session.id == ChatViewModel.draftSessionId, !viewModel.isDraftSession {
+            viewModel.startDraftSession(agentId: selectedDraftAgentId ?? session.agentId)
+        }
+        Task {
+            let sent = await viewModel.sendMessage(outgoing)
+            if sent {
+                didStartDraftSession = false
+                isComposerFocused = false
+                if draft == content { draft = "" }
+            }
+            if !sent, draft.isEmpty { draft = outgoing }
+        }
+    }
+
+    private func handleAttachmentImport(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            let payload = try AttachmentImport.payload(from: url)
+            Task {
+                await viewModel.uploadDraftAttachment(
+                    filename: payload.filename,
+                    data: payload.data,
+                    contentType: payload.contentType
+                )
+            }
+        } catch {
+            viewModel.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func handleImageSelection(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            defer { selectedImageItem = nil }
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    throw AttachmentImportError.unreadableImage
+                }
+                let payload = try AttachmentImport.imagePayload(
+                    data: data,
+                    contentType: item.supportedContentTypes.first,
+                    filenamePrefix: "chat-image"
+                )
+                await viewModel.uploadDraftAttachment(
+                    filename: payload.filename,
+                    data: payload.data,
+                    contentType: payload.contentType
+                )
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
+        }
+    }
+}
+
+private func dismissChatKeyboard() {
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+}
+
+private struct ChatWelcomeView: View {
+    let agentName: String
+    let onSelectPrompt: (String) -> Void
+
+    private let prompts = [
+        "Summarize what changed recently in this workspace.",
+        "Help me plan the next task step by step.",
+        "Review open issues and suggest priorities."
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Welcome to Chat", systemImage: "sparkles")
+                .font(.headline)
+            MarkdownText("Start a new conversation with \(agentName). Choose a starter question or write your own message below.")
+                .foregroundStyle(.secondary)
+            ForEach(prompts, id: \.self) { prompt in
+                Button { onSelectPrompt(prompt) } label: {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "arrow.up.right.circle")
+                        MarkdownText(prompt)
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 8)
+        .accessibilityIdentifier("ChatWelcomeView")
     }
 }
 
@@ -248,6 +499,13 @@ private struct ChatMessageRow: View {
                 MarkdownText(message.content)
                     .font(.body)
             }
+            if !message.attachments.isEmpty {
+                VStack(spacing: 6) {
+                    ForEach(message.attachments) { attachment in
+                        ChatAttachmentRowView(attachment: attachment)
+                    }
+                }
+            }
             if let failureReason = message.failureReason, !failureReason.isEmpty {
                 MarkdownText(failureReason)
                     .font(.caption)
@@ -261,6 +519,57 @@ private struct ChatMessageRow: View {
         .padding(10)
         .background(color, in: RoundedRectangle(cornerRadius: 8))
         .frame(maxWidth: 320, alignment: message.role == .assistant ? .leading : .trailing)
+    }
+}
+
+private struct ChatAttachmentRowView: View {
+    let attachment: Attachment
+
+    var body: some View {
+        Group {
+            if let url = URL(string: attachment.downloadUrl.isEmpty ? attachment.url : attachment.downloadUrl) {
+                Link(destination: url) { rowContent }
+            } else {
+                rowContent
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var rowContent: some View {
+        HStack(spacing: 8) {
+            Image(systemName: iconName)
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                MarkdownText(attachment.filename)
+                    .font(.caption.bold())
+                    .lineLimit(1)
+                MarkdownText(fileDetails)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "arrow.down.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var iconName: String {
+        if attachment.contentType.hasPrefix("image/") { return "photo" }
+        if attachment.contentType == "application/pdf" { return "doc.richtext" }
+        return "paperclip"
+    }
+
+    private var fileDetails: String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(attachment.sizeBytes))
     }
 }
 
@@ -410,63 +719,4 @@ private struct TimelinePreformattedBlock: View {
     }
 }
 
-private struct ChatCreateSheet: View {
-    @Bindable var viewModel: ChatViewModel
-    let onDone: () -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var selectedAgentId = ""
-    @State private var title = ""
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Agent") {
-                    Picker("Agent", selection: $selectedAgentId) {
-                        ForEach(viewModel.agents) { agent in
-                            MarkdownText(agent.name).tag(agent.id)
-                        }
-                    }
-                    .accessibilityIdentifier("ChatCreateAgentPicker")
-                }
-                Section("Title") {
-                    TextField("Optional title", text: $title)
-                        .accessibilityIdentifier("ChatCreateTitleField")
-                }
-                if let errorMessage = viewModel.errorMessage {
-                    Section {
-                        MarkdownText(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
-            }
-            .navigationTitle("New Chat")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        Task {
-                            await viewModel.createSession(agentId: selectedAgentId, title: title)
-                            if viewModel.errorMessage == nil {
-                                onDone()
-                                dismiss()
-                            }
-                        }
-                    } label: {
-                        MarkdownText(viewModel.isCreating ? "Creating" : "Create")
-                    }
-                    .disabled(viewModel.isCreating || selectedAgentId.isEmpty)
-                    .accessibilityIdentifier("ChatCreateButton")
-                }
-            }
-            .onAppear {
-                if selectedAgentId.isEmpty {
-                    selectedAgentId = viewModel.agents.first?.id ?? ""
-                }
-            }
-        }
-    }
-}
 #endif

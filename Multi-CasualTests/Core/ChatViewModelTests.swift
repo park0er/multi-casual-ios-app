@@ -71,6 +71,75 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(requests.first?.body?["title"] as? String, "New **Chat**")
     }
 
+    func test_startDraftSessionDoesNotCreateRemoteSessionUntilFirstMessage() async throws {
+        var requests: [String] = []
+        var createdSessionBody: [String: Any]?
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/chat/sessions"):
+                createdSessionBody = try? JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any]
+                return Self.response(req, body: Self.chatSessionJSON(id: "c2", title: "Generated title"))
+            case ("POST", "/api/chat/sessions/c2/messages"):
+                return Self.response(req, body: Self.sendChatMessageJSON())
+            case ("GET", "/api/chat/sessions/c2/pending-task"):
+                return Self.response(req, body: Self.chatPendingTaskJSON())
+            case ("GET", "/api/tasks/t2/messages"):
+                return Self.response(req, body: Self.taskMessagesJSON(taskId: "t2"))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = ChatViewModel(api: client, authSession: makeSession())
+
+        vm.startDraftSession(agentId: "a1")
+
+        XCTAssertTrue(requests.isEmpty)
+        XCTAssertTrue(vm.isDraftSession)
+        XCTAssertEqual(vm.selectedSession?.agentId, "a1")
+        XCTAssertTrue(vm.messages.isEmpty)
+
+        await vm.sendMessage("First prompt")
+
+        XCTAssertFalse(vm.isDraftSession)
+        XCTAssertEqual(vm.selectedSession?.id, "c2")
+        XCTAssertEqual(vm.sessions.map(\.id), ["c2"])
+        XCTAssertEqual(vm.messages.map(\.content), ["First prompt"])
+        XCTAssertEqual(createdSessionBody?["title"] as? String, "First prompt")
+        XCTAssertEqual(requests, [
+            "POST /api/chat/sessions",
+            "POST /api/chat/sessions/c2/messages",
+            "GET /api/chat/sessions/c2/pending-task",
+            "GET /api/tasks/t2/messages",
+        ])
+    }
+
+    func test_draftSessionCreateFailureKeepsLocalDraftSession() async throws {
+        var requests: [String] = []
+        let client = makeClient { req in
+            requests.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/chat/sessions"):
+                return Self.response(req, body: Data(#"{"error":"temporarily unavailable"}"#.utf8), status: 500)
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = ChatViewModel(api: client, authSession: makeSession())
+
+        vm.startDraftSession(agentId: "a1")
+        let sent = await vm.sendMessage("First prompt")
+
+        XCTAssertFalse(sent)
+        XCTAssertTrue(vm.isDraftSession)
+        XCTAssertTrue(vm.sessions.isEmpty)
+        XCTAssertTrue(vm.messages.isEmpty)
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertEqual(requests, ["POST /api/chat/sessions"])
+    }
+
     func test_sendMessageAddsOptimisticUserMessageRefreshesPendingTaskAndLoadsTimeline() async throws {
         var sentBody: [String: Any] = [:]
         var requests: [String] = []
@@ -105,6 +174,36 @@ final class ChatViewModelTests: XCTestCase {
             "GET /api/tasks/t2/messages",
         ])
         XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_sendMessageIncludesAttachmentsAndClearsDraftAttachments() async throws {
+        var sentBody: [String: Any] = [:]
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/chat/sessions/c1/messages"):
+                sentBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return Self.response(req, body: Self.sendChatMessageJSON())
+            case ("GET", "/api/chat/sessions/c1/pending-task"):
+                return Self.response(req, body: Self.chatPendingTaskJSON())
+            case ("GET", "/api/tasks/t2/messages"):
+                return Self.response(req, body: Self.taskMessagesJSON(taskId: "t2"))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = ChatViewModel(api: client, authSession: makeSession())
+        vm.selectedSession = Self.chatSession(id: "c1")
+        let attachment = Self.attachment(id: "att1")
+        vm.draftAttachments = [attachment]
+
+        let sent = await vm.sendMessage("See attached", attachments: [attachment])
+
+        XCTAssertTrue(sent)
+        XCTAssertEqual(sentBody["content"] as? String, "See attached")
+        XCTAssertEqual(sentBody["attachment_ids"] as? [String], ["att1"])
+        XCTAssertEqual(vm.messages.last?.attachments.map(\.id), ["att1"])
+        XCTAssertTrue(vm.draftAttachments.isEmpty)
     }
 
     func test_loadMessagesFetchesTaskTimelineForAssistantAndPendingTasks() async throws {
@@ -239,6 +338,23 @@ final class ChatViewModelTests: XCTestCase {
             hasUnread: false,
             createdAt: Date(timeIntervalSince1970: 0),
             updatedAt: Date(timeIntervalSince1970: 0)
+        )
+    }
+
+    private static func attachment(id: String) -> Attachment {
+        Attachment(
+            id: id,
+            workspaceId: "w1",
+            issueId: nil,
+            commentId: nil,
+            uploaderType: "member",
+            uploaderId: "u1",
+            filename: "spec.md",
+            url: "https://cdn.example/spec.md",
+            downloadUrl: "https://cdn.example/spec.md",
+            contentType: "text/markdown",
+            sizeBytes: 11,
+            createdAt: Date(timeIntervalSince1970: 0)
         )
     }
 

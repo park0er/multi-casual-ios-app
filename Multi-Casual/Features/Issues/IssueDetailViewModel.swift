@@ -758,10 +758,18 @@ public final class IssueDetailViewModel {
         }
     }
 
-    public func submitComment() async {
+    @discardableResult
+    public func submitComment() async -> Bool {
         let content = serializedCommentDraft().trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !content.isEmpty || !commentAttachments.isEmpty else { return }
-        guard await submitComment(content: content, parentId: nil) else { return }
+        guard !content.isEmpty || !commentAttachments.isEmpty else { return false }
+        guard await submitComment(content: content, parentId: nil) else { return false }
+        commentDraft = ""
+        commentDraftAgentMentions = []
+        commentAttachments = []
+        return true
+    }
+
+    public func cancelCommentDraft() {
         commentDraft = ""
         commentDraftAgentMentions = []
         commentAttachments = []

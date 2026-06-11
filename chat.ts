@@ -21,6 +21,21 @@ export interface PendingChatTasksResponse {
   tasks: PendingChatTaskItem[];
 }
 
+export interface ChatAttachment {
+  id: string;
+  workspace_id: string;
+  issue_id?: string | null;
+  comment_id?: string | null;
+  uploader_type: string;
+  uploader_id: string;
+  filename: string;
+  url: string;
+  download_url: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+}
+
 export interface ChatMessage {
   id: string;
   chat_session_id: string;
@@ -45,6 +60,7 @@ export interface ChatMessage {
    * and on legacy assistant messages predating migration 063.
    */
   elapsed_ms?: number | null;
+  attachments?: ChatAttachment[];
 }
 
 export interface SendChatMessageResponse {

@@ -1260,9 +1260,13 @@ final class IssueDetailViewModelTests: XCTestCase {
             source.contains("IssueDetailReplyInput"),
             "Reply mode should render a dedicated bottom reply input in place of the normal comment input."
         )
-        XCTAssertTrue(
+        XCTAssertFalse(
             source.contains("IssueDetailCancelReplyButton"),
-            "The bottom reply composer needs an explicit way to return to normal comment mode."
+            "The bottom reply composer should not add a second cancel button when keyboard dismissal already collapses the composer."
+        )
+        XCTAssertTrue(
+            source.contains("CommentReplyDismissKeyboardButton"),
+            "The bottom reply composer should provide keyboard dismissal as the way to collapse the expanded composer."
         )
         XCTAssertFalse(
             source.contains("if isReplying"),
