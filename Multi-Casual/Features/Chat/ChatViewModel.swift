@@ -79,27 +79,6 @@ public final class ChatViewModel {
         }
     }
 
-    public var mentionCandidates: [MentionCandidate] {
-        let people = members.map {
-            MentionCandidate(type: .person, entityId: $0.userId, displayName: $0.name, subtitle: $0.email, avatarUrl: $0.avatarUrl)
-        }
-        let agentCandidates = agents.map {
-            MentionCandidate(type: .agent, entityId: $0.id, displayName: $0.name, subtitle: "Agent", avatarUrl: $0.avatarUrl)
-        }
-        let squadCandidates = squads.map {
-            MentionCandidate(
-                type: .squad,
-                entityId: $0.id,
-                displayName: $0.name,
-                subtitle: $0.description.isEmpty ? "Squad" : "Squad · \($0.description)",
-                avatarUrl: $0.avatarUrl
-            )
-        }
-        return (people + agentCandidates + squadCandidates).sorted {
-            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
-        }
-    }
-
     public var messageMarkdownContext: MarkdownRenderContext {
         var displayNames: [String: String] = [:]
         for member in members {
