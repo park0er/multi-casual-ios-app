@@ -1564,6 +1564,35 @@ public struct CommentRowView: View {
 
 private let quickReactionEmojis = ["👍", "👀", "🚀", "❤️", "🎉"]
 
+private struct MentionPicker: View {
+    let candidates: [MentionCandidate]
+    let onSelect: (MentionCandidate) -> Void
+    @Environment(\.appLanguage) private var appLanguage
+    @State private var isPickerPresented = false
+    @State private var query = ""
+
+    var body: some View {
+        Button {
+            isPickerPresented = true
+        } label: {
+            Image(systemName: "at")
+                .font(.title3)
+                .foregroundStyle(candidates.isEmpty ? Color.secondary : Color.accentColor)
+        }
+        .disabled(candidates.isEmpty)
+        .accessibilityLabel(AppStrings.localized("Mention", language: appLanguage))
+        .sheet(isPresented: $isPickerPresented) {
+            MentionCandidatePickerSheet(candidates: candidates, query: $query) { candidate in
+                onSelect(candidate)
+                query = ""
+                isPickerPresented = false
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
 private struct ReactionBadge: Identifiable {
     let emoji: String
     let count: Int
