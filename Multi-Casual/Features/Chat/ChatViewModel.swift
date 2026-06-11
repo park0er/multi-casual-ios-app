@@ -9,6 +9,7 @@ public final class ChatViewModel {
     public var sessions: [ChatSession] = []
     public var agents: [Agent] = []
     public var messages: [ChatMessage] = []
+    public var draftAttachments: [Attachment] = []
     public var selectedSession: ChatSession?
     public var pendingTasks = PendingChatTasksResponse(tasks: [])
     public var pendingTask: ChatPendingTask?
@@ -20,6 +21,7 @@ public final class ChatViewModel {
     public var isCreating = false
     public var isCancellingTask = false
     public var isLoadingTimeline = false
+    public var isUploadingAttachment = false
 
     public var isDraftSession: Bool {
         selectedSession?.id == Self.draftSessionId
@@ -34,7 +36,7 @@ public final class ChatViewModel {
             .split(whereSeparator: { $0.isWhitespace })
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !collapsed.isEmpty else { return "New Chat" }
+        guard !collapsed.isEmpty else { return "Attachment" }
         let maxLength = 80
         if collapsed.count <= maxLength { return collapsed }
         return String(collapsed.prefix(maxLength)).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -74,6 +76,7 @@ public final class ChatViewModel {
         selectedSession = session
         if session.id == Self.draftSessionId {
             messages = []
+            draftAttachments = []
             pendingTask = nil
             taskTimelines = [:]
             errorMessage = nil
@@ -171,6 +174,7 @@ public final class ChatViewModel {
             sessions.removeAll { $0.id == session.id }
             selectedSession = nil
             messages = []
+            draftAttachments = []
             pendingTask = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -178,14 +182,15 @@ public final class ChatViewModel {
     }
 
     @discardableResult
-    public func sendMessage(_ content: String) async -> Bool {
+    public func sendMessage(_ content: String, attachments: [Attachment]? = nil) async -> Bool {
         guard let workspaceId = authSession.currentWorkspace?.id else {
             errorMessage = "Pick a workspace before opening Chat."
             return false
         }
         guard let initialSession = selectedSession else { return false }
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
+        let outgoingAttachments = attachments ?? draftAttachments
+        guard !trimmed.isEmpty || !outgoingAttachments.isEmpty else { return false }
 
         isSending = true
         errorMessage = nil
@@ -202,18 +207,25 @@ public final class ChatViewModel {
             } else {
                 session = initialSession
             }
-            let response = try await api.sendChatMessage(sessionId: session.id, content: trimmed, workspaceId: workspaceId)
+            let response = try await api.sendChatMessage(
+                sessionId: session.id,
+                content: trimmed,
+                attachmentIds: outgoingAttachments.map(\.id),
+                workspaceId: workspaceId
+            )
             let optimistic = ChatMessage(
                 id: response.messageId,
                 chatSessionId: session.id,
                 role: .user,
                 content: trimmed,
                 taskId: response.taskId,
-                createdAt: response.createdAt
+                createdAt: response.createdAt,
+                attachments: outgoingAttachments
             )
             if !messages.contains(where: { $0.id == optimistic.id }) {
                 messages.append(optimistic)
             }
+            draftAttachments = []
             pendingTask = try await api.getPendingChatTask(sessionId: session.id, workspaceId: workspaceId)
             await loadVisibleTaskTimelines(workspaceId: workspaceId)
             return true
@@ -221,6 +233,39 @@ public final class ChatViewModel {
             errorMessage = error.localizedDescription
             return false
         }
+    }
+
+    public func uploadDraftAttachment(filename: String, data: Data, contentType: String) async -> Bool {
+        guard let workspaceId = authSession.currentWorkspace?.id else {
+            errorMessage = "Pick a workspace before uploading an attachment."
+            return false
+        }
+        guard !data.isEmpty else {
+            errorMessage = "Attachment is empty."
+            return false
+        }
+
+        isUploadingAttachment = true
+        errorMessage = nil
+        defer { isUploadingAttachment = false }
+
+        do {
+            let attachment = try await api.uploadFile(
+                filename: filename,
+                data: data,
+                contentType: contentType,
+                workspaceId: workspaceId
+            )
+            draftAttachments.append(attachment)
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    public func removeDraftAttachment(id: String) {
+        draftAttachments.removeAll { $0.id == id }
     }
 
     public func cancelPendingTask() async {

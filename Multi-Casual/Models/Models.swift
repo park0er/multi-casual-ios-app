@@ -2176,6 +2176,7 @@ public struct ChatMessage: Codable, Identifiable, Sendable {
     public let createdAt: Date
     public let failureReason: String?
     public let elapsedMs: Int?
+    public let attachments: [Attachment]
 
     enum CodingKeys: String, CodingKey {
         case id, role, content
@@ -2184,6 +2185,7 @@ public struct ChatMessage: Codable, Identifiable, Sendable {
         case createdAt = "created_at"
         case failureReason = "failure_reason"
         case elapsedMs = "elapsed_ms"
+        case attachments
     }
 
     public init(
@@ -2194,7 +2196,8 @@ public struct ChatMessage: Codable, Identifiable, Sendable {
         taskId: String?,
         createdAt: Date,
         failureReason: String? = nil,
-        elapsedMs: Int? = nil
+        elapsedMs: Int? = nil,
+        attachments: [Attachment] = []
     ) {
         self.id = id
         self.chatSessionId = chatSessionId
@@ -2204,6 +2207,20 @@ public struct ChatMessage: Codable, Identifiable, Sendable {
         self.createdAt = createdAt
         self.failureReason = failureReason
         self.elapsedMs = elapsedMs
+        self.attachments = attachments
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        chatSessionId = try container.decode(String.self, forKey: .chatSessionId)
+        role = try container.decode(Role.self, forKey: .role)
+        content = try container.decode(String.self, forKey: .content)
+        taskId = try container.decodeIfPresent(String.self, forKey: .taskId)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        failureReason = try container.decodeIfPresent(String.self, forKey: .failureReason)
+        elapsedMs = try container.decodeIfPresent(Int.self, forKey: .elapsedMs)
+        attachments = try container.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
     }
 }
 

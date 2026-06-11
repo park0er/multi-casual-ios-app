@@ -478,6 +478,12 @@ public final class APIClient: @unchecked Sendable {
     }
     private struct SendChatMessageRequest: Encodable {
         let content: String
+        let attachmentIds: [String]?
+
+        enum CodingKeys: String, CodingKey {
+            case content
+            case attachmentIds = "attachment_ids"
+        }
     }
     private struct CreateProjectRequest: Encodable {
         let title: String
@@ -1990,13 +1996,14 @@ public final class APIClient: @unchecked Sendable {
     public func sendChatMessage(
         sessionId: String,
         content: String,
+        attachmentIds: [String] = [],
         workspaceId: String? = nil
     ) async throws -> SendChatMessageResponse {
         try await request(
             "POST",
             path: "api/chat/sessions/\(sessionId)/messages",
             queryItems: workspaceQuery(workspaceId),
-            body: SendChatMessageRequest(content: content)
+            body: SendChatMessageRequest(content: content, attachmentIds: attachmentIds.isEmpty ? nil : attachmentIds)
         )
     }
 

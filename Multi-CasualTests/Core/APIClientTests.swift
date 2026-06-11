@@ -2831,7 +2831,12 @@ final class APIClientTests: XCTestCase {
         _ = try await client.createChatSession(agentId: "a1", title: "Launch", workspaceId: "w1")
         try await client.archiveChatSession(id: "c1", workspaceId: "w1")
         _ = try await client.listChatMessages(sessionId: "c1", workspaceId: "w1")
-        _ = try await client.sendChatMessage(sessionId: "c1", content: "Hello **agent**", workspaceId: "w1")
+        _ = try await client.sendChatMessage(
+            sessionId: "c1",
+            content: "Hello **agent**",
+            attachmentIds: ["att1", "att2"],
+            workspaceId: "w1"
+        )
         _ = try await client.getPendingChatTask(sessionId: "c1", workspaceId: "w1")
         _ = try await client.listPendingChatTasks(workspaceId: "w1")
         try await client.markChatSessionRead(sessionId: "c1", workspaceId: "w1")
@@ -2856,6 +2861,7 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(requests[2].body?["agent_id"] as? String, "a1")
         XCTAssertEqual(requests[2].body?["title"] as? String, "Launch")
         XCTAssertEqual(requests[5].body?["content"] as? String, "Hello **agent**")
+        XCTAssertEqual(requests[5].body?["attachment_ids"] as? [String], ["att1", "att2"])
     }
 
     // MARK: - APIError LocalizedError

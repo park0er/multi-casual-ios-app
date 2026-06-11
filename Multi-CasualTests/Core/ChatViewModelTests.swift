@@ -176,6 +176,36 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func test_sendMessageIncludesAttachmentsAndClearsDraftAttachments() async throws {
+        var sentBody: [String: Any] = [:]
+        let client = makeClient { req in
+            switch (req.httpMethod, req.url?.path) {
+            case ("POST", "/api/chat/sessions/c1/messages"):
+                sentBody = try JSONSerialization.jsonObject(with: MockURLProtocol.bodyData(for: req)) as? [String: Any] ?? [:]
+                return Self.response(req, body: Self.sendChatMessageJSON())
+            case ("GET", "/api/chat/sessions/c1/pending-task"):
+                return Self.response(req, body: Self.chatPendingTaskJSON())
+            case ("GET", "/api/tasks/t2/messages"):
+                return Self.response(req, body: Self.taskMessagesJSON(taskId: "t2"))
+            default:
+                XCTFail("Unexpected request: \(req.httpMethod ?? "") \(req.url?.absoluteString ?? "")")
+                return Self.response(req, body: Data("{}".utf8), status: 404)
+            }
+        }
+        let vm = ChatViewModel(api: client, authSession: makeSession())
+        vm.selectedSession = Self.chatSession(id: "c1")
+        let attachment = Self.attachment(id: "att1")
+        vm.draftAttachments = [attachment]
+
+        let sent = await vm.sendMessage("See attached", attachments: [attachment])
+
+        XCTAssertTrue(sent)
+        XCTAssertEqual(sentBody["content"] as? String, "See attached")
+        XCTAssertEqual(sentBody["attachment_ids"] as? [String], ["att1"])
+        XCTAssertEqual(vm.messages.last?.attachments.map(\.id), ["att1"])
+        XCTAssertTrue(vm.draftAttachments.isEmpty)
+    }
+
     func test_loadMessagesFetchesTaskTimelineForAssistantAndPendingTasks() async throws {
         var requests: [String] = []
         let client = makeClient { req in
@@ -308,6 +338,23 @@ final class ChatViewModelTests: XCTestCase {
             hasUnread: false,
             createdAt: Date(timeIntervalSince1970: 0),
             updatedAt: Date(timeIntervalSince1970: 0)
+        )
+    }
+
+    private static func attachment(id: String) -> Attachment {
+        Attachment(
+            id: id,
+            workspaceId: "w1",
+            issueId: nil,
+            commentId: nil,
+            uploaderType: "member",
+            uploaderId: "u1",
+            filename: "spec.md",
+            url: "https://cdn.example/spec.md",
+            downloadUrl: "https://cdn.example/spec.md",
+            contentType: "text/markdown",
+            sizeBytes: 11,
+            createdAt: Date(timeIntervalSince1970: 0)
         )
     }
 

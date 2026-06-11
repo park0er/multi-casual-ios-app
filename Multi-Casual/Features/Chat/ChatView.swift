@@ -1,6 +1,8 @@
 #if canImport(SwiftUI) && canImport(UIKit)
+import PhotosUI
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 public struct ChatView: View {
     @Environment(APIClient.self) private var api
@@ -133,6 +135,8 @@ private struct ChatSessionDetailView: View {
     @State private var didStartDraftSession = false
     @State private var subscriptionTask: Task<Void, Never>?
     @State private var selectedDraftAgentId: String?
+    @State private var showAttachmentImporter = false
+    @State private var selectedImageItem: PhotosPickerItem?
     @FocusState private var isComposerFocused: Bool
 
     private var isDraftSessionView: Bool {
@@ -228,7 +232,62 @@ private struct ChatSessionDetailView: View {
                         }
                     }
                 }
+                if !viewModel.draftAttachments.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(viewModel.draftAttachments) { attachment in
+                                Label {
+                                    MarkdownText(attachment.filename)
+                                        .font(.caption)
+                                } icon: {
+                                    Image(systemName: "paperclip")
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.secondary.opacity(0.1), in: Capsule())
+
+                                Button {
+                                    viewModel.removeDraftAttachment(id: attachment.id)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .accessibilityLabel("Remove \(attachment.filename)")
+                                .accessibilityIdentifier("ChatDraftAttachmentRemoveButton-\(attachment.id)")
+                            }
+                        }
+                    }
+                }
                 HStack(alignment: .bottom, spacing: 8) {
+                    if isComposerFocused {
+                        PhotosPicker(
+                            selection: $selectedImageItem,
+                            matching: .images
+                        ) {
+                            if viewModel.isUploadingAttachment {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "photo.circle")
+                                    .font(.title3)
+                            }
+                        }
+                        .disabled(viewModel.isUploadingAttachment || viewModel.isSending || viewModel.isCreating)
+                        .accessibilityIdentifier("ChatAddImageButton")
+
+                        Button {
+                            showAttachmentImporter = true
+                        } label: {
+                            if viewModel.isUploadingAttachment {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "paperclip.circle")
+                                    .font(.title3)
+                            }
+                        }
+                        .disabled(viewModel.isUploadingAttachment || viewModel.isSending || viewModel.isCreating)
+                        .accessibilityIdentifier("ChatAddAttachmentButton")
+                    }
+
                     GrowingComposerTextField(
                         placeholder: "Message",
                         text: $draft,
@@ -252,12 +311,22 @@ private struct ChatSessionDetailView: View {
                     Button { send(draft) } label: {
                         Image(systemName: viewModel.isSending ? "hourglass" : "paperplane.fill")
                     }
-                    .disabled(viewModel.isSending || viewModel.isCreating || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(viewModel.isSending || viewModel.isCreating || viewModel.isUploadingAttachment || !canSend)
                     .accessibilityIdentifier("ChatSendButton")
                 }
             }
             .padding()
             .background(.bar)
+            .fileImporter(
+                isPresented: $showAttachmentImporter,
+                allowedContentTypes: [.item],
+                allowsMultipleSelection: false
+            ) { result in
+                handleAttachmentImport(result)
+            }
+            .onChange(of: selectedImageItem) { _, item in
+                handleImageSelection(item)
+            }
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -305,9 +374,13 @@ private struct ChatSessionDetailView: View {
         }
     }
 
+    private var canSend: Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !viewModel.draftAttachments.isEmpty
+    }
+
     private func send(_ content: String) {
         let outgoing = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !outgoing.isEmpty else { return }
+        guard !outgoing.isEmpty || !viewModel.draftAttachments.isEmpty else { return }
         if session.id == ChatViewModel.draftSessionId, !viewModel.isDraftSession {
             viewModel.startDraftSession(agentId: selectedDraftAgentId ?? session.agentId)
         }
@@ -319,6 +392,46 @@ private struct ChatSessionDetailView: View {
                 if draft == content { draft = "" }
             }
             if !sent, draft.isEmpty { draft = outgoing }
+        }
+    }
+
+    private func handleAttachmentImport(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            let payload = try AttachmentImport.payload(from: url)
+            Task {
+                await viewModel.uploadDraftAttachment(
+                    filename: payload.filename,
+                    data: payload.data,
+                    contentType: payload.contentType
+                )
+            }
+        } catch {
+            viewModel.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func handleImageSelection(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            defer { selectedImageItem = nil }
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    throw AttachmentImportError.unreadableImage
+                }
+                let payload = try AttachmentImport.imagePayload(
+                    data: data,
+                    contentType: item.supportedContentTypes.first,
+                    filenamePrefix: "chat-image"
+                )
+                await viewModel.uploadDraftAttachment(
+                    filename: payload.filename,
+                    data: payload.data,
+                    contentType: payload.contentType
+                )
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
         }
     }
 }
@@ -386,6 +499,13 @@ private struct ChatMessageRow: View {
                 MarkdownText(message.content)
                     .font(.body)
             }
+            if !message.attachments.isEmpty {
+                VStack(spacing: 6) {
+                    ForEach(message.attachments) { attachment in
+                        ChatAttachmentRowView(attachment: attachment)
+                    }
+                }
+            }
             if let failureReason = message.failureReason, !failureReason.isEmpty {
                 MarkdownText(failureReason)
                     .font(.caption)
@@ -399,6 +519,57 @@ private struct ChatMessageRow: View {
         .padding(10)
         .background(color, in: RoundedRectangle(cornerRadius: 8))
         .frame(maxWidth: 320, alignment: message.role == .assistant ? .leading : .trailing)
+    }
+}
+
+private struct ChatAttachmentRowView: View {
+    let attachment: Attachment
+
+    var body: some View {
+        Group {
+            if let url = URL(string: attachment.downloadUrl.isEmpty ? attachment.url : attachment.downloadUrl) {
+                Link(destination: url) { rowContent }
+            } else {
+                rowContent
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var rowContent: some View {
+        HStack(spacing: 8) {
+            Image(systemName: iconName)
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                MarkdownText(attachment.filename)
+                    .font(.caption.bold())
+                    .lineLimit(1)
+                MarkdownText(fileDetails)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "arrow.down.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var iconName: String {
+        if attachment.contentType.hasPrefix("image/") { return "photo" }
+        if attachment.contentType == "application/pdf" { return "doc.richtext" }
+        return "paperclip"
+    }
+
+    private var fileDetails: String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(attachment.sizeBytes))
     }
 }
 
