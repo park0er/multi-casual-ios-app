@@ -57,6 +57,7 @@ private struct IssueCreateForm: View {
     @State private var isShowingAttachmentImporter = false
     @State private var selectedImageItem: PhotosPickerItem?
     @State private var descriptionMentionQuery: String?
+    @State private var descriptionMentionTrigger = MentionTriggerSession()
 
     var body: some View {
         NavigationStack {
@@ -75,7 +76,10 @@ private struct IssueCreateForm: View {
                     TextEditor(text: $viewModel.description)
                         .frame(minHeight: 120)
                         .onChange(of: viewModel.description) { _, newValue in
-                            descriptionMentionQuery = IssueDetailViewModel.activeMentionQuery(in: newValue)
+                            descriptionMentionQuery = descriptionMentionTrigger.update(
+                                draft: newValue,
+                                candidatesAvailable: !viewModel.mentionCandidates.isEmpty
+                            )
                         }
                     Button {
                         descriptionMentionQuery = ""
@@ -291,9 +295,14 @@ private struct IssueCreateForm: View {
         }
         .sheet(isPresented: Binding(
             get: { descriptionMentionQuery != nil && !viewModel.mentionCandidates.isEmpty },
-            set: { if !$0 { descriptionMentionQuery = nil } }
+            set: {
+                if !$0 {
+                    descriptionMentionTrigger.dismissCurrentTrigger()
+                    descriptionMentionQuery = nil
+                }
+            }
         )) {
-            IssueFormMentionPicker(candidates: viewModel.mentionCandidates, query: Binding(
+            MentionCandidatePickerSheet(candidates: viewModel.mentionCandidates, query: Binding(
                 get: { descriptionMentionQuery ?? "" },
                 set: { descriptionMentionQuery = $0 }
             )) { candidate in
@@ -302,6 +311,10 @@ private struct IssueCreateForm: View {
                     to: &viewModel.description,
                     mentions: &viewModel.descriptionMentions
                 )
+                descriptionMentionTrigger.reset()
+                descriptionMentionQuery = nil
+            } onCancel: {
+                descriptionMentionTrigger.dismissCurrentTrigger()
                 descriptionMentionQuery = nil
             }
             .presentationDetents([.medium, .large])
@@ -350,61 +363,4 @@ private struct IssueCreateForm: View {
     }
 }
 
-struct IssueFormMentionPicker: View {
-    let candidates: [MentionCandidate]
-    @Binding var query: String
-    let onSelect: (MentionCandidate) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    private var filteredCandidates: [MentionCandidate] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return candidates }
-        return candidates.filter {
-            $0.displayName.localizedCaseInsensitiveContains(trimmed) ||
-            $0.subtitle.localizedCaseInsensitiveContains(trimmed) ||
-            $0.type.displayName.localizedCaseInsensitiveContains(trimmed)
-        }
-    }
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    TextField("Search", text: $query)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
-                ForEach(filteredCandidates) { candidate in
-                    Button {
-                        onSelect(candidate)
-                        dismiss()
-                    } label: {
-                        HStack(spacing: 10) {
-                            AvatarView(name: candidate.displayName, avatarUrl: candidate.avatarUrl, kind: candidate.type == .agent ? .agent : .user, size: 28)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(candidate.displayName).foregroundStyle(.primary)
-                                HStack(spacing: 6) {
-                                    Text(candidate.type.displayName)
-                                        .font(.caption2.weight(.bold))
-                                        .textCase(.uppercase)
-                                        .foregroundStyle(.secondary)
-                                    Text(candidate.subtitle)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Mention")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-    }
-}
 #endif

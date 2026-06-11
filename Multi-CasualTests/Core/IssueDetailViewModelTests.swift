@@ -3,6 +3,19 @@ import XCTest
 
 @MainActor
 final class IssueDetailViewModelTests: XCTestCase {
+    func testMentionTriggerSessionDoesNotReactivateAfterDismissUntilTriggerChanges() {
+        var tracker = MentionTriggerSession()
+
+        XCTAssertEqual(tracker.update(draft: "Email me @", candidatesAvailable: true), "")
+        tracker.dismissCurrentTrigger()
+
+        XCTAssertNil(tracker.update(draft: "Email me @p", candidatesAvailable: true))
+        XCTAssertNil(tracker.update(draft: "Email me @parker", candidatesAvailable: true))
+        XCTAssertNil(tracker.update(draft: "Email me parker", candidatesAvailable: true))
+
+        XCTAssertEqual(tracker.update(draft: "Email me parker @", candidatesAvailable: true), "")
+    }
+
     func test_displayedCommentThreadsGroupRepliesUnderRootPosts() {
         let vm = IssueDetailViewModel(issueId: "i1", workspaceId: "w1", api: makeClient { req in
             XCTFail("Unexpected request: \(req.url?.absoluteString ?? "")")
@@ -1239,7 +1252,7 @@ final class IssueDetailViewModelTests: XCTestCase {
         let source = try String(contentsOf: sourceURL)
 
         XCTAssertTrue(
-            source.contains("MentionPickerSheet"),
+            source.contains("MentionCandidatePickerSheet"),
             "Mention choices should use a stable picker presentation so long names are not clipped by the system Menu near the keyboard."
         )
         XCTAssertFalse(

@@ -10,6 +10,7 @@ public struct IssueEditSheet: View {
     @Environment(AuthSession.self) private var authSession
     @State private var viewModel: IssueEditViewModel?
     @State private var descriptionMentionQuery: String?
+    @State private var descriptionMentionTrigger = MentionTriggerSession()
 
     public init(issue: Issue, onSave: @escaping (Issue) -> Void) {
         self.issue = issue
@@ -35,7 +36,10 @@ public struct IssueEditSheet: View {
                             .frame(minHeight: 120)
                             .accessibilityIdentifier("IssueEditDescriptionEditor")
                             .onChange(of: vm.description) { _, newValue in
-                                descriptionMentionQuery = IssueDetailViewModel.activeMentionQuery(in: newValue)
+                                descriptionMentionQuery = descriptionMentionTrigger.update(
+                                    draft: newValue,
+                                    candidatesAvailable: !vm.mentionCandidates.isEmpty
+                                )
                             }
 
                             Button {
@@ -169,10 +173,15 @@ public struct IssueEditSheet: View {
         }
         .sheet(isPresented: Binding(
             get: { descriptionMentionQuery != nil && viewModel?.mentionCandidates.isEmpty == false },
-            set: { if !$0 { descriptionMentionQuery = nil } }
+            set: {
+                if !$0 {
+                    descriptionMentionTrigger.dismissCurrentTrigger()
+                    descriptionMentionQuery = nil
+                }
+            }
         )) {
             if let vm = viewModel {
-                IssueFormMentionPicker(candidates: vm.mentionCandidates, query: Binding(
+                MentionCandidatePickerSheet(candidates: vm.mentionCandidates, query: Binding(
                     get: { descriptionMentionQuery ?? "" },
                     set: { descriptionMentionQuery = $0 }
                 )) { candidate in
@@ -181,6 +190,10 @@ public struct IssueEditSheet: View {
                         to: &vm.description,
                         mentions: &vm.descriptionMentions
                     )
+                    descriptionMentionTrigger.reset()
+                    descriptionMentionQuery = nil
+                } onCancel: {
+                    descriptionMentionTrigger.dismissCurrentTrigger()
                     descriptionMentionQuery = nil
                 }
                 .presentationDetents([.medium, .large])

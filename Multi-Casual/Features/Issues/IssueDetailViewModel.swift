@@ -1,6 +1,40 @@
 import Foundation
 import Observation
 
+
+@MainActor
+public struct MentionTriggerSession: Sendable {
+    private var dismissedTriggerStartOffset: Int?
+    private var activeTriggerStartOffset: Int?
+
+    public init() {}
+
+    public mutating func update(draft: String, candidatesAvailable: Bool) -> String? {
+        guard candidatesAvailable,
+              let trigger = IssueDetailViewModel.activeMentionTrigger(in: draft)
+        else {
+            if IssueDetailViewModel.activeMentionTrigger(in: draft) == nil {
+                dismissedTriggerStartOffset = nil
+                activeTriggerStartOffset = nil
+            }
+            return nil
+        }
+
+        activeTriggerStartOffset = trigger.startOffset
+        guard dismissedTriggerStartOffset != trigger.startOffset else { return nil }
+        return trigger.query
+    }
+
+    public mutating func dismissCurrentTrigger() {
+        dismissedTriggerStartOffset = activeTriggerStartOffset
+    }
+
+    public mutating func reset() {
+        dismissedTriggerStartOffset = nil
+        activeTriggerStartOffset = nil
+    }
+}
+
 @Observable
 @MainActor
 public final class IssueDetailViewModel {
@@ -271,9 +305,21 @@ public final class IssueDetailViewModel {
         return true
     }
 
+    public struct ActiveMentionTrigger: Sendable, Equatable {
+        public let query: String
+        public let startOffset: Int
+    }
+
     public static func activeMentionQuery(in draft: String) -> String? {
+        activeMentionTrigger(in: draft)?.query
+    }
+
+    public static func activeMentionTrigger(in draft: String) -> ActiveMentionTrigger? {
         guard let range = activeMentionTriggerRange(in: draft) else { return nil }
-        return String(draft[range].dropFirst())
+        return ActiveMentionTrigger(
+            query: String(draft[range].dropFirst()),
+            startOffset: draft.distance(from: draft.startIndex, to: range.lowerBound)
+        )
     }
 
     private static func activeMentionTriggerRange(in draft: String) -> Range<String.Index>? {
